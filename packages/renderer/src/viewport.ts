@@ -73,6 +73,16 @@ export class Viewport {
     this.state.translateY += dy;
   }
 
+  // Called when the content itself changes size (crop/rotate/flip committing
+  // a new working bitmap), as opposed to resize() which is for the
+  // container changing size. Re-fits rather than trying to preserve the
+  // prior framing, since the image the user was looking at has changed.
+  setContentSize(width: number, height: number): void {
+    this.contentWidth = width;
+    this.contentHeight = height;
+    this.zoomToFit();
+  }
+
   zoomToFit(): void {
     const scale = clampScale(
       Math.min(this.containerWidth / this.contentWidth, this.containerHeight / this.contentHeight),

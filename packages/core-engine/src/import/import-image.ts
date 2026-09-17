@@ -71,6 +71,31 @@ export async function importImage(blob: Blob, options: ImportImageOptions = {}):
   }
 }
 
+export interface WorkingBitmapResult {
+  bitmap: ImageBitmap;
+  width: number;
+  height: number;
+}
+
+// Re-decodes and downsamples an already-persisted original Blob back to a
+// working bitmap, without re-hashing or regenerating a thumbnail -- used by
+// session resume (docs/phases/phase-1-web-core-mvp.md's "exit and resume an
+// editing session without data loss" exit criterion), where the asset
+// metadata already exists and only the in-memory bitmap needs rebuilding.
+export async function decodeBlobToWorkingBitmap(
+  blob: Blob,
+  workingLongEdge: number = DEFAULT_WORKING_LONG_EDGE,
+): Promise<WorkingBitmapResult> {
+  const source = await decodeBitmap(blob);
+  try {
+    const { width, height } = computeResizeDimensions(source.width, source.height, workingLongEdge);
+    const bitmap = await resizeBitmap(source, width, height);
+    return { bitmap, width, height };
+  } finally {
+    source.close();
+  }
+}
+
 async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(blob, { imageOrientation: 'from-image' });
