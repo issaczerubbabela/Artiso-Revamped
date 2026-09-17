@@ -1,5 +1,5 @@
 {
-  "name": "@drawing-grid/renderer",
+  "name": "@artiso/renderer",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@drawing-grid/core-engine": "workspace:*",
-    "@drawing-grid/shared-types": "workspace:*"
+    "@artiso/core-engine": "workspace:*",
+    "@artiso/shared-types": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

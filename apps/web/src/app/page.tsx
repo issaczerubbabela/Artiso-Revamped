@@ -23,7 +23,7 @@ export default function HomePage() {
           margin: 0,
         }}
       >
-        Drawing Grid
+        Artiso
       </h1>
       {process.env.NODE_ENV === 'development' ? <DevDiagnostics /> : null}
     </main>

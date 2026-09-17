@@ -1,7 +1,7 @@
-# Agent Workflows — Drawing Grid
+# Agent Workflows — Artiso
 
 These are step-by-step build guides for implementing specific features of
-the Drawing Grid rebuild. They assume familiarity with
+the Artiso rebuild. They assume familiarity with
 [`docs/architecture/`](../../docs/architecture/) — read the relevant
 architecture doc(s) linked at the top of each workflow before following it.
 

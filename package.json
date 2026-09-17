@@ -1,5 +1,5 @@
 {
-  "name": "drawing-grid",
+  "name": "artiso",
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "engines": {

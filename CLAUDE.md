@@ -1,4 +1,4 @@
-# Drawing Grid — Agent Instructions
+# Artiso — Agent Instructions
 
 This is a from-scratch rebuild of **Drawing Grid for the Artist** as a
 cross-platform (web, then Android), cross-device-synced reference

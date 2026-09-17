@@ -7,11 +7,11 @@ const nextConfig: NextConfig = {
   output: 'export',
   images: { unoptimized: true },
   transpilePackages: [
-    '@drawing-grid/ui',
-    '@drawing-grid/core-engine',
-    '@drawing-grid/renderer',
-    '@drawing-grid/api-client',
-    '@drawing-grid/shared-types',
+    '@artiso/ui',
+    '@artiso/core-engine',
+    '@artiso/renderer',
+    '@artiso/api-client',
+    '@artiso/shared-types',
   ],
 };
 

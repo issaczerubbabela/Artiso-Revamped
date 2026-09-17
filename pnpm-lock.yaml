@@ -35,19 +35,19 @@ importers:
 
   apps/web:
     dependencies:
-      '@drawing-grid/api-client':
+      '@artiso/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
-      '@drawing-grid/core-engine':
+      '@artiso/core-engine':
         specifier: workspace:*
         version: link:../../packages/core-engine
-      '@drawing-grid/renderer':
+      '@artiso/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
-      '@drawing-grid/shared-types':
+      '@artiso/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
-      '@drawing-grid/ui':
+      '@artiso/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -81,7 +81,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@drawing-grid/shared-types':
+      '@artiso/shared-types':
         specifier: workspace:*
         version: link:../shared-types
       '@supabase/supabase-js':
@@ -103,7 +103,7 @@ importers:
 
   packages/core-engine:
     dependencies:
-      '@drawing-grid/shared-types':
+      '@artiso/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -116,10 +116,10 @@ importers:
 
   packages/renderer:
     dependencies:
-      '@drawing-grid/core-engine':
+      '@artiso/core-engine':
         specifier: workspace:*
         version: link:../core-engine
-      '@drawing-grid/shared-types':
+      '@artiso/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:

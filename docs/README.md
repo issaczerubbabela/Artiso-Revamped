@@ -1,4 +1,4 @@
-# Drawing Grid — Foundational Design Documents
+# Artiso — Foundational Design Documents
 
 This folder contains the Lead-Architect-level design artifacts for rebuilding
 **Drawing Grid for the Artist** as a cross-platform application, derived from

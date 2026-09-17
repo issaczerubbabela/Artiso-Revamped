@@ -1,7 +1,7 @@
 'use client';
 
-import { CORE_ENGINE_VERSION } from '@drawing-grid/core-engine';
-import { RENDERER_VERSION } from '@drawing-grid/renderer';
+import { CORE_ENGINE_VERSION } from '@artiso/core-engine';
+import { RENDERER_VERSION } from '@artiso/renderer';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
 // Dev-only diagnostic proving the monorepo wiring (workspace package

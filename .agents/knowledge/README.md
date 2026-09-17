@@ -1,6 +1,6 @@
-# Knowledge Items — Drawing Grid
+# Knowledge Items — Artiso
 
-Knowledge Items (KIs) are the distilled philosophies of Drawing Grid,
+Knowledge Items (KIs) are the distilled philosophies of Artiso,
 sourced from the reverse-engineered product spec's observed design
 principles (source spec §3, §2.1, §11.6) and extended where the new
 cross-platform/cross-sync scope introduces genuinely new territory the

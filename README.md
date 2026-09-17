@@ -1,4 +1,4 @@
-# Drawing Grid
+# Artiso
 
 A cross-platform reference preparation tool for artists. See
 [`CLAUDE.md`](CLAUDE.md) and [`docs/`](docs/) for the full architecture,
@@ -14,7 +14,7 @@ pnpm test          # headless unit tests (shared-types, core-engine, renderer, u
 pnpm lint          # eslint across the monorepo
 pnpm typecheck     # tsc --noEmit across the monorepo
 pnpm --filter web exec playwright test   # E2E smoke test
-pnpm --filter ui preview:dev             # design-token preview at compact/regular/wide
+pnpm --filter @artiso/ui preview:dev     # design-token preview at compact/regular/wide
 ```
 
 ## Supabase setup (manual, Phase 0)
