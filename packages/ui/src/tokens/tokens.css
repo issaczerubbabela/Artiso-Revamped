@@ -1,0 +1,86 @@
+/*
+ * CSS custom-property mirror of the TS token modules in this directory.
+ * Keep values in sync by hand for now (Phase 0, no build step generates
+ * this file); if the token set grows, revisit generating it from TS.
+ */
+
+:root {
+  /* Color — light (default) */
+  --color-surface: #f6f4ef;
+  --color-surface-raised: #fbfaf7;
+  --color-ink: #201e1b;
+  --color-ink-muted: #6b6459;
+  --color-border: #e3dfd6;
+  --color-accent: #1e7fa6;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #b0402c;
+  --shadow-dock: 0 -2px 12px rgba(32, 30, 27, 0.1);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Typography */
+  --font-family-base: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-label-size: 13px;
+  --font-label-line-height: 16px;
+  --font-label-weight: 500;
+  --font-body-size: 15px;
+  --font-body-line-height: 22px;
+  --font-body-weight: 400;
+  --font-heading-size: 20px;
+  --font-heading-line-height: 26px;
+  --font-heading-weight: 600;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+
+  /* Touch target */
+  --touch-target-min: 44px;
+  --touch-target-recommended: 48px;
+
+  /* Motion */
+  --motion-duration: 180ms;
+  --motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Breakpoints, for reference in comments/JS only — CSS can't consume these
+     as custom properties inside @media, see packages/ui/src/tokens/breakpoints.ts */
+}
+
+:root[data-theme='dark'] {
+  --color-surface: #17191b;
+  --color-surface-raised: #202327;
+  --color-ink: #edeae4;
+  --color-ink-muted: #9b958a;
+  --color-border: #33363a;
+  --color-accent: #5ab4da;
+  --color-accent-contrast: #0b1114;
+  --color-danger: #e27b62;
+  --shadow-dock: 0 -2px 12px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-surface: #17191b;
+    --color-surface-raised: #202327;
+    --color-ink: #edeae4;
+    --color-ink-muted: #9b958a;
+    --color-border: #33363a;
+    --color-accent: #5ab4da;
+    --color-accent-contrast: #0b1114;
+    --color-danger: #e27b62;
+    --shadow-dock: 0 -2px 12px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0ms;
+  }
+}
