@@ -3,10 +3,14 @@ import { test, expect } from '@playwright/test';
 
 const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'reference.png');
 
+// Explicit phone-sized viewport so this test deterministically exercises the
+// Compact bottom-sheet chrome regardless of Playwright's own default
+// viewport -- see golden-path-wide.spec.ts for the same flow at Wide.
+test.use({ viewport: { width: 390, height: 844 } });
+
 // Covers the full Phase 1 golden path (docs/phases/phase-1-web-core-mvp.md):
 // Import -> Prepare (rotate) -> Grid -> Export, plus the "exit and resume a
-// session without data loss" exit criterion. Compact breakpoint only -- the
-// Wide side-dock chrome doesn't exist yet (see WorkspaceShell.tsx).
+// session without data loss" exit criterion.
 test('import, edit, grid, export, and resume a session', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Artiso' })).toBeVisible();
@@ -39,10 +43,12 @@ test('import, edit, grid, export, and resume a session', async ({ page }) => {
   await brightnessSlider.fill('50');
   await expect(page.getByText('Brightness (50)')).toBeVisible();
 
-  // Export produces a real file download.
+  // Export produces a real file download. "Export image" (the panel's own
+  // action button) is a distinct accessible name from the toolbar's "Export"
+  // mode-switch button, so this doesn't depend on DOM order.
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Export image' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('reference.png');
 

@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import { CanvasStage } from '@/canvas/CanvasStage';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
 import { resumeSession } from '@/session/resume-session';
+import { useBreakpoint } from './use-breakpoint';
 import { Toolbar } from './Toolbar';
 import { BottomSheet } from './BottomSheet';
+import { SideRail } from './SideRail';
+import { SideDock } from './SideDock';
 import { CropOverlay, type NormalizedRect } from './panels/CropOverlay';
 import { CropPanel } from './panels/CropPanel';
 import { RotateFlipPanel } from './panels/RotateFlipPanel';
@@ -24,12 +27,13 @@ const PANEL_TITLES: Record<ToolMode, string> = {
   export: 'Export',
 };
 
-// Compact-breakpoint workspace shell: canvas dominates, chrome is a toolbar
-// plus one bottom sheet for whichever tool mode is active -- never more than
-// one mode's controls visible at once (ki-sequential-progressive-workflow).
-// The Wide-breakpoint side-dock variant is follow-up work; this pass only
-// builds the Compact chrome.
+// Adaptive, not two apps (CLAUDE.md): one component tree, chrome swaps by
+// breakpoint (docs/architecture/06-workspace-interaction.md). Compact/Regular
+// get a bottom toolbar + bottom sheet; Wide gets a persistent left rail plus
+// a right dock that collapses smoothly rather than the Compact sheet's
+// instant show/hide.
 export function WorkspaceShell() {
+  const breakpoint = useBreakpoint();
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const importError = useWorkspaceStore((s) => s.importError);
@@ -47,18 +51,32 @@ export function WorkspaceShell() {
     }
   }, [toolMode, requestViewportReset]);
 
+  const canvasArea = (
+    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      {hasReference ? (
+        <>
+          <CanvasStage />
+          {toolMode === 'crop' ? <CropOverlay rect={cropRect} onChange={setCropRect} /> : null}
+        </>
+      ) : (
+        <EmptyState error={importError} />
+      )}
+    </div>
+  );
+
+  if (breakpoint === 'wide') {
+    return (
+      <div style={{ display: 'flex', height: '100dvh', background: 'var(--color-surface)' }}>
+        <SideRail />
+        {canvasArea}
+        <SideDock cropRect={cropRect} onResetCropRect={() => setCropRect(FULL_FRAME)} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-surface)' }}>
-      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-        {hasReference ? (
-          <>
-            <CanvasStage />
-            {toolMode === 'crop' ? <CropOverlay rect={cropRect} onChange={setCropRect} /> : null}
-          </>
-        ) : (
-          <EmptyState error={importError} />
-        )}
-      </div>
+      {canvasArea}
 
       {toolMode !== 'idle' && hasReference ? (
         <BottomSheet title={PANEL_TITLES[toolMode]}>

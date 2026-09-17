@@ -70,7 +70,7 @@ export function ExportPanel() {
       </PanelButton>
 
       <PanelButton variant="primary" onClick={() => void handleExport()} disabled={isExporting || !assetId}>
-        {isExporting ? 'Exporting…' : 'Export'}
+        {isExporting ? 'Exporting…' : 'Export image'}
       </PanelButton>
 
       {error ? (
