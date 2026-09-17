@@ -1,4 +1,8 @@
-// Canvas2D/WebGL compositor consuming core-engine output. The two-canvas
-// image-layer/grid-layer architecture and Viewport transform land in Phase 1
-// (see docs/architecture/05-canvas-renderer.md).
+// Canvas2D/WebGL compositor consuming core-engine output. See
+// docs/architecture/05-canvas-renderer.md for the two-canvas architecture.
 export const RENDERER_VERSION = '0.0.0';
+
+export * from './viewport';
+export * from './input-controller';
+export * from './image-layer';
+export * from './grid-layer';

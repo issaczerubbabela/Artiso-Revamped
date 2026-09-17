@@ -7,3 +7,4 @@ export const CORE_ENGINE_VERSION = '0.0.0';
 export * from './grid';
 export * from './geometry';
 export * from './import';
+export * from './adjustments';
