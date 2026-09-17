@@ -55,3 +55,14 @@ export async function updateReference(
   await db.put('references', updated);
   return updated;
 }
+
+// Overwrites the local row verbatim with an already-versioned Reference
+// pulled from Supabase -- used only when reconciling after a sync push comes
+// back 'stale' (docs/architecture/08's last-write-wins). Unlike
+// updateReference, this never bumps version: the incoming row's version is
+// already authoritative, so incrementing it here would make the next local
+// edit's version collide with what the server expects.
+export async function applyRemoteReference(reference: Reference): Promise<void> {
+  const db = await getDb();
+  await db.put('references', reference);
+}

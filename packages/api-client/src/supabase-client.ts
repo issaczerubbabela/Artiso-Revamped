@@ -9,7 +9,7 @@ let client: SupabaseClient | null = null;
 
 // Reads env vars but throws only when actually called — never at import time
 // — so `pnpm build` in CI never needs real Supabase secrets (no page calls
-// this during static generation in Phase 0).
+// this during static generation).
 export function getSupabaseEnv(): SupabaseEnv {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -23,8 +23,8 @@ export function getSupabaseEnv(): SupabaseEnv {
 }
 
 // Public interface is our own types (SupabaseEnv, callers use the returned
-// client only through this package's own functions like fetchSmokeRows), not
-// a direct re-export of the raw Supabase client shape — keeps a future
+// client only through this package's own functions like signIn/syncReference),
+// not a direct re-export of the raw Supabase client shape — keeps a future
 // self-hosted-backend migration realistic (see docs/architecture/08).
 export function getSupabaseClient(): SupabaseClient {
   if (client) return client;
