@@ -1,0 +1,18 @@
+@import '@drawing-grid/ui/tokens.css';
+
+/* Minimal reset only — no product styling in Phase 0. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-family-base);
+}

@@ -1,0 +1,30 @@
+{
+  "name": "web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no unit tests in apps/web (see e2e/ for Playwright)\""
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0",
+    "@drawing-grid/ui": "workspace:*",
+    "@drawing-grid/core-engine": "workspace:*",
+    "@drawing-grid/renderer": "workspace:*",
+    "@drawing-grid/api-client": "workspace:*",
+    "@drawing-grid/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^22.10.0",
+    "@playwright/test": "^1.49.0"
+  }
+}
