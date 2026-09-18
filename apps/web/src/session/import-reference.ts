@@ -1,4 +1,4 @@
-import { importImage } from '@artiso/core-engine';
+import { deterministicUuid, importImage } from '@artiso/core-engine';
 import { LOCAL_OWNER_ID, createReference, saveAsset, scheduleReferenceSync, updateProject } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
 import { useWorkspaceStore } from '@/state/workspace-store';
@@ -24,7 +24,9 @@ export async function importReference(): Promise<void> {
     const ownerId = useAuthStore.getState().user?.id ?? LOCAL_OWNER_ID;
 
     const project = await createProjectAction(`Reference — ${new Date().toLocaleDateString()}`);
+    const assetId = await deterministicUuid(`${ownerId}:${imported.contentHash}`);
     const asset = await saveAsset({
+      id: assetId,
       ownerId,
       contentHash: imported.contentHash,
       width: imported.originalWidth,
@@ -33,6 +35,10 @@ export async function importReference(): Promise<void> {
       originalBlob: blob,
       thumbnailBlob: await bitmapToBlob(imported.thumbnailBitmap),
     });
+    // Only set locally here -- pushed to Supabase later, from inside the
+    // sync queue, after the asset it points at is confirmed synced (see
+    // queue.ts's runReferenceSync). Pushing it immediately would race the
+    // asset upload and violate projects_thumbnail_asset_id_fkey.
     await updateProject(project.id, { thumbnailAssetId: asset.id });
     const reference = await createReference({
       projectId: project.id,

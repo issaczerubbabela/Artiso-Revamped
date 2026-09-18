@@ -38,6 +38,15 @@ export async function pullReference(id: string): Promise<Reference | null> {
   return data ? rowToReference(data as ReferenceRow) : null;
 }
 
+// Opening a Project pulled from another device (via mergeRemoteProjects on
+// sign-in) has no local References yet -- this is how open-project.ts
+// discovers them before falling back to "this project has nothing to open".
+export async function pullReferencesForProject(projectId: string): Promise<Reference[]> {
+  const { data, error } = await getSupabaseClient().from('references').select('*').eq('project_id', projectId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as ReferenceRow[]).map(rowToReference);
+}
+
 function rowToReference(row: ReferenceRow): Reference {
   return {
     id: row.id,

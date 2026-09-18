@@ -31,6 +31,13 @@ create table if not exists public.projects (
 );
 
 -- storageKey convention: originals/{ownerId}/{contentHash}.{ext} (docs/architecture/08).
+-- id is content-derived (core-engine's deterministicUuid over
+-- ownerId+contentHash, computed at import time) rather than randomly
+-- generated, so uniqueness on (owner_id, content_hash) is enforced by the
+-- primary key itself -- no separate unique constraint needed (an earlier
+-- version of this migration had one; dropped below for anyone re-running
+-- against a database that still has it, since it actively conflicts with a
+-- deterministic-id insert if any row from before that change exists).
 create table if not exists public.assets (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
@@ -39,9 +46,10 @@ create table if not exists public.assets (
   width integer not null,
   height integer not null,
   size_bytes bigint not null,
-  created_at timestamptz not null default now(),
-  unique (owner_id, content_hash)
+  created_at timestamptz not null default now()
 );
+
+alter table public.assets drop constraint if exists assets_owner_id_content_hash_key;
 
 do $$
 begin
@@ -175,6 +183,18 @@ drop policy if exists originals_owner_write on storage.objects;
 create policy originals_owner_write on storage.objects
   for insert with check (bucket_id = 'originals' and (storage.foldername(name))[1] = auth.uid()::text);
 
+-- Storage paths are content-hash-derived (same content -> same path always),
+-- and syncAsset() calls upload(..., { upsert: true }). Without an UPDATE
+-- policy, re-uploading to a path that already exists (a legitimate retry, or
+-- simply importing the same photo again after local storage was cleared)
+-- fails with "new row violates row-level security policy" -- a misleading
+-- error for what's actually a missing policy, since upsert-into-an-existing-
+-- object is an UPDATE at the storage layer, not an INSERT.
+drop policy if exists originals_owner_update on storage.objects;
+create policy originals_owner_update on storage.objects
+  for update using (bucket_id = 'originals' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'originals' and (storage.foldername(name))[1] = auth.uid()::text);
+
 drop policy if exists thumbnails_owner_read on storage.objects;
 create policy thumbnails_owner_read on storage.objects
   for select using (bucket_id = 'thumbnails' and (storage.foldername(name))[1] = auth.uid()::text);
@@ -182,3 +202,8 @@ create policy thumbnails_owner_read on storage.objects
 drop policy if exists thumbnails_owner_write on storage.objects;
 create policy thumbnails_owner_write on storage.objects
   for insert with check (bucket_id = 'thumbnails' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists thumbnails_owner_update on storage.objects;
+create policy thumbnails_owner_update on storage.objects
+  for update using (bucket_id = 'thumbnails' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'thumbnails' and (storage.foldername(name))[1] = auth.uid()::text);

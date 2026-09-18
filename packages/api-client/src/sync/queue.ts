@@ -1,5 +1,6 @@
-import { applyRemoteReference, getAsset, getAssetBlob, getReference } from '../local';
+import { applyRemoteReference, getAsset, getAssetBlob, getProject, getReference } from '../local';
 import { syncAsset } from './asset';
+import { syncProject } from './project';
 import { pullReference, syncReference } from './reference';
 import { setSyncStatus } from './status';
 
@@ -35,8 +36,12 @@ async function runReferenceSync(projectId: string, referenceId: string): Promise
     const reference = await getReference(referenceId);
     if (!reference) return;
 
-    // Upload the asset (if not already uploaded) before the reference row
-    // that references it, per docs/architecture/08.
+    // Upload the asset (if not already uploaded) before anything that
+    // references it, per docs/architecture/08 -- both the reference row
+    // below and the project's own thumbnail_asset_id (pushed only now, not
+    // eagerly at project-creation time) have a foreign key to it, and
+    // pushing either first would violate that key before the asset row
+    // exists remotely.
     const asset = await getAsset(reference.originalAssetId);
     if (asset) {
       const [originalBlob, thumbnailBlob] = await Promise.all([
@@ -47,6 +52,9 @@ async function runReferenceSync(projectId: string, referenceId: string): Promise
         await syncAsset(asset, originalBlob, thumbnailBlob);
       }
     }
+
+    const project = await getProject(projectId);
+    if (project) await syncProject(project).catch(() => {});
 
     const result = await syncReference(reference);
     if (result === 'stale') {

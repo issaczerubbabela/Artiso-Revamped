@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Project } from '@artiso/shared-types';
-import { getAssetBlob, listProjects } from '@artiso/api-client';
+import { downloadAndCacheAsset, getAssetBlob, listProjects } from '@artiso/api-client';
 import { AuthPanel } from '@/auth/AuthPanel';
 import { PanelButton } from '@/workspace/PanelButton';
 import { importReference } from '@/session/import-reference';
@@ -144,13 +144,26 @@ function ProjectCard({
   useEffect(() => {
     let cancelled = false;
     let url: string | null = null;
-    if (project.thumbnailAssetId) {
-      void getAssetBlob(project.thumbnailAssetId, 'thumbnail').then((blob) => {
-        if (cancelled || !blob) return;
-        url = URL.createObjectURL(blob);
-        setThumbnailUrl(url);
-      });
+
+    async function loadThumbnail() {
+      const assetId = project.thumbnailAssetId;
+      if (!assetId) return;
+      // A project pulled from another device (mergeRemoteProjects on
+      // sign-in) has metadata but no downloaded bytes yet -- the full
+      // original is only fetched when the project is actually opened, so
+      // the card falls back to downloading here rather than showing a
+      // permanent "No preview" for anything not opened yet.
+      let blob = await getAssetBlob(assetId, 'thumbnail');
+      if (!blob) {
+        await downloadAndCacheAsset(assetId).catch(() => {});
+        blob = await getAssetBlob(assetId, 'thumbnail');
+      }
+      if (cancelled || !blob) return;
+      url = URL.createObjectURL(blob);
+      setThumbnailUrl(url);
     }
+
+    void loadThumbnail();
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);

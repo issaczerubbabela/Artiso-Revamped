@@ -1,5 +1,5 @@
 import { applyGeometryOps, decodeBlobToWorkingBitmap } from '@artiso/core-engine';
-import { getAssetBlob } from '@artiso/api-client';
+import { downloadAndCacheAsset, getAssetBlob } from '@artiso/api-client';
 import type { Project, Reference } from '@artiso/shared-types';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
@@ -9,7 +9,14 @@ import { useWorkspaceStore } from '@/state/workspace-store';
 // a page reload -- and replays the saved EditStack's geometry ops on top of
 // it, then restores the rest of the EditStack and GridConfig as data.
 export async function loadReferenceIntoWorkspace(project: Project, reference: Reference): Promise<void> {
-  const originalBlob = await getAssetBlob(reference.originalAssetId, 'original');
+  let originalBlob = await getAssetBlob(reference.originalAssetId, 'original');
+  if (!originalBlob) {
+    // Not cached locally -- this reference's asset was uploaded from a
+    // different device. Best-effort: if this fails (offline, signed out,
+    // not actually in Storage), the clear error below still fires.
+    await downloadAndCacheAsset(reference.originalAssetId).catch(() => {});
+    originalBlob = await getAssetBlob(reference.originalAssetId, 'original');
+  }
   if (!originalBlob) throw new Error('Original image is no longer available.');
 
   const decoded = await decodeBlobToWorkingBitmap(originalBlob);
