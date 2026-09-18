@@ -213,6 +213,39 @@ describe('ReferenceSchema', () => {
       }).success,
     ).toBe(true);
   });
+
+  it('defaults secondaryGridConfig to null for references saved before layered grids existed', () => {
+    const result = ReferenceSchema.safeParse({
+      id: ID,
+      projectId: ID,
+      originalAssetId: ID,
+      editStack: [],
+      gridConfig,
+      notes: '',
+      createdAt: NOW,
+      updatedAt: NOW,
+      version: 1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.secondaryGridConfig).toBeNull();
+  });
+
+  it('accepts an explicit secondaryGridConfig of a different guide type', () => {
+    const result = ReferenceSchema.safeParse({
+      id: ID,
+      projectId: ID,
+      originalAssetId: ID,
+      editStack: [],
+      gridConfig,
+      secondaryGridConfig: { type: 'ruleOfThirds', color: '#000000', opacity: 50, thickness: 'thin', visible: true },
+      notes: '',
+      createdAt: NOW,
+      updatedAt: NOW,
+      version: 1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.secondaryGridConfig?.type).toBe('ruleOfThirds');
+  });
 });
 
 describe('PresetSchema', () => {

@@ -18,6 +18,7 @@ interface LoadedReference {
   workingHeight: number;
   editStack: Operation[];
   gridConfig: GridConfig;
+  secondaryGridConfig: GridConfig | null;
 }
 
 interface WorkspaceState {
@@ -37,6 +38,11 @@ interface WorkspaceState {
   workingHeight: number;
   editStack: Operation[];
   gridConfig: GridConfig;
+  // Layered grids (docs/phases/phase-7-guides-workspace-export.md): an
+  // optional second guide overlaid on the primary one. null means no layer
+  // -- GridPanel's "Add layer" action is what first populates this via
+  // setSecondaryGridType.
+  secondaryGridConfig: GridConfig | null;
 
   // Transient, per-session UI state -- not part of the persisted Reference
   // (only a saved Preset durably bundles export settings). Shared between
@@ -60,6 +66,9 @@ interface WorkspaceState {
   setFilter: (filterId: FilterId | null, params?: Record<string, number>) => void;
   setGridConfig: (patch: Partial<GridConfig>) => void;
   setGridType: (type: GridConfig['type']) => void;
+  setSecondaryGridConfig: (patch: Partial<GridConfig>) => void;
+  setSecondaryGridType: (type: GridConfig['type']) => void;
+  removeSecondaryGrid: () => void;
   applyPreset: (input: { gridConfig: GridConfig; filterStack: Operation[]; exportSettings: ExportSettings }) => void;
   reset: () => void;
 }
@@ -71,10 +80,14 @@ let persistTimer: ReturnType<typeof setTimeout> | undefined;
 // handed off to api-client's own sync queue, which debounces again on its
 // own longer ~2s window (docs/architecture/08) -- this local persist and the
 // network sync are deliberately two separate debounces, not one.
-function schedulePersist(projectId: string, referenceId: string, editStack: Operation[], gridConfig: GridConfig): void {
+function schedulePersist(
+  projectId: string,
+  referenceId: string,
+  patch: { editStack: Operation[]; gridConfig: GridConfig; secondaryGridConfig: GridConfig | null },
+): void {
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
-    void updateReference(referenceId, { editStack, gridConfig }).then(() => {
+    void updateReference(referenceId, patch).then(() => {
       if (useAuthStore.getState().user) scheduleReferenceSync(projectId, referenceId);
     });
   }, 400);
@@ -97,6 +110,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workingHeight: 0,
   editStack: [],
   gridConfig: DEFAULT_GRID_CONFIG,
+  secondaryGridConfig: null,
 
   exportSettings: DEFAULT_EXPORT_SETTINGS,
   setExportSettings: (patch) => set((state) => ({ exportSettings: { ...state.exportSettings, ...patch } })),
@@ -114,6 +128,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: input.workingHeight,
       editStack: input.editStack,
       gridConfig: input.gridConfig,
+      secondaryGridConfig: input.secondaryGridConfig,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       toolMode: 'idle',
       importError: null,
@@ -135,7 +150,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: result.height,
       editStack,
     });
-    schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
+    schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
   },
 
   // One slider, one current value -- a later commit replaces the earlier
@@ -144,7 +159,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const editStack = [...state.editStack.filter((op) => op.type !== type), { type, value } as Operation];
     set({ editStack });
-    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    }
   },
 
   // At most one active structural filter at a time -- setting a new one (or
@@ -155,7 +172,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const withoutFilter = state.editStack.filter((op) => op.type !== 'filter');
     const editStack: Operation[] = filterId ? [...withoutFilter, { type: 'filter', id: filterId, params }] : withoutFilter;
     set({ editStack });
-    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    }
   },
 
   // Callers only ever patch fields that belong to the currently-active
@@ -167,7 +186,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const gridConfig = { ...state.gridConfig, ...patch } as GridConfig;
     set({ gridConfig });
-    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    }
   },
 
   // Switching guide type can't be a patch -- rows/cols mean nothing to a
@@ -178,12 +199,50 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const { color, opacity, thickness, visible } = state.gridConfig;
     const gridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
     set({ gridConfig });
-    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    }
+  },
+
+  // Same patch-merge contract as setGridConfig, but for the optional
+  // secondary (layered) guide -- a no-op if no secondary layer is active,
+  // since GridPanel only shows these controls once one exists.
+  setSecondaryGridConfig: (patch) => {
+    const state = get();
+    if (!state.secondaryGridConfig) return;
+    const secondaryGridConfig = { ...state.secondaryGridConfig, ...patch } as GridConfig;
+    set({ secondaryGridConfig });
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig });
+    }
+  },
+
+  // Also doubles as "add a layer" when no secondary config exists yet --
+  // GridPanel's "Add layer" button calls this directly with a starting type.
+  setSecondaryGridType: (type) => {
+    const state = get();
+    const base = state.secondaryGridConfig ?? state.gridConfig;
+    const { color, opacity, thickness, visible } = base;
+    const secondaryGridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
+    set({ secondaryGridConfig });
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig });
+    }
+  },
+
+  removeSecondaryGrid: () => {
+    const state = get();
+    set({ secondaryGridConfig: null });
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig: null });
+    }
   },
 
   // Grid + filter stack from a saved Preset, layered on top of whatever
   // geometry (crop/rotate/flip) already happened to this specific photo --
-  // a preset is a reusable style, not a framing decision.
+  // a preset is a reusable style, not a framing decision. Presets don't
+  // carry a secondary guide (PresetSchema has no such field yet), so
+  // applying one only ever touches the primary gridConfig.
   applyPreset: (input) => {
     const state = get();
     const geometryOps = state.editStack.filter(
@@ -191,7 +250,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     );
     const editStack = [...geometryOps, ...input.filterStack];
     set({ editStack, gridConfig: input.gridConfig, exportSettings: input.exportSettings });
-    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, input.gridConfig);
+    if (state.referenceId && state.projectId) {
+      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: input.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    }
   },
 
   reset: () =>
@@ -205,6 +266,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: 0,
       editStack: [],
       gridConfig: DEFAULT_GRID_CONFIG,
+      secondaryGridConfig: null,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       importError: null,
     }),

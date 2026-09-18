@@ -1,5 +1,5 @@
 import { applyGeometryOps, deriveAdjustments, generateGridGeometry } from '@artiso/core-engine';
-import { GridLayer, ImageLayer } from '@artiso/renderer';
+import { GridLayer, ImageLayer, type GridDrawLayer } from '@artiso/renderer';
 import type { ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
 import { getAssetBlob } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
@@ -8,6 +8,7 @@ export interface ExportOptions extends ExportSettings {
   assetId: string;
   editStack: Operation[];
   gridConfig: GridConfig;
+  secondaryGridConfig: GridConfig | null;
 }
 
 const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0 };
@@ -53,10 +54,23 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   if (options.includeGrid) {
     const gridCanvas = new OffscreenCanvas(geometry.width, geometry.height);
     const gridLayer = new GridLayer(gridCanvas);
-    const gridGeometry = generateGridGeometry(geometry.width, geometry.height, options.gridConfig);
     // Export's includeGrid toggle is its own decision, independent of
-    // whether the grid happens to be hidden in the live workspace right now.
-    gridLayer.draw(gridGeometry, { ...options.gridConfig, visible: true }, IDENTITY_VIEWPORT, geometry.width, geometry.height);
+    // whether the grid happens to be hidden in the live workspace right now
+    // -- both the primary and (if present) the layered secondary guide
+    // force visible: true here for the same reason.
+    const layers: GridDrawLayer[] = [
+      {
+        geometry: generateGridGeometry(geometry.width, geometry.height, options.gridConfig),
+        config: { ...options.gridConfig, visible: true },
+      },
+    ];
+    if (options.secondaryGridConfig) {
+      layers.push({
+        geometry: generateGridGeometry(geometry.width, geometry.height, options.secondaryGridConfig),
+        config: { ...options.secondaryGridConfig, visible: true },
+      });
+    }
+    gridLayer.draw(layers, IDENTITY_VIEWPORT, geometry.width, geometry.height);
     outputCtx.drawImage(gridCanvas, 0, 0);
   }
 

@@ -75,6 +75,13 @@ create table if not exists public."references" (
   version integer not null default 1
 );
 
+-- Layered grids (docs/phases/phase-7-guides-workspace-export.md): an
+-- optional second guide overlaid on the primary one. Nullable and additive,
+-- so this is safe to run against a database that already has rows from
+-- before this column existed -- they just get secondary_grid_config = null,
+-- matching shared-types' ReferenceSchema default.
+alter table public."references" add column if not exists secondary_grid_config jsonb;
+
 create index if not exists references_project_id_idx on public."references" (project_id);
 
 create table if not exists public.presets (

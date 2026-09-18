@@ -13,6 +13,7 @@ export function ExportPanel() {
   const assetId = useWorkspaceStore((s) => s.assetId);
   const editStack = useWorkspaceStore((s) => s.editStack);
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
   const exportSettings = useWorkspaceStore((s) => s.exportSettings);
   const setExportSettings = useWorkspaceStore((s) => s.setExportSettings);
 
@@ -24,7 +25,7 @@ export function ExportPanel() {
     setIsExporting(true);
     setError(null);
     try {
-      await exportReference({ assetId, editStack, gridConfig, ...exportSettings });
+      await exportReference({ assetId, editStack, gridConfig, secondaryGridConfig, ...exportSettings });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed.');
     } finally {

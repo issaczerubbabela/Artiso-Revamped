@@ -34,5 +34,6 @@ export async function loadReferenceIntoWorkspace(project: Project, reference: Re
     workingHeight: replayed.height,
     editStack: reference.editStack,
     gridConfig: reference.gridConfig,
+    secondaryGridConfig: reference.secondaryGridConfig,
   });
 }

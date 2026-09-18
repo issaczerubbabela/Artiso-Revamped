@@ -57,6 +57,7 @@ export async function importReference(): Promise<void> {
       workingHeight: imported.workingHeight,
       editStack: [],
       gridConfig: reference.gridConfig,
+      secondaryGridConfig: reference.secondaryGridConfig,
     });
     useAppViewStore.getState().showWorkspace(project.id);
   } catch (error) {

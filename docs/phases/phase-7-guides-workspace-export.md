@@ -29,10 +29,13 @@ task; see [Deferred](#deferred).
 
 **Guides** ([04-grid-engine.md](../architecture/04-grid-engine.md),
 [.agents/workflows/add-new-grid-type-recipe.md](../../.agents/workflows/add-new-grid-type-recipe.md))
-- [ ] Perspective grids (one/two/three-point)
-- [ ] Radial grids
-- [ ] Golden Ratio / Rule of Thirds overlays
-- [ ] Layered grids (major + minor simultaneously)
+- [x] Perspective grids (one/two/three-point)
+- [x] Radial grids
+- [x] Golden Ratio / Rule of Thirds overlays
+- [x] Layered grids (major + minor simultaneously) -- implemented as an
+      optional `secondaryGridConfig` on Reference, rendered as a second
+      overlay pass by `GridLayer.draw()`'s new `layers` array, per the
+      recipe's "composition, not a new type" rule
 
 **Export** ([07-export-engine.md](../architecture/07-export-engine.md))
 - [ ] SVG grid-only export (vector, print-shop friendly)
@@ -63,10 +66,14 @@ task; see [Deferred](#deferred).
 
 ## Exit criteria
 
-- [ ] Each new grid type generates correct geometry headlessly-tested in
+- [x] Each new grid type generates correct geometry headlessly-tested in
       `core-engine`, and the renderer requires zero changes to draw it (per
       the grid-type recipe's own verification step -- if the renderer needed
-      changes, the `GridGeometry {lines, labels}` abstraction was violated)
+      changes, the `GridGeometry {lines, labels}` abstraction was violated).
+      Verified live via `apps/web/e2e/grid-types.spec.ts`; `GridLayer.draw()`
+      did change signature (single geometry -> `layers[]`) to support
+      layering, which is the recipe's explicitly-allowed exception, not a
+      violation of the zero-changes-per-type rule.
 - [ ] SVG and PDF export produce correctly-configured output for a
       representative reference, verified by inspection (structure/content),
       not just "a file was produced"

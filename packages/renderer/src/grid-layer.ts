@@ -19,10 +19,22 @@ const LABEL_FONT_PX = 14;
 
 type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
+export interface GridDrawLayer {
+  geometry: GridGeometry;
+  config: Pick<GridConfig, 'visible' | 'color' | 'opacity' | 'thickness'>;
+}
+
 // Canvas2D grid layer: the top canvas of the two-canvas compositor. Draws
 // cached GridGeometry (image-space) reprojected through the current Viewport
 // transform every frame -- the geometry itself is never recomputed for
 // pan/zoom (ki-grid-image-independence).
+//
+// Accepts a list of layers rather than one geometry+config, so a "layered
+// grid" (major + minor, or any two guide types stacked) is a composition
+// pass here rather than a new grid type upstream
+// (.agents/workflows/add-new-grid-type-recipe.md's step 6) -- each layer is
+// still just LineSegment[]/Label[], so this still requires zero knowledge of
+// what generated any of them.
 export class GridLayer {
   private readonly ctx: Canvas2DContext;
 
@@ -32,43 +44,40 @@ export class GridLayer {
     this.ctx = ctx;
   }
 
-  draw(
-    geometry: GridGeometry,
-    config: Pick<GridConfig, 'visible' | 'color' | 'opacity' | 'thickness'>,
-    viewport: ViewportState,
-    canvasWidth: number,
-    canvasHeight: number,
-  ): void {
+  draw(layers: GridDrawLayer[], viewport: ViewportState, canvasWidth: number, canvasHeight: number): void {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    if (!config.visible) return;
 
     ctx.save();
     ctx.translate(viewport.translateX, viewport.translateY);
     ctx.scale(viewport.scale, viewport.scale);
 
-    ctx.globalAlpha = config.opacity / 100;
-    ctx.strokeStyle = config.color;
-    ctx.lineWidth = THICKNESS_PX[config.thickness] / viewport.scale;
+    for (const { geometry, config } of layers) {
+      if (!config.visible) continue;
 
-    for (const line of geometry.lines) {
-      ctx.beginPath();
-      ctx.moveTo(line.x1, line.y1);
-      ctx.lineTo(line.x2, line.y2);
-      ctx.stroke();
-    }
+      ctx.globalAlpha = config.opacity / 100;
+      ctx.strokeStyle = config.color;
+      ctx.lineWidth = THICKNESS_PX[config.thickness] / viewport.scale;
 
-    // Whether labels exist at all is the grid engine's decision (only the
-    // rectangular type generates any, and only when numberingMode isn't
-    // 'off'/'custom') -- the renderer just draws whatever geometry.labels
-    // contains, never re-deciding based on config shape.
-    if (geometry.labels.length > 0) {
-      ctx.fillStyle = config.color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `${LABEL_FONT_PX / viewport.scale}px system-ui, sans-serif`;
-      for (const label of geometry.labels) {
-        ctx.fillText(label.text, label.x, label.y);
+      for (const line of geometry.lines) {
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.stroke();
+      }
+
+      // Whether labels exist at all is the grid engine's decision (only the
+      // rectangular type generates any, and only when numberingMode isn't
+      // 'off'/'custom') -- the renderer just draws whatever geometry.labels
+      // contains, never re-deciding based on config shape.
+      if (geometry.labels.length > 0) {
+        ctx.fillStyle = config.color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${LABEL_FONT_PX / viewport.scale}px system-ui, sans-serif`;
+        for (const label of geometry.labels) {
+          ctx.fillText(label.text, label.x, label.y);
+        }
       }
     }
 

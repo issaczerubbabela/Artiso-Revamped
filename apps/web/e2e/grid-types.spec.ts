@@ -48,3 +48,37 @@ test('every guide type is selectable and renders on the canvas', async ({ page }
   await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
   await expect(page.getByRole('button', { name: '8×8' })).toBeVisible();
 });
+
+// Covers .agents/workflows/add-new-grid-type-recipe.md's step 6: layered
+// grids are a composition of two GridGeometry results, not a new type --
+// this confirms the second guide can be added, configured independently of
+// the primary one, and removed again without disturbing the primary.
+test('a second, layered guide can be added, configured, and removed', async ({ page }) => {
+  await page.goto('/');
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'New reference' }).click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles(FIXTURE_IMAGE);
+
+  const canvas = page.locator('canvas').first();
+  await canvas.waitFor({ state: 'visible', timeout: 15000 });
+  await page.getByRole('button', { name: 'Grid', exact: true }).click();
+
+  await expect(page.getByRole('button', { name: 'Remove layer' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add layered guide' }).click();
+  await expect(page.getByRole('button', { name: 'Remove layer' })).toBeVisible();
+  await expect(canvas).toBeVisible();
+
+  // Two independent "Guide type" editors now exist (primary + secondary) --
+  // there are two "Perspective" type-selector buttons, and switching the
+  // second one shouldn't touch the primary's own type.
+  await expect(page.getByRole('button', { name: 'Perspective', exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Perspective', exact: true }).nth(1).click();
+  await expect(page.getByRole('button', { name: 'Hide layer' })).toBeVisible();
+  // Primary is untouched: its own density controls are still showing.
+  await expect(page.getByRole('button', { name: '8×8' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove layer' }).click();
+  await expect(page.getByRole('button', { name: 'Add layered guide' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Perspective', exact: true })).toHaveCount(1);
+});

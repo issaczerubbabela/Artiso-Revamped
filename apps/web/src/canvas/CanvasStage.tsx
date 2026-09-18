@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { deriveAdjustments, generateGridGeometry, type GridGeometry } from '@artiso/core-engine';
-import { GridLayer, ImageLayer, InputController, Viewport } from '@artiso/renderer';
+import { GridLayer, ImageLayer, InputController, Viewport, type GridDrawLayer } from '@artiso/renderer';
 import type { GridConfig } from '@artiso/shared-types';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
@@ -29,6 +29,7 @@ export function CanvasStage() {
   const gridCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const geometryCacheRef = useRef<{ key: string; geometry: GridGeometry } | null>(null);
+  const secondaryGeometryCacheRef = useRef<{ key: string; geometry: GridGeometry } | null>(null);
 
   // Mounted exactly once: Viewport (and therefore the user's current pan/zoom)
   // survives every later adjustment, grid-config, or geometry-op change --
@@ -77,13 +78,17 @@ export function CanvasStage() {
         state.workingHeight,
         state.gridConfig,
       );
-      engine.gridLayer.draw(
-        geometry,
-        state.gridConfig,
-        engine.viewport.getState(),
-        engine.pixelWidth,
-        engine.pixelHeight,
-      );
+      const layers: GridDrawLayer[] = [{ geometry, config: state.gridConfig }];
+      if (state.secondaryGridConfig) {
+        const secondaryGeometry = getCachedGridGeometry(
+          secondaryGeometryCacheRef,
+          state.workingWidth,
+          state.workingHeight,
+          state.secondaryGridConfig,
+        );
+        layers.push({ geometry: secondaryGeometry, config: state.secondaryGridConfig });
+      }
+      engine.gridLayer.draw(layers, engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight);
     }
 
     engine.input = new InputController({
@@ -135,6 +140,7 @@ export function CanvasStage() {
   const workingHeight = useWorkspaceStore((s) => s.workingHeight);
   const editStack = useWorkspaceStore((s) => s.editStack);
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
   const viewportResetSignal = useWorkspaceStore((s) => s.viewportResetSignal);
 
   // A committed geometry op (crop/rotate/flip) swaps the bitmap -- re-fit the
@@ -153,7 +159,7 @@ export function CanvasStage() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.dirty = true;
-  }, [editStack, gridConfig]);
+  }, [editStack, gridConfig, secondaryGridConfig]);
 
   useEffect(() => {
     const engine = engineRef.current;

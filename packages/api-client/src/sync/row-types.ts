@@ -29,6 +29,7 @@ export interface ReferenceRow {
   original_asset_id: string;
   edit_stack: unknown;
   grid_config: unknown;
+  secondary_grid_config: unknown | null;
   notes: string;
   created_at: string;
   updated_at: string;

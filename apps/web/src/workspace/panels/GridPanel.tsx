@@ -26,33 +26,81 @@ const TYPE_OPTIONS: { type: GridConfig['type']; label: string }[] = [
 // here recomputes GridGeometry; nothing else in the app does
 // (ki-grid-image-independence). Per docs/phases/phase-7-guides-workspace-
 // export.md, five guide types are in scope: rectangular, perspective,
-// radial, rule-of-thirds, golden-ratio.
+// radial, rule-of-thirds, golden-ratio -- plus an optional second, layered
+// guide (major+minor) rendered as its own overlay pass
+// (.agents/workflows/add-new-grid-type-recipe.md's step 6).
 export function GridPanel() {
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
   const setGridConfig = useWorkspaceStore((s) => s.setGridConfig);
   const setGridType = useWorkspaceStore((s) => s.setGridType);
 
+  const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
+  const setSecondaryGridConfig = useWorkspaceStore((s) => s.setSecondaryGridConfig);
+  const setSecondaryGridType = useWorkspaceStore((s) => s.setSecondaryGridType);
+  const removeSecondaryGrid = useWorkspaceStore((s) => s.removeSecondaryGrid);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+      <GuideEditor config={gridConfig} onPatch={setGridConfig} onTypeChange={setGridType} visibilityLabel="grid" />
+
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-md)' }}>
+        {secondaryGridConfig ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+            <Row label="Layered guide">
+              <PanelButton onClick={removeSecondaryGrid}>Remove layer</PanelButton>
+            </Row>
+            <GuideEditor
+              config={secondaryGridConfig}
+              onPatch={setSecondaryGridConfig}
+              onTypeChange={setSecondaryGridType}
+              visibilityLabel="layer"
+            />
+          </div>
+        ) : (
+          <PanelButton onClick={() => setSecondaryGridType('ruleOfThirds')}>Add layered guide</PanelButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// One guide's full control set (type selector, type-specific fields, shared
+// style, visibility) -- reused for both the primary grid and the optional
+// secondary layer, since a layered guide is just a second instance of the
+// same editor, not a different shape (see the recipe's "composition, not a
+// new type" rule).
+function GuideEditor({
+  config,
+  onPatch,
+  onTypeChange,
+  visibilityLabel,
+}: {
+  config: GridConfig;
+  onPatch: (patch: Partial<GridConfig>) => void;
+  onTypeChange: (type: GridConfig['type']) => void;
+  visibilityLabel: string;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
       <Row label="Guide type">
         <ButtonGroup>
           {TYPE_OPTIONS.map(({ type, label }) => (
-            <PanelButton key={type} active={gridConfig.type === type} onClick={() => setGridType(type)}>
+            <PanelButton key={type} active={config.type === type} onClick={() => onTypeChange(type)}>
               {label}
             </PanelButton>
           ))}
         </ButtonGroup>
       </Row>
 
-      {gridConfig.type === 'rectangular' && (
+      {config.type === 'rectangular' && (
         <>
           <Row label="Density">
             <ButtonGroup>
               {DENSITY_PRESETS.map((n) => (
                 <PanelButton
                   key={n}
-                  active={gridConfig.rows === n && gridConfig.cols === n}
-                  onClick={() => setGridConfig({ rows: n, cols: n })}
+                  active={config.rows === n && config.cols === n}
+                  onClick={() => onPatch({ rows: n, cols: n })}
                 >
                   {n}×{n}
                 </PanelButton>
@@ -65,8 +113,8 @@ export function GridPanel() {
               {NUMBERING_OPTIONS.map((numberingMode) => (
                 <PanelButton
                   key={numberingMode}
-                  active={gridConfig.numberingMode === numberingMode}
-                  onClick={() => setGridConfig({ numberingMode })}
+                  active={config.numberingMode === numberingMode}
+                  onClick={() => onPatch({ numberingMode })}
                 >
                   {numberingMode}
                 </PanelButton>
@@ -76,15 +124,15 @@ export function GridPanel() {
         </>
       )}
 
-      {gridConfig.type === 'perspective' && (
+      {config.type === 'perspective' && (
         <>
           <Row label="Vanishing points">
             <ButtonGroup>
               {([1, 2, 3] as const).map((count) => (
                 <PanelButton
                   key={count}
-                  active={gridConfig.vanishingPointCount === count}
-                  onClick={() => setGridConfig({ vanishingPointCount: count })}
+                  active={config.vanishingPointCount === count}
+                  onClick={() => onPatch({ vanishingPointCount: count })}
                 >
                   {count}
                 </PanelButton>
@@ -92,36 +140,36 @@ export function GridPanel() {
             </ButtonGroup>
           </Row>
 
-          <Row label={`Horizon (${Math.round(gridConfig.horizonY * 100)}%)`}>
+          <Row label={`Horizon (${Math.round(config.horizonY * 100)}%)`}>
             <input
               type="range"
               min={0}
               max={100}
-              value={Math.round(gridConfig.horizonY * 100)}
-              onChange={(event) => setGridConfig({ horizonY: Number(event.target.value) / 100 })}
+              value={Math.round(config.horizonY * 100)}
+              onChange={(event) => onPatch({ horizonY: Number(event.target.value) / 100 })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
 
-          <Row label={`Line count (${gridConfig.lineCount})`}>
+          <Row label={`Line count (${config.lineCount})`}>
             <input
               type="range"
               min={2}
               max={48}
-              value={gridConfig.lineCount}
-              onChange={(event) => setGridConfig({ lineCount: Number(event.target.value) })}
+              value={config.lineCount}
+              onChange={(event) => onPatch({ lineCount: Number(event.target.value) })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
 
-          {gridConfig.vanishingPointCount === 3 && (
+          {config.vanishingPointCount === 3 && (
             <Row label="Third point">
               <ButtonGroup>
                 {(['above', 'below'] as const).map((position) => (
                   <PanelButton
                     key={position}
-                    active={gridConfig.thirdPointPosition === position}
-                    onClick={() => setGridConfig({ thirdPointPosition: position })}
+                    active={config.thirdPointPosition === position}
+                    onClick={() => onPatch({ thirdPointPosition: position })}
                   >
                     {position}
                   </PanelButton>
@@ -132,62 +180,62 @@ export function GridPanel() {
         </>
       )}
 
-      {gridConfig.type === 'radial' && (
+      {config.type === 'radial' && (
         <>
-          <Row label={`Rings (${gridConfig.rings})`}>
+          <Row label={`Rings (${config.rings})`}>
             <input
               type="range"
               min={1}
               max={24}
-              value={gridConfig.rings}
-              onChange={(event) => setGridConfig({ rings: Number(event.target.value) })}
+              value={config.rings}
+              onChange={(event) => onPatch({ rings: Number(event.target.value) })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
 
-          <Row label={`Spokes (${gridConfig.spokes})`}>
+          <Row label={`Spokes (${config.spokes})`}>
             <input
               type="range"
               min={1}
               max={48}
-              value={gridConfig.spokes}
-              onChange={(event) => setGridConfig({ spokes: Number(event.target.value) })}
+              value={config.spokes}
+              onChange={(event) => onPatch({ spokes: Number(event.target.value) })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
 
-          <Row label={`Center X (${Math.round(gridConfig.centerX * 100)}%)`}>
+          <Row label={`Center X (${Math.round(config.centerX * 100)}%)`}>
             <input
               type="range"
               min={0}
               max={100}
-              value={Math.round(gridConfig.centerX * 100)}
-              onChange={(event) => setGridConfig({ centerX: Number(event.target.value) / 100 })}
+              value={Math.round(config.centerX * 100)}
+              onChange={(event) => onPatch({ centerX: Number(event.target.value) / 100 })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
 
-          <Row label={`Center Y (${Math.round(gridConfig.centerY * 100)}%)`}>
+          <Row label={`Center Y (${Math.round(config.centerY * 100)}%)`}>
             <input
               type="range"
               min={0}
               max={100}
-              value={Math.round(gridConfig.centerY * 100)}
-              onChange={(event) => setGridConfig({ centerY: Number(event.target.value) / 100 })}
+              value={Math.round(config.centerY * 100)}
+              onChange={(event) => onPatch({ centerY: Number(event.target.value) / 100 })}
               style={{ accentColor: 'var(--color-accent)' }}
             />
           </Row>
         </>
       )}
 
-      {gridConfig.type === 'goldenRatio' && (
+      {config.type === 'goldenRatio' && (
         <Row label="Orientation">
           <ButtonGroup>
             {(['horizontal', 'vertical', 'both'] as const).map((orientation) => (
               <PanelButton
                 key={orientation}
-                active={gridConfig.orientation === orientation}
-                onClick={() => setGridConfig({ orientation })}
+                active={config.orientation === orientation}
+                onClick={() => onPatch({ orientation })}
               >
                 {orientation}
               </PanelButton>
@@ -199,8 +247,8 @@ export function GridPanel() {
       <Row label="Color">
         <input
           type="color"
-          value={gridConfig.color}
-          onChange={(event) => setGridConfig({ color: event.target.value })}
+          value={config.color}
+          onChange={(event) => onPatch({ color: event.target.value })}
           style={{
             minHeight: 'var(--touch-target-min)',
             minWidth: 'var(--touch-target-min)',
@@ -211,13 +259,13 @@ export function GridPanel() {
         />
       </Row>
 
-      <Row label={`Opacity (${gridConfig.opacity})`}>
+      <Row label={`Opacity (${config.opacity})`}>
         <input
           type="range"
           min={0}
           max={100}
-          value={gridConfig.opacity}
-          onChange={(event) => setGridConfig({ opacity: Number(event.target.value) })}
+          value={config.opacity}
+          onChange={(event) => onPatch({ opacity: Number(event.target.value) })}
           style={{ accentColor: 'var(--color-accent)' }}
         />
       </Row>
@@ -225,19 +273,15 @@ export function GridPanel() {
       <Row label="Thickness">
         <ButtonGroup>
           {THICKNESS_OPTIONS.map((thickness) => (
-            <PanelButton
-              key={thickness}
-              active={gridConfig.thickness === thickness}
-              onClick={() => setGridConfig({ thickness })}
-            >
+            <PanelButton key={thickness} active={config.thickness === thickness} onClick={() => onPatch({ thickness })}>
               {thickness}
             </PanelButton>
           ))}
         </ButtonGroup>
       </Row>
 
-      <PanelButton active={gridConfig.visible} onClick={() => setGridConfig({ visible: !gridConfig.visible })}>
-        {gridConfig.visible ? 'Hide grid' : 'Show grid'}
+      <PanelButton active={config.visible} onClick={() => onPatch({ visible: !config.visible })}>
+        {config.visible ? `Hide ${visibilityLabel}` : `Show ${visibilityLabel}`}
       </PanelButton>
     </div>
   );
