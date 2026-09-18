@@ -1,4 +1,5 @@
-import { applyGeometryOps, deriveAdjustments, generateGridGeometry } from '@artiso/core-engine';
+import { PDFDocument } from 'pdf-lib';
+import { applyGeometryOps, deriveAdjustments, generateGridGeometry, generateGridSvg, type GridSvgLayer } from '@artiso/core-engine';
 import { GridLayer, ImageLayer, type GridDrawLayer } from '@artiso/renderer';
 import type { ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
 import { getAssetBlob } from '@artiso/api-client';
@@ -33,6 +34,28 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     geometryOps.length > 0
       ? await applyGeometryOps(sourceBitmap, geometryOps)
       : { bitmap: sourceBitmap, width: sourceBitmap.width, height: sourceBitmap.height };
+
+  // SVG is always grid-only (docs/architecture/07-export-engine.md) -- no
+  // raster compositing at all, just the same GridGeometry the live preview
+  // and PNG/JPEG export use, rendered as vector lines/labels. Bails out
+  // before any canvas work since there's no image layer to composite.
+  if (options.format === 'svg') {
+    const svgLayers: GridSvgLayer[] = [
+      {
+        geometry: generateGridGeometry(geometry.width, geometry.height, options.gridConfig),
+        config: { ...options.gridConfig, visible: true },
+      },
+    ];
+    if (options.secondaryGridConfig) {
+      svgLayers.push({
+        geometry: generateGridGeometry(geometry.width, geometry.height, options.secondaryGridConfig),
+        config: { ...options.secondaryGridConfig, visible: true },
+      });
+    }
+    const svg = generateGridSvg(geometry.width, geometry.height, svgLayers);
+    await getPlatformAdapter().saveFile(new Blob([svg], { type: 'image/svg+xml' }), 'reference.svg');
+    return;
+  }
 
   const outputCanvas = new OffscreenCanvas(geometry.width, geometry.height);
   const outputCtx = outputCanvas.getContext('2d');
@@ -72,6 +95,22 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     }
     gridLayer.draw(layers, IDENTITY_VIEWPORT, geometry.width, geometry.height);
     outputCtx.drawImage(gridCanvas, 0, 0);
+  }
+
+  // PDF bakes the exact same raster composite PNG does into a single-page
+  // PDF (page size in points == image size in pixels -- physical page
+  // sizing/DPI is out of scope for this pass) rather than a separate
+  // encode path, keeping the "re-run, don't reimplement" rule intact all
+  // the way to the final format.
+  if (options.format === 'pdf') {
+    const pngBlob = await outputCanvas.convertToBlob({ type: 'image/png' });
+    const pdfDoc = await PDFDocument.create();
+    const pngImage = await pdfDoc.embedPng(new Uint8Array(await pngBlob.arrayBuffer()));
+    const page = pdfDoc.addPage([geometry.width, geometry.height]);
+    page.drawImage(pngImage, { x: 0, y: 0, width: geometry.width, height: geometry.height });
+    const pdfBytes = await pdfDoc.save();
+    await getPlatformAdapter().saveFile(new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' }), 'reference.pdf');
+    return;
   }
 
   const mimeType = options.format === 'png' ? 'image/png' : 'image/jpeg';

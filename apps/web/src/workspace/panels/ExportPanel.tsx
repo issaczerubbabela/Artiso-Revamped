@@ -54,12 +54,18 @@ export function ExportPanel() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
         <PanelButton active={exportSettings.format === 'png'} onClick={() => setExportSettings({ format: 'png', profileId: undefined })}>
           PNG
         </PanelButton>
         <PanelButton active={exportSettings.format === 'jpeg'} onClick={() => setExportSettings({ format: 'jpeg', profileId: undefined })}>
           JPEG
+        </PanelButton>
+        <PanelButton active={exportSettings.format === 'pdf'} onClick={() => setExportSettings({ format: 'pdf', profileId: undefined })}>
+          PDF
+        </PanelButton>
+        <PanelButton active={exportSettings.format === 'svg'} onClick={() => setExportSettings({ format: 'svg', profileId: undefined })}>
+          SVG (grid only)
         </PanelButton>
       </div>
 
@@ -81,24 +87,31 @@ export function ExportPanel() {
         </label>
       )}
 
-      <PanelButton
-        active={exportSettings.includeImage !== false}
-        onClick={() => setExportSettings({ includeImage: exportSettings.includeImage === false, profileId: undefined })}
-      >
-        Include image
-      </PanelButton>
-      <PanelButton
-        active={exportSettings.includeGrid}
-        onClick={() => setExportSettings({ includeGrid: !exportSettings.includeGrid, profileId: undefined })}
-      >
-        Include grid
-      </PanelButton>
-      <PanelButton
-        active={exportSettings.includeAdjustments}
-        onClick={() => setExportSettings({ includeAdjustments: !exportSettings.includeAdjustments, profileId: undefined })}
-      >
-        Include adjustments
-      </PanelButton>
+      {/* SVG is always grid-only (docs/architecture/07-export-engine.md) --
+          there's no image layer to toggle, so these three controls only
+          apply to the raster formats (png/jpeg/pdf). */}
+      {exportSettings.format !== 'svg' && (
+        <>
+          <PanelButton
+            active={exportSettings.includeImage !== false}
+            onClick={() => setExportSettings({ includeImage: exportSettings.includeImage === false, profileId: undefined })}
+          >
+            Include image
+          </PanelButton>
+          <PanelButton
+            active={exportSettings.includeGrid}
+            onClick={() => setExportSettings({ includeGrid: !exportSettings.includeGrid, profileId: undefined })}
+          >
+            Include grid
+          </PanelButton>
+          <PanelButton
+            active={exportSettings.includeAdjustments}
+            onClick={() => setExportSettings({ includeAdjustments: !exportSettings.includeAdjustments, profileId: undefined })}
+          >
+            Include adjustments
+          </PanelButton>
+        </>
+      )}
 
       <PanelButton variant="primary" onClick={() => void handleExport()} disabled={isExporting || !assetId}>
         {isExporting ? 'Exporting…' : 'Export image'}

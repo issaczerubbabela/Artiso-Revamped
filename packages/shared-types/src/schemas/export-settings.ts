@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 export const ExportSettingsSchema = z.object({
-  format: z.enum(['png', 'jpeg']),
+  // svg is always grid-only (docs/architecture/07-export-engine.md's "SVG
+  // grid-only export" -- no image layer, vector lines/labels only, meant for
+  // print-shop transparency overlays). pdf bakes the same raster composite
+  // PNG/JPEG produce into a single-page PDF.
+  format: z.enum(['png', 'jpeg', 'svg', 'pdf']),
   quality: z.number().min(0).max(100),
   includeGrid: z.boolean(),
   includeAdjustments: z.boolean(),

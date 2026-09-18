@@ -45,13 +45,22 @@ Platform output: download / save to gallery / share
 
 ```ts
 type ExportSettings = {
-  format: "png" | "jpeg";           // PDF / SVG-grid deferred, see Phase 6
+  format: "png" | "jpeg" | "svg" | "pdf"; // svg is always grid-only, see below
   quality: number;                   // 0-100, JPEG only
   includeGrid: boolean;
   includeAdjustments: boolean;       // false = export original geometry-only crop, no filters baked in
   profileId?: string;                // e.g. "print-a4", "classroom", "high-res", "transparent-grid"
 };
 ```
+
+`svg` bypasses the raster composite entirely -- no image layer, ever -- and
+renders the grid geometry (primary plus any layered secondary guide) as
+vector `<line>`/`<text>` elements via `core-engine`'s `generateGridSvg()`,
+for print-shop transparency-overlay workflows. `pdf` re-uses the exact same
+raster composite `png` produces (respecting `includeImage`/`includeGrid`/
+`includeAdjustments` as usual) and wraps it as a single-page PDF via
+`pdf-lib`; page size in points equals image size in pixels (no physical
+DPI/page-size mapping yet -- see [phase-7](../phases/phase-7-guides-workspace-export.md)).
 
 Export **profiles** are just named presets over `ExportSettings` (source
 spec's "Original / Print A4 / Classroom / High-Res / Transparent-Grid" list)
@@ -87,6 +96,8 @@ even on mid-range Android hardware; validated empirically in Phase 3 (see
 
 ## Deferred
 
-PDF export, SVG grid-only export (vector, useful for print-shop workflows),
-layer-separated export. Listed in source spec §5.8/§11.5 as future — slot
-into `ExportSettings.format` without touching the pipeline.
+Layer-separated export (image and grid as separate files/layers in one
+export action). PDF and SVG grid-only export were listed here as future in
+source spec §5.8/§11.5 but have since shipped in
+[phase-7](../phases/phase-7-guides-workspace-export.md) as new
+`ExportSettings.format` values, without touching the raster pipeline itself.

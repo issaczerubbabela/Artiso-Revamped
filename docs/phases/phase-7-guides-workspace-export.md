@@ -38,8 +38,14 @@ task; see [Deferred](#deferred).
       recipe's "composition, not a new type" rule
 
 **Export** ([07-export-engine.md](../architecture/07-export-engine.md))
-- [ ] SVG grid-only export (vector, print-shop friendly)
-- [ ] PDF export
+- [x] SVG grid-only export (vector, print-shop friendly) -- `core-engine`'s
+      `generateGridSvg()` renders the same `GridGeometry` (including a
+      layered secondary guide) as vector `<line>`/`<text>` elements, no
+      image layer
+- [x] PDF export -- bakes the same raster composite PNG export produces into
+      a single-page PDF via `pdf-lib` (new `apps/web` dependency); page size
+      in points equals image size in pixels, physical DPI/page-size mapping
+      is out of scope for this pass
 
 **Workspace**
 - [ ] Annotation layer (arrows, circles, notes) -- the first real use of
@@ -74,9 +80,12 @@ task; see [Deferred](#deferred).
       did change signature (single geometry -> `layers[]`) to support
       layering, which is the recipe's explicitly-allowed exception, not a
       violation of the zero-changes-per-type rule.
-- [ ] SVG and PDF export produce correctly-configured output for a
+- [x] SVG and PDF export produce correctly-configured output for a
       representative reference, verified by inspection (structure/content),
-      not just "a file was produced"
+      not just "a file was produced" -- `apps/web/e2e/export-formats.spec.ts`
+      reads the downloaded files back and asserts on their actual structure
+      (SVG contains `<line>` elements and no `<image>`; PDF starts with the
+      `%PDF-` header and embeds an `/Image` object)
 - [ ] Annotations persist as part of a Reference's non-destructive edit
       state and survive reload/resume, same guarantee as the rest of the
       EditStack

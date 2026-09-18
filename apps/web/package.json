@@ -10,21 +10,22 @@
     "test": "echo \"no unit tests in apps/web (see e2e/ for Playwright)\""
   },
   "dependencies": {
-    "next": "^15.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zustand": "^5.0.0",
-    "@artiso/ui": "workspace:*",
+    "@artiso/api-client": "workspace:*",
     "@artiso/core-engine": "workspace:*",
     "@artiso/renderer": "workspace:*",
-    "@artiso/api-client": "workspace:*",
-    "@artiso/shared-types": "workspace:*"
+    "@artiso/shared-types": "workspace:*",
+    "@artiso/ui": "workspace:*",
+    "next": "^15.1.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/node": "^22.10.0",
-    "@playwright/test": "^1.49.0"
+    "typescript": "^5.7.0"
   }
 }
