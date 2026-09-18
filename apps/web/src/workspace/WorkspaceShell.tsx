@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { CanvasStage } from '@/canvas/CanvasStage';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
-import { resumeSession } from '@/session/resume-session';
 import { useBreakpoint } from './use-breakpoint';
 import { Toolbar } from './Toolbar';
 import { BottomSheet } from './BottomSheet';
@@ -39,10 +38,6 @@ export function WorkspaceShell() {
   const importError = useWorkspaceStore((s) => s.importError);
   const requestViewportReset = useWorkspaceStore((s) => s.requestViewportReset);
   const [cropRect, setCropRect] = useState<NormalizedRect>(FULL_FRAME);
-
-  useEffect(() => {
-    void resumeSession();
-  }, []);
 
   useEffect(() => {
     if (toolMode === 'crop') {

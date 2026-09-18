@@ -1,5 +1,5 @@
-import { WorkspaceShell } from '@/workspace/WorkspaceShell';
+import { AppRoot } from '@/AppRoot';
 
 export default function HomePage() {
-  return <WorkspaceShell />;
+  return <AppRoot />;
 }

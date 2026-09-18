@@ -16,7 +16,7 @@ test('import, edit, grid, export, and resume a session', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Artiso' })).toBeVisible();
 
   const fileChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import' }).click();
+  await page.getByRole('button', { name: 'New reference' }).click();
   const fileChooser = await fileChooserPromise;
   await fileChooser.setFiles(FIXTURE_IMAGE);
 
@@ -57,4 +57,13 @@ test('import, edit, grid, export, and resume a session', async ({ page }) => {
   await page.reload();
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('heading', { name: 'Artiso' })).toHaveCount(0);
+
+  // Back to Projects shows the reference as a card; reopening it returns to
+  // the workspace with the canvas visible again.
+  await page.getByRole('button', { name: 'Projects' }).click();
+  await expect(page.getByRole('heading', { name: 'Artiso' })).toBeVisible();
+  const projectButton = page.getByTestId('project-card-open').first();
+  await expect(projectButton).toBeVisible();
+  await projectButton.click();
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 });
 });

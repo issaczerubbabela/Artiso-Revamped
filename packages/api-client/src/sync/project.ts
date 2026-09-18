@@ -16,6 +16,12 @@ export async function syncProject(project: Project): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// Cascades to "references" via the migration's on delete cascade foreign key.
+export async function syncDeleteProject(projectId: string): Promise<void> {
+  const { error } = await getSupabaseClient().from('projects').delete().eq('id', projectId);
+  if (error) throw new Error(error.message);
+}
+
 export async function pullProjects(ownerId: string): Promise<Project[]> {
   const { data, error } = await getSupabaseClient().from('projects').select('*').eq('owner_id', ownerId);
   if (error) throw new Error(error.message);

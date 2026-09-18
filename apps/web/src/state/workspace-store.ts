@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { applyGeometryOps } from '@artiso/core-engine';
 import type { GridConfig, Operation } from '@artiso/shared-types';
-import { updateReference } from '@artiso/api-client';
+import { scheduleReferenceSync, updateReference } from '@artiso/api-client';
+import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
 
 export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'grid' | 'export';
@@ -55,12 +56,16 @@ interface WorkspaceState {
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Debounced so a slider drag or a rapid grid-config change doesn't write to
-// IndexedDB on every intermediate tick -- Phase 1 has no sync queue to worry
-// about yet, but there's no reason to hammer IndexedDB either.
-function schedulePersist(referenceId: string, editStack: Operation[], gridConfig: GridConfig): void {
+// IndexedDB on every intermediate tick. The (signed-in only) network push is
+// handed off to api-client's own sync queue, which debounces again on its
+// own longer ~2s window (docs/architecture/08) -- this local persist and the
+// network sync are deliberately two separate debounces, not one.
+function schedulePersist(projectId: string, referenceId: string, editStack: Operation[], gridConfig: GridConfig): void {
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
-    void updateReference(referenceId, { editStack, gridConfig });
+    void updateReference(referenceId, { editStack, gridConfig }).then(() => {
+      if (useAuthStore.getState().user) scheduleReferenceSync(projectId, referenceId);
+    });
   }, 400);
 }
 
@@ -106,7 +111,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // live in the Crop panel's own local state and only call this on Apply.
   appendGeometryOp: async (op) => {
     const state = get();
-    if (!state.workingBitmap || !state.referenceId) return;
+    if (!state.workingBitmap || !state.referenceId || !state.projectId) return;
     const result = await applyGeometryOps(state.workingBitmap, [op]);
     const editStack = [...state.editStack, op];
     set({
@@ -115,7 +120,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: result.height,
       editStack,
     });
-    schedulePersist(state.referenceId, editStack, state.gridConfig);
+    schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
 
   // One slider, one current value -- a later commit replaces the earlier
@@ -124,7 +129,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const editStack = [...state.editStack.filter((op) => op.type !== type), { type, value } as Operation];
     set({ editStack });
-    if (state.referenceId) schedulePersist(state.referenceId, editStack, state.gridConfig);
+    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
 
   setGrayscale: (enabled) => {
@@ -132,14 +137,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const withoutGrayscale = state.editStack.filter((op) => !(op.type === 'filter' && op.id === 'grayscale'));
     const editStack = enabled ? [...withoutGrayscale, { type: 'filter', id: 'grayscale' } as Operation] : withoutGrayscale;
     set({ editStack });
-    if (state.referenceId) schedulePersist(state.referenceId, editStack, state.gridConfig);
+    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
 
   setGridConfig: (patch) => {
     const state = get();
     const gridConfig = { ...state.gridConfig, ...patch };
     set({ gridConfig });
-    if (state.referenceId) schedulePersist(state.referenceId, state.editStack, gridConfig);
+    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
   },
 
   reset: () =>

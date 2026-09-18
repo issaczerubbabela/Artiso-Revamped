@@ -1,8 +1,10 @@
 'use client';
 
 import { PanelButton } from './PanelButton';
+import { SyncStatusBadge } from './SyncStatusBadge';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
 import { importReference } from '@/session/import-reference';
+import { closeWorkspace } from '@/session/close-workspace';
 
 const MODES: { id: ToolMode; label: string }[] = [
   { id: 'crop', label: 'Crop' },
@@ -50,6 +52,11 @@ export function SideRail() {
         overflowY: 'auto',
       }}
     >
+      {hasReference ? (
+        <PanelButton onClick={closeWorkspace} style={RAIL_BUTTON_STYLE}>
+          Projects
+        </PanelButton>
+      ) : null}
       <PanelButton onClick={() => void importReference()} disabled={isImporting} style={RAIL_BUTTON_STYLE}>
         {isImporting ? '…' : 'Import'}
       </PanelButton>
@@ -64,6 +71,8 @@ export function SideRail() {
           {mode.label}
         </PanelButton>
       ))}
+      <div style={{ flex: 1 }} />
+      <SyncStatusBadge />
     </nav>
   );
 }

@@ -11,7 +11,7 @@ test('golden path at the Wide breakpoint uses the rail/dock chrome', async ({ pa
   await page.goto('/');
 
   const fileChooserPromise = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import' }).click();
+  await page.getByRole('button', { name: 'New reference' }).click();
   const fileChooser = await fileChooserPromise;
   await fileChooser.setFiles(FIXTURE_IMAGE);
   await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 15000 });

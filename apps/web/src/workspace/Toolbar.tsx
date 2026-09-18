@@ -1,8 +1,10 @@
 'use client';
 
 import { PanelButton } from './PanelButton';
+import { SyncStatusBadge } from './SyncStatusBadge';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
 import { importReference } from '@/session/import-reference';
+import { closeWorkspace } from '@/session/close-workspace';
 
 const MODES: { id: ToolMode; label: string }[] = [
   { id: 'crop', label: 'Crop' },
@@ -15,7 +17,7 @@ const MODES: { id: ToolMode; label: string }[] = [
 // Context-aware: controls are disabled, not hidden, until a reference is
 // loaded (docs/architecture/06-workspace-interaction.md). Labeled by
 // default, never icon-only (ki-simplicity-first). Compact-breakpoint bottom
-// toolbar only in this pass -- the Wide side-rail variant is follow-up work.
+// toolbar only -- see SideRail.tsx for the Wide equivalent.
 export function Toolbar() {
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
@@ -26,6 +28,7 @@ export function Toolbar() {
     <nav
       style={{
         display: 'flex',
+        alignItems: 'center',
         gap: 'var(--space-sm)',
         padding: 'var(--space-sm) var(--space-md)',
         background: 'var(--color-surface-raised)',
@@ -33,6 +36,7 @@ export function Toolbar() {
         overflowX: 'auto',
       }}
     >
+      {hasReference ? <PanelButton onClick={closeWorkspace}>Projects</PanelButton> : null}
       <PanelButton onClick={() => void importReference()} disabled={isImporting}>
         {isImporting ? 'Importing…' : 'Import'}
       </PanelButton>
@@ -46,6 +50,7 @@ export function Toolbar() {
           {mode.label}
         </PanelButton>
       ))}
+      <SyncStatusBadge />
     </nav>
   );
 }
