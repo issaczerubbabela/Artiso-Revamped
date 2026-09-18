@@ -170,13 +170,12 @@ export function CanvasStage() {
   );
 }
 
-function getCachedGridGeometry(
-  cache: GeometryCache,
-  width: number,
-  height: number,
-  config: Pick<GridConfig, 'rows' | 'cols' | 'numberingMode'>,
-): GridGeometry {
-  const key = `${width}x${height}:${config.rows}x${config.cols}:${config.numberingMode}`;
+// Which fields affect geometry differs per grid type (rows/cols for
+// rectangular, rings/spokes for radial, ...), so rather than enumerate them
+// per type here, the cache key just serializes the whole config -- it's a
+// small object and this only runs once per redraw, not per frame.
+function getCachedGridGeometry(cache: GeometryCache, width: number, height: number, config: GridConfig): GridGeometry {
+  const key = `${width}x${height}:${JSON.stringify(config)}`;
   if (cache.current?.key === key) return cache.current.geometry;
   const geometry = generateGridGeometry(width, height, config);
   cache.current = { key, geometry };

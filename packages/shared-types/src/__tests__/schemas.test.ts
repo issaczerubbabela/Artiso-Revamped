@@ -50,12 +50,79 @@ describe('OperationSchema', () => {
 });
 
 describe('GridConfigSchema', () => {
-  it('accepts a valid config', () => {
-    expect(GridConfigSchema.safeParse(gridConfig).success).toBe(true);
+  it('accepts a valid rectangular config with an explicit type', () => {
+    expect(GridConfigSchema.safeParse({ ...gridConfig, type: 'rectangular' }).success).toBe(true);
   });
 
   it('rejects opacity out of range', () => {
     expect(GridConfigSchema.safeParse({ ...gridConfig, opacity: 150 }).success).toBe(false);
+  });
+
+  it('defaults a missing type to rectangular for backward compatibility with pre-Phase-7 data', () => {
+    const result = GridConfigSchema.safeParse(gridConfig);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.type).toBe('rectangular');
+  });
+
+  it('accepts a perspective config', () => {
+    expect(
+      GridConfigSchema.safeParse({
+        type: 'perspective',
+        color: '#ffffff',
+        opacity: 70,
+        thickness: 'thin',
+        visible: true,
+        vanishingPointCount: 2,
+        horizonY: 0.5,
+        lineCount: 12,
+        thirdPointPosition: 'below',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts a radial config', () => {
+    expect(
+      GridConfigSchema.safeParse({
+        type: 'radial',
+        color: '#ffffff',
+        opacity: 70,
+        thickness: 'thin',
+        visible: true,
+        centerX: 0.5,
+        centerY: 0.5,
+        rings: 4,
+        spokes: 12,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts a ruleOfThirds config', () => {
+    expect(
+      GridConfigSchema.safeParse({
+        type: 'ruleOfThirds',
+        color: '#ffffff',
+        opacity: 70,
+        thickness: 'thin',
+        visible: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts a goldenRatio config', () => {
+    expect(
+      GridConfigSchema.safeParse({
+        type: 'goldenRatio',
+        color: '#ffffff',
+        opacity: 70,
+        thickness: 'thin',
+        visible: true,
+        orientation: 'both',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects an unknown type', () => {
+    expect(GridConfigSchema.safeParse({ ...gridConfig, type: 'hexagonal' }).success).toBe(false);
   });
 });
 

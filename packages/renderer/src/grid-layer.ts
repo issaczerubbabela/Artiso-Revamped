@@ -34,7 +34,7 @@ export class GridLayer {
 
   draw(
     geometry: GridGeometry,
-    config: Pick<GridConfig, 'visible' | 'color' | 'opacity' | 'thickness' | 'numberingMode'>,
+    config: Pick<GridConfig, 'visible' | 'color' | 'opacity' | 'thickness'>,
     viewport: ViewportState,
     canvasWidth: number,
     canvasHeight: number,
@@ -58,7 +58,11 @@ export class GridLayer {
       ctx.stroke();
     }
 
-    if (config.numberingMode !== 'off' && geometry.labels.length > 0) {
+    // Whether labels exist at all is the grid engine's decision (only the
+    // rectangular type generates any, and only when numberingMode isn't
+    // 'off'/'custom') -- the renderer just draws whatever geometry.labels
+    // contains, never re-deciding based on config shape.
+    if (geometry.labels.length > 0) {
       ctx.fillStyle = config.color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

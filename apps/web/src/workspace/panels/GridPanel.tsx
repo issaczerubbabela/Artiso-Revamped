@@ -7,31 +7,194 @@ import { useWorkspaceStore } from '@/state/workspace-store';
 
 const DENSITY_PRESETS = [4, 6, 8, 10, 12];
 const THICKNESS_OPTIONS: GridConfig['thickness'][] = ['veryThin', 'thin', 'medium', 'thick', 'extraThick'];
-const NUMBERING_OPTIONS: GridConfig['numberingMode'][] = ['off', 'numbers', 'letters', 'alphanumeric'];
+const NUMBERING_OPTIONS: NonNullable<Extract<GridConfig, { type: 'rectangular' }>['numberingMode']>[] = [
+  'off',
+  'numbers',
+  'letters',
+  'alphanumeric',
+];
+const TYPE_OPTIONS: { type: GridConfig['type']; label: string }[] = [
+  { type: 'rectangular', label: 'Rectangular' },
+  { type: 'ruleOfThirds', label: 'Thirds' },
+  { type: 'goldenRatio', label: 'Golden ratio' },
+  { type: 'perspective', label: 'Perspective' },
+  { type: 'radial', label: 'Radial' },
+];
 
-// Rows/cols/color/opacity/thickness/numbering/visibility -- the Phase 1
-// scope of docs/architecture/04-grid-engine.md (perspective/radial/etc. grid
-// types are Phase 6). Every change here recomputes GridGeometry; nothing
-// else in the app does (ki-grid-image-independence).
+// Guide type + type-specific geometry controls, plus the style controls
+// shared by every type (color/opacity/thickness/visibility). Every change
+// here recomputes GridGeometry; nothing else in the app does
+// (ki-grid-image-independence). Per docs/phases/phase-7-guides-workspace-
+// export.md, five guide types are in scope: rectangular, perspective,
+// radial, rule-of-thirds, golden-ratio.
 export function GridPanel() {
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
   const setGridConfig = useWorkspaceStore((s) => s.setGridConfig);
+  const setGridType = useWorkspaceStore((s) => s.setGridType);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-      <Row label="Density">
+      <Row label="Guide type">
         <ButtonGroup>
-          {DENSITY_PRESETS.map((n) => (
-            <PanelButton
-              key={n}
-              active={gridConfig.rows === n && gridConfig.cols === n}
-              onClick={() => setGridConfig({ rows: n, cols: n })}
-            >
-              {n}×{n}
+          {TYPE_OPTIONS.map(({ type, label }) => (
+            <PanelButton key={type} active={gridConfig.type === type} onClick={() => setGridType(type)}>
+              {label}
             </PanelButton>
           ))}
         </ButtonGroup>
       </Row>
+
+      {gridConfig.type === 'rectangular' && (
+        <>
+          <Row label="Density">
+            <ButtonGroup>
+              {DENSITY_PRESETS.map((n) => (
+                <PanelButton
+                  key={n}
+                  active={gridConfig.rows === n && gridConfig.cols === n}
+                  onClick={() => setGridConfig({ rows: n, cols: n })}
+                >
+                  {n}×{n}
+                </PanelButton>
+              ))}
+            </ButtonGroup>
+          </Row>
+
+          <Row label="Numbering">
+            <ButtonGroup>
+              {NUMBERING_OPTIONS.map((numberingMode) => (
+                <PanelButton
+                  key={numberingMode}
+                  active={gridConfig.numberingMode === numberingMode}
+                  onClick={() => setGridConfig({ numberingMode })}
+                >
+                  {numberingMode}
+                </PanelButton>
+              ))}
+            </ButtonGroup>
+          </Row>
+        </>
+      )}
+
+      {gridConfig.type === 'perspective' && (
+        <>
+          <Row label="Vanishing points">
+            <ButtonGroup>
+              {([1, 2, 3] as const).map((count) => (
+                <PanelButton
+                  key={count}
+                  active={gridConfig.vanishingPointCount === count}
+                  onClick={() => setGridConfig({ vanishingPointCount: count })}
+                >
+                  {count}
+                </PanelButton>
+              ))}
+            </ButtonGroup>
+          </Row>
+
+          <Row label={`Horizon (${Math.round(gridConfig.horizonY * 100)}%)`}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(gridConfig.horizonY * 100)}
+              onChange={(event) => setGridConfig({ horizonY: Number(event.target.value) / 100 })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+
+          <Row label={`Line count (${gridConfig.lineCount})`}>
+            <input
+              type="range"
+              min={2}
+              max={48}
+              value={gridConfig.lineCount}
+              onChange={(event) => setGridConfig({ lineCount: Number(event.target.value) })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+
+          {gridConfig.vanishingPointCount === 3 && (
+            <Row label="Third point">
+              <ButtonGroup>
+                {(['above', 'below'] as const).map((position) => (
+                  <PanelButton
+                    key={position}
+                    active={gridConfig.thirdPointPosition === position}
+                    onClick={() => setGridConfig({ thirdPointPosition: position })}
+                  >
+                    {position}
+                  </PanelButton>
+                ))}
+              </ButtonGroup>
+            </Row>
+          )}
+        </>
+      )}
+
+      {gridConfig.type === 'radial' && (
+        <>
+          <Row label={`Rings (${gridConfig.rings})`}>
+            <input
+              type="range"
+              min={1}
+              max={24}
+              value={gridConfig.rings}
+              onChange={(event) => setGridConfig({ rings: Number(event.target.value) })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+
+          <Row label={`Spokes (${gridConfig.spokes})`}>
+            <input
+              type="range"
+              min={1}
+              max={48}
+              value={gridConfig.spokes}
+              onChange={(event) => setGridConfig({ spokes: Number(event.target.value) })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+
+          <Row label={`Center X (${Math.round(gridConfig.centerX * 100)}%)`}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(gridConfig.centerX * 100)}
+              onChange={(event) => setGridConfig({ centerX: Number(event.target.value) / 100 })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+
+          <Row label={`Center Y (${Math.round(gridConfig.centerY * 100)}%)`}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(gridConfig.centerY * 100)}
+              onChange={(event) => setGridConfig({ centerY: Number(event.target.value) / 100 })}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+          </Row>
+        </>
+      )}
+
+      {gridConfig.type === 'goldenRatio' && (
+        <Row label="Orientation">
+          <ButtonGroup>
+            {(['horizontal', 'vertical', 'both'] as const).map((orientation) => (
+              <PanelButton
+                key={orientation}
+                active={gridConfig.orientation === orientation}
+                onClick={() => setGridConfig({ orientation })}
+              >
+                {orientation}
+              </PanelButton>
+            ))}
+          </ButtonGroup>
+        </Row>
+      )}
 
       <Row label="Color">
         <input
@@ -68,20 +231,6 @@ export function GridPanel() {
               onClick={() => setGridConfig({ thickness })}
             >
               {thickness}
-            </PanelButton>
-          ))}
-        </ButtonGroup>
-      </Row>
-
-      <Row label="Numbering">
-        <ButtonGroup>
-          {NUMBERING_OPTIONS.map((numberingMode) => (
-            <PanelButton
-              key={numberingMode}
-              active={gridConfig.numberingMode === numberingMode}
-              onClick={() => setGridConfig({ numberingMode })}
-            >
-              {numberingMode}
             </PanelButton>
           ))}
         </ButtonGroup>

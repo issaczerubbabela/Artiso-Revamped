@@ -5,6 +5,7 @@ import { scheduleReferenceSync, updateReference } from '@artiso/api-client';
 import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
 import { DEFAULT_EXPORT_SETTINGS } from './default-export-settings';
+import { buildGridConfigForType } from './build-grid-config-for-type';
 
 export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'export' | 'presets';
 
@@ -58,6 +59,7 @@ interface WorkspaceState {
   setAdjustment: (type: 'brightness' | 'contrast' | 'saturation', value: number) => void;
   setFilter: (filterId: FilterId | null, params?: Record<string, number>) => void;
   setGridConfig: (patch: Partial<GridConfig>) => void;
+  setGridType: (type: GridConfig['type']) => void;
   applyPreset: (input: { gridConfig: GridConfig; filterStack: Operation[]; exportSettings: ExportSettings }) => void;
   reset: () => void;
 }
@@ -156,9 +158,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
 
+  // Callers only ever patch fields that belong to the currently-active
+  // type's controls (see GridPanel.tsx's per-type sections), so the merge
+  // is safe even though Partial<GridConfig> spans the whole discriminated
+  // union -- switching type itself goes through setGridType below, which
+  // replaces the config wholesale instead of patching it.
   setGridConfig: (patch) => {
     const state = get();
-    const gridConfig = { ...state.gridConfig, ...patch };
+    const gridConfig = { ...state.gridConfig, ...patch } as GridConfig;
+    set({ gridConfig });
+    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
+  },
+
+  // Switching guide type can't be a patch -- rows/cols mean nothing to a
+  // radial grid -- so this replaces the config wholesale, carrying over
+  // only the shared style fields (color/opacity/thickness/visible).
+  setGridType: (type) => {
+    const state = get();
+    const { color, opacity, thickness, visible } = state.gridConfig;
+    const gridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
     set({ gridConfig });
     if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
   },

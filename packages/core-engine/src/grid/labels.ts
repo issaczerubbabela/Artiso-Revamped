@@ -1,4 +1,4 @@
-import type { GridConfig } from '@artiso/shared-types';
+import type { RectangularGridConfig } from '@artiso/shared-types';
 import type { GridLabel } from './types';
 
 // 0 -> A, 25 -> Z, 26 -> AA, ... (spreadsheet-style column naming).
@@ -49,7 +49,7 @@ export function generateLabels(
   cols: number,
   cellWidth: number,
   cellHeight: number,
-  mode: GridConfig['numberingMode'],
+  mode: RectangularGridConfig['numberingMode'],
 ): GridLabel[] {
   if (mode === 'off' || mode === 'custom') return [];
 

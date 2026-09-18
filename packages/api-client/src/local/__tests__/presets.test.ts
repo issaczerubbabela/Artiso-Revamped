@@ -6,6 +6,7 @@ import type { ExportSettings, GridConfig } from '@artiso/shared-types';
 beforeEach(resetTestDatabase);
 
 const gridConfig: GridConfig = {
+  type: 'rectangular',
   rows: 8,
   cols: 8,
   color: '#1e7fa6',

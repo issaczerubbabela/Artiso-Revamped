@@ -66,6 +66,7 @@ describe('projects', () => {
       projectId: project.id,
       originalAssetId: 'asset-1',
       gridConfig: {
+        type: 'rectangular',
         rows: 4,
         cols: 4,
         color: '#ffffff',
