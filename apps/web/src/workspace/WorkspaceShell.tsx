@@ -12,7 +12,9 @@ import { CropOverlay, type NormalizedRect } from './panels/CropOverlay';
 import { CropPanel } from './panels/CropPanel';
 import { RotateFlipPanel } from './panels/RotateFlipPanel';
 import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
+import { FiltersPanel } from './panels/FiltersPanel';
 import { GridPanel } from './panels/GridPanel';
+import { PresetsPanel } from './panels/PresetsPanel';
 import { ExportPanel } from './panels/ExportPanel';
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, w: 1, h: 1 };
@@ -22,7 +24,9 @@ const PANEL_TITLES: Record<ToolMode, string> = {
   crop: 'Crop',
   rotateFlip: 'Rotate & flip',
   adjustments: 'Adjustments',
+  filters: 'Filters',
   grid: 'Grid',
+  presets: 'Presets',
   export: 'Export',
 };
 
@@ -78,7 +82,9 @@ export function WorkspaceShell() {
           {toolMode === 'crop' && <CropPanel rect={cropRect} onResetRect={() => setCropRect(FULL_FRAME)} />}
           {toolMode === 'rotateFlip' && <RotateFlipPanel />}
           {toolMode === 'adjustments' && <AdjustmentsPanel />}
+          {toolMode === 'filters' && <FiltersPanel />}
           {toolMode === 'grid' && <GridPanel />}
+          {toolMode === 'presets' && <PresetsPanel />}
           {toolMode === 'export' && <ExportPanel />}
         </BottomSheet>
       ) : null}

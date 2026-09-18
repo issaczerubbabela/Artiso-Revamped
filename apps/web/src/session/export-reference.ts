@@ -1,20 +1,17 @@
 import { applyGeometryOps, deriveAdjustments, generateGridGeometry } from '@artiso/core-engine';
 import { GridLayer, ImageLayer } from '@artiso/renderer';
-import type { GridConfig, Operation } from '@artiso/shared-types';
+import type { ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
 import { getAssetBlob } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
 
-export interface ExportOptions {
+export interface ExportOptions extends ExportSettings {
   assetId: string;
   editStack: Operation[];
   gridConfig: GridConfig;
-  format: 'png' | 'jpeg';
-  quality: number;
-  includeGrid: boolean;
-  includeAdjustments: boolean;
 }
 
 const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0 };
+const NO_ADJUSTMENTS = { brightness: 0, contrast: 0, saturation: 0, filterId: null, filterParams: {} } as const;
 
 // Re-runs the exact same core-engine/renderer functions the live preview
 // uses -- crop/rotate/flip, the adjustment shader, grid geometry -- against
@@ -36,19 +33,22 @@ export async function exportReference(options: ExportOptions): Promise<void> {
       ? await applyGeometryOps(sourceBitmap, geometryOps)
       : { bitmap: sourceBitmap, width: sourceBitmap.width, height: sourceBitmap.height };
 
-  const imageCanvas = new OffscreenCanvas(geometry.width, geometry.height);
-  const imageLayer = new ImageLayer(imageCanvas);
-  imageLayer.setSource(geometry.bitmap);
-  const adjustments = options.includeAdjustments
-    ? deriveAdjustments(options.editStack)
-    : { brightness: 0, contrast: 0, saturation: 0, grayscale: false };
-  imageLayer.draw(IDENTITY_VIEWPORT, geometry.width, geometry.height, adjustments);
-  imageLayer.dispose();
-
   const outputCanvas = new OffscreenCanvas(geometry.width, geometry.height);
   const outputCtx = outputCanvas.getContext('2d');
   if (!outputCtx) throw new Error('2D context unavailable');
-  outputCtx.drawImage(imageCanvas, 0, 0);
+
+  // "Transparent-Grid" profile: includeImage: false skips the image layer
+  // entirely, leaving just the grid on a transparent background -- the
+  // canvas starts transparent by default, so there's nothing to draw here.
+  if (options.includeImage !== false) {
+    const imageCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+    const imageLayer = new ImageLayer(imageCanvas);
+    imageLayer.setSource(geometry.bitmap);
+    const adjustments = options.includeAdjustments ? deriveAdjustments(options.editStack) : NO_ADJUSTMENTS;
+    imageLayer.draw(IDENTITY_VIEWPORT, geometry.width, geometry.height, adjustments);
+    imageLayer.dispose();
+    outputCtx.drawImage(imageCanvas, 0, 0);
+  }
 
   if (options.includeGrid) {
     const gridCanvas = new OffscreenCanvas(geometry.width, geometry.height);

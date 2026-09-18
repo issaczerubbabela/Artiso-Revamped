@@ -4,19 +4,18 @@ import { useState } from 'react';
 import { PanelButton } from '@/workspace/PanelButton';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { exportReference } from '@/session/export-reference';
+import { EXPORT_PROFILES } from '@/state/export-profiles';
 
-// Named export profiles (Print A4, Classroom, ...) are Phase 3
-// (docs/phases/phase-3-filters-presets-export.md) -- Phase 1 exposes the raw
-// ExportSettings fields directly (format/quality/includeGrid/includeAdjustments).
+// Named export profiles (docs/phases/phase-3-filters-presets-export.md) are
+// quick-select starting points over the same ExportSettings fields below --
+// picking one just sets them, and any field can still be tweaked afterward.
 export function ExportPanel() {
   const assetId = useWorkspaceStore((s) => s.assetId);
   const editStack = useWorkspaceStore((s) => s.editStack);
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const exportSettings = useWorkspaceStore((s) => s.exportSettings);
+  const setExportSettings = useWorkspaceStore((s) => s.setExportSettings);
 
-  const [format, setFormat] = useState<'png' | 'jpeg'>('png');
-  const [includeGrid, setIncludeGrid] = useState(true);
-  const [includeAdjustments, setIncludeAdjustments] = useState(true);
-  const [quality, setQuality] = useState(92);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +24,7 @@ export function ExportPanel() {
     setIsExporting(true);
     setError(null);
     try {
-      await exportReference({ assetId, editStack, gridConfig, format, quality, includeGrid, includeAdjustments });
+      await exportReference({ assetId, editStack, gridConfig, ...exportSettings });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed.');
     } finally {
@@ -35,37 +34,68 @@ export function ExportPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+        <span
+          style={{ fontFamily: 'var(--font-family-base)', fontSize: 'var(--font-label-size)', color: 'var(--color-ink-muted)' }}
+        >
+          Profile
+        </span>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+          {EXPORT_PROFILES.map((profile) => (
+            <PanelButton
+              key={profile.id}
+              active={exportSettings.profileId === profile.id}
+              onClick={() => setExportSettings({ ...profile.settings, profileId: profile.id })}
+            >
+              {profile.label}
+            </PanelButton>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-        <PanelButton active={format === 'png'} onClick={() => setFormat('png')}>
+        <PanelButton active={exportSettings.format === 'png'} onClick={() => setExportSettings({ format: 'png', profileId: undefined })}>
           PNG
         </PanelButton>
-        <PanelButton active={format === 'jpeg'} onClick={() => setFormat('jpeg')}>
+        <PanelButton active={exportSettings.format === 'jpeg'} onClick={() => setExportSettings({ format: 'jpeg', profileId: undefined })}>
           JPEG
         </PanelButton>
       </div>
 
-      {format === 'jpeg' && (
+      {exportSettings.format === 'jpeg' && (
         <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
           <span
             style={{ fontFamily: 'var(--font-family-base)', fontSize: 'var(--font-label-size)', color: 'var(--color-ink-muted)' }}
           >
-            Quality ({quality})
+            Quality ({exportSettings.quality})
           </span>
           <input
             type="range"
             min={10}
             max={100}
-            value={quality}
-            onChange={(event) => setQuality(Number(event.target.value))}
+            value={exportSettings.quality}
+            onChange={(event) => setExportSettings({ quality: Number(event.target.value), profileId: undefined })}
             style={{ accentColor: 'var(--color-accent)' }}
           />
         </label>
       )}
 
-      <PanelButton active={includeGrid} onClick={() => setIncludeGrid((v) => !v)}>
+      <PanelButton
+        active={exportSettings.includeImage !== false}
+        onClick={() => setExportSettings({ includeImage: exportSettings.includeImage === false, profileId: undefined })}
+      >
+        Include image
+      </PanelButton>
+      <PanelButton
+        active={exportSettings.includeGrid}
+        onClick={() => setExportSettings({ includeGrid: !exportSettings.includeGrid, profileId: undefined })}
+      >
         Include grid
       </PanelButton>
-      <PanelButton active={includeAdjustments} onClick={() => setIncludeAdjustments((v) => !v)}>
+      <PanelButton
+        active={exportSettings.includeAdjustments}
+        onClick={() => setExportSettings({ includeAdjustments: !exportSettings.includeAdjustments, profileId: undefined })}
+      >
         Include adjustments
       </PanelButton>
 

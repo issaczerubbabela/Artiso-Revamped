@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Asset, Project, Reference } from '@artiso/shared-types';
+import type { Asset, Preset, Project, Reference } from '@artiso/shared-types';
 
 export interface ArtisoDB extends DBSchema {
   projects: { key: string; value: Project };
@@ -7,24 +7,41 @@ export interface ArtisoDB extends DBSchema {
   assets: { key: string; value: Asset };
   // Keyed by `${assetId}:original` / `${assetId}:thumbnail`, not by keyPath.
   blobs: { key: string; value: Blob };
+  presets: { key: string; value: Preset };
 }
 
 const DB_NAME = 'artiso';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<ArtisoDB>> | undefined;
 
 // This is the local half of the sync architecture (docs/architecture/08):
 // Phase 1 uses it standalone; Phase 2 adds a debounced upload queue on top
-// without changing this schema.
+// without changing this schema. Each `if (!db.objectStoreNames.contains(...))`
+// guard means the upgrade callback works correctly both for a browser
+// upgrading from v1 (only `presets` is missing) and one opening fresh at v2
+// (everything is missing) -- IndexedDB only replays this callback for
+// versions the browser hasn't already reached, so it can't be split into
+// separate v1/v2 blocks without also guarding each store's existence.
 export function getDb(): Promise<IDBPDatabase<ArtisoDB>> {
   dbPromise ??= openDB<ArtisoDB>(DB_NAME, DB_VERSION, {
     upgrade(db) {
-      db.createObjectStore('projects', { keyPath: 'id' });
-      const references = db.createObjectStore('references', { keyPath: 'id' });
-      references.createIndex('byProject', 'projectId');
-      db.createObjectStore('assets', { keyPath: 'id' });
-      db.createObjectStore('blobs');
+      if (!db.objectStoreNames.contains('projects')) {
+        db.createObjectStore('projects', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('references')) {
+        const references = db.createObjectStore('references', { keyPath: 'id' });
+        references.createIndex('byProject', 'projectId');
+      }
+      if (!db.objectStoreNames.contains('assets')) {
+        db.createObjectStore('assets', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('blobs')) {
+        db.createObjectStore('blobs');
+      }
+      if (!db.objectStoreNames.contains('presets')) {
+        db.createObjectStore('presets', { keyPath: 'id' });
+      }
     },
   });
   return dbPromise;

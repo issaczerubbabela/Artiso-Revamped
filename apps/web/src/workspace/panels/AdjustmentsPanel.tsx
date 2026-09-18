@@ -1,17 +1,16 @@
 'use client';
 
 import { deriveAdjustments } from '@artiso/core-engine';
-import { PanelButton } from '@/workspace/PanelButton';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
-// Brightness/contrast/saturation + grayscale only (docs/phases/phase-1-web-core-mvp.md
-// -- the full filter suite is Phase 3). Every change is a uniform update on
-// the renderer's already-compiled shader, never a recompile
+// Brightness/contrast/saturation only -- the structural filter suite lives
+// in FiltersPanel.tsx, a separate tool mode (docs/architecture/06 lists
+// Adjustments and Filters as distinct modes). Every change is a uniform
+// update on the renderer's already-compiled shader, never a recompile
 // (ki-immediate-feedback).
 export function AdjustmentsPanel() {
   const editStack = useWorkspaceStore((s) => s.editStack);
   const setAdjustment = useWorkspaceStore((s) => s.setAdjustment);
-  const setGrayscale = useWorkspaceStore((s) => s.setGrayscale);
   const adjustments = deriveAdjustments(editStack);
 
   return (
@@ -31,9 +30,6 @@ export function AdjustmentsPanel() {
         value={adjustments.saturation}
         onChange={(value) => setAdjustment('saturation', value)}
       />
-      <PanelButton active={adjustments.grayscale} onClick={() => setGrayscale(!adjustments.grayscale)}>
-        Grayscale
-      </PanelButton>
     </div>
   );
 }

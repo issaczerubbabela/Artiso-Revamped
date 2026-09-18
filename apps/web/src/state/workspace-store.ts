@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { applyGeometryOps } from '@artiso/core-engine';
-import type { GridConfig, Operation } from '@artiso/shared-types';
+import type { ExportSettings, FilterId, GridConfig, Operation } from '@artiso/shared-types';
 import { scheduleReferenceSync, updateReference } from '@artiso/api-client';
 import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
+import { DEFAULT_EXPORT_SETTINGS } from './default-export-settings';
 
-export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'grid' | 'export';
+export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'export' | 'presets';
 
 interface LoadedReference {
   projectId: string;
@@ -36,6 +37,13 @@ interface WorkspaceState {
   editStack: Operation[];
   gridConfig: GridConfig;
 
+  // Transient, per-session UI state -- not part of the persisted Reference
+  // (only a saved Preset durably bundles export settings). Shared between
+  // ExportPanel and PresetsPanel so a saved preset captures whatever the
+  // user currently has configured for export.
+  exportSettings: ExportSettings;
+  setExportSettings: (patch: Partial<ExportSettings>) => void;
+
   // Bumped to ask CanvasStage to reset the Viewport to fit-to-frame. The Crop
   // panel's overlay assumes the image is shown at fit scale so it can
   // position handles without needing live access to the renderer's Viewport
@@ -48,8 +56,9 @@ interface WorkspaceState {
   loadReference: (input: LoadedReference) => void;
   appendGeometryOp: (op: Operation) => Promise<void>;
   setAdjustment: (type: 'brightness' | 'contrast' | 'saturation', value: number) => void;
-  setGrayscale: (enabled: boolean) => void;
+  setFilter: (filterId: FilterId | null, params?: Record<string, number>) => void;
   setGridConfig: (patch: Partial<GridConfig>) => void;
+  applyPreset: (input: { gridConfig: GridConfig; filterStack: Operation[]; exportSettings: ExportSettings }) => void;
   reset: () => void;
 }
 
@@ -87,6 +96,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   editStack: [],
   gridConfig: DEFAULT_GRID_CONFIG,
 
+  exportSettings: DEFAULT_EXPORT_SETTINGS,
+  setExportSettings: (patch) => set((state) => ({ exportSettings: { ...state.exportSettings, ...patch } })),
+
   viewportResetSignal: 0,
   requestViewportReset: () => set((state) => ({ viewportResetSignal: state.viewportResetSignal + 1 })),
 
@@ -100,6 +112,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: input.workingHeight,
       editStack: input.editStack,
       gridConfig: input.gridConfig,
+      exportSettings: DEFAULT_EXPORT_SETTINGS,
       toolMode: 'idle',
       importError: null,
     }),
@@ -132,10 +145,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
 
-  setGrayscale: (enabled) => {
+  // At most one active structural filter at a time -- setting a new one (or
+  // null, to turn filtering off) replaces whatever was active, matching
+  // core-engine's deriveAdjustments last-wins rule.
+  setFilter: (filterId, params) => {
     const state = get();
-    const withoutGrayscale = state.editStack.filter((op) => !(op.type === 'filter' && op.id === 'grayscale'));
-    const editStack = enabled ? [...withoutGrayscale, { type: 'filter', id: 'grayscale' } as Operation] : withoutGrayscale;
+    const withoutFilter = state.editStack.filter((op) => op.type !== 'filter');
+    const editStack: Operation[] = filterId ? [...withoutFilter, { type: 'filter', id: filterId, params }] : withoutFilter;
     set({ editStack });
     if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, state.gridConfig);
   },
@@ -145,6 +161,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const gridConfig = { ...state.gridConfig, ...patch };
     set({ gridConfig });
     if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, state.editStack, gridConfig);
+  },
+
+  // Grid + filter stack from a saved Preset, layered on top of whatever
+  // geometry (crop/rotate/flip) already happened to this specific photo --
+  // a preset is a reusable style, not a framing decision.
+  applyPreset: (input) => {
+    const state = get();
+    const geometryOps = state.editStack.filter(
+      (op) => op.type === 'crop' || op.type === 'rotate' || op.type === 'flip',
+    );
+    const editStack = [...geometryOps, ...input.filterStack];
+    set({ editStack, gridConfig: input.gridConfig, exportSettings: input.exportSettings });
+    if (state.referenceId && state.projectId) schedulePersist(state.projectId, state.referenceId, editStack, input.gridConfig);
   },
 
   reset: () =>
@@ -158,6 +187,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: 0,
       editStack: [],
       gridConfig: DEFAULT_GRID_CONFIG,
+      exportSettings: DEFAULT_EXPORT_SETTINGS,
       importError: null,
     }),
 }));

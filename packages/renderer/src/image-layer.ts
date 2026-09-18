@@ -1,13 +1,33 @@
 import type { DerivedAdjustments } from '@artiso/core-engine';
+import type { FilterId } from '@artiso/shared-types';
 import { createProgram } from './gl/compile';
+import { FILTER_ID_TO_INT } from './gl/filter-ids';
 import { FRAGMENT_SHADER_SOURCE, VERTEX_SHADER_SOURCE } from './gl/shader-source';
 import type { ViewportState } from './viewport';
 
+// Each filter that takes a param reads it from a specific key in
+// Operation['filter']['params'], falling back to this default when unset --
+// e.g. dragging the Filters panel's slider for the first time before the
+// user has touched it.
+const PARAM_KEY_BY_FILTER: Partial<Record<FilterId, { key: string; fallback: number }>> = {
+  threshold: { key: 'cutoff', fallback: 50 },
+  posterize: { key: 'levels', fallback: 4 },
+  blur: { key: 'radius', fallback: 2 },
+  sharpen: { key: 'amount', fallback: 50 },
+};
+
+function resolveParam1(adjustments: DerivedAdjustments): number {
+  if (!adjustments.filterId) return 0;
+  const spec = PARAM_KEY_BY_FILTER[adjustments.filterId];
+  if (!spec) return 0;
+  return adjustments.filterParams[spec.key] ?? spec.fallback;
+}
+
 // WebGL2 image layer: the bottom canvas of the two-canvas compositor (see
 // docs/architecture/05-canvas-renderer.md). Draws the working bitmap through
-// the fixed brightness/contrast/saturation/grayscale shader, reprojected
-// through the current Viewport transform every frame -- never recomputing
-// the image pipeline itself for pan/zoom.
+// the fixed brightness/contrast/saturation + full-filter-suite shader,
+// reprojected through the current Viewport transform every frame -- never
+// recomputing the image pipeline itself for pan/zoom.
 //
 // Needs a real WebGL2 context, so it isn't unit tested under Vitest; it's
 // exercised via the Playwright E2E golden path and manual verification.
@@ -20,10 +40,12 @@ export class ImageLayer {
     size: WebGLUniformLocation | null;
     scale: WebGLUniformLocation | null;
     offset: WebGLUniformLocation | null;
+    texelSize: WebGLUniformLocation | null;
     brightness: WebGLUniformLocation | null;
     contrast: WebGLUniformLocation | null;
     saturation: WebGLUniformLocation | null;
-    grayscale: WebGLUniformLocation | null;
+    filterId: WebGLUniformLocation | null;
+    param1: WebGLUniformLocation | null;
     texture: WebGLUniformLocation | null;
   };
   private sourceWidth = 0;
@@ -64,10 +86,12 @@ export class ImageLayer {
       size: gl.getUniformLocation(this.program, 'u_size'),
       scale: gl.getUniformLocation(this.program, 'u_scale'),
       offset: gl.getUniformLocation(this.program, 'u_offset'),
+      texelSize: gl.getUniformLocation(this.program, 'u_texelSize'),
       brightness: gl.getUniformLocation(this.program, 'u_brightness'),
       contrast: gl.getUniformLocation(this.program, 'u_contrast'),
       saturation: gl.getUniformLocation(this.program, 'u_saturation'),
-      grayscale: gl.getUniformLocation(this.program, 'u_grayscale'),
+      filterId: gl.getUniformLocation(this.program, 'u_filterId'),
+      param1: gl.getUniformLocation(this.program, 'u_param1'),
       texture: gl.getUniformLocation(this.program, 'u_texture'),
     };
   }
@@ -103,10 +127,15 @@ export class ImageLayer {
     gl.uniform2f(this.uniforms.size, this.sourceWidth, this.sourceHeight);
     gl.uniform2f(this.uniforms.scale, scaleX, scaleY);
     gl.uniform2f(this.uniforms.offset, offsetX, offsetY);
+    // Texture-space, not canvas-space -- the multi-tap filters (blur, sharpen,
+    // edge detect, pencil sketch) sample neighboring texels of the source
+    // image itself, independent of how large it's currently drawn on screen.
+    gl.uniform2f(this.uniforms.texelSize, 1 / this.sourceWidth, 1 / this.sourceHeight);
     gl.uniform1f(this.uniforms.brightness, adjustments.brightness);
     gl.uniform1f(this.uniforms.contrast, adjustments.contrast);
     gl.uniform1f(this.uniforms.saturation, adjustments.saturation);
-    gl.uniform1f(this.uniforms.grayscale, adjustments.grayscale ? 1 : 0);
+    gl.uniform1i(this.uniforms.filterId, adjustments.filterId ? FILTER_ID_TO_INT[adjustments.filterId] : 0);
+    gl.uniform1f(this.uniforms.param1, resolveParam1(adjustments));
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);

@@ -5,7 +5,9 @@ import { PanelButton } from './PanelButton';
 import { CropPanel } from './panels/CropPanel';
 import { RotateFlipPanel } from './panels/RotateFlipPanel';
 import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
+import { FiltersPanel } from './panels/FiltersPanel';
 import { GridPanel } from './panels/GridPanel';
+import { PresetsPanel } from './panels/PresetsPanel';
 import { ExportPanel } from './panels/ExportPanel';
 import type { NormalizedRect } from './panels/CropOverlay';
 
@@ -16,7 +18,9 @@ const PANEL_TITLES: Record<ToolMode, string> = {
   crop: 'Crop',
   rotateFlip: 'Rotate & flip',
   adjustments: 'Adjustments',
+  filters: 'Filters',
   grid: 'Grid',
+  presets: 'Presets',
   export: 'Export',
 };
 
@@ -83,7 +87,9 @@ export function SideDock({ cropRect, onResetCropRect }: SideDockProps) {
         {toolMode === 'crop' && <CropPanel rect={cropRect} onResetRect={onResetCropRect} />}
         {toolMode === 'rotateFlip' && <RotateFlipPanel />}
         {toolMode === 'adjustments' && <AdjustmentsPanel />}
+        {toolMode === 'filters' && <FiltersPanel />}
         {toolMode === 'grid' && <GridPanel />}
+        {toolMode === 'presets' && <PresetsPanel />}
         {toolMode === 'export' && <ExportPanel />}
       </div>
     </div>

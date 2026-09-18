@@ -1,10 +1,15 @@
-import type { Operation } from '@artiso/shared-types';
+import type { FilterId, Operation } from '@artiso/shared-types';
 
 export interface DerivedAdjustments {
   brightness: number;
   contrast: number;
   saturation: number;
-  grayscale: boolean;
+  // At most one active structural filter at a time (docs/architecture/03's
+  // fixed pipeline ends in a single "structural filter" stage, not a stack
+  // of them) -- a later 'filter' entry replaces an earlier one, same
+  // last-wins rule as the tonal adjustments.
+  filterId: FilterId | null;
+  filterParams: Record<string, number>;
 }
 
 // Reduces an EditStack down to the single current value of each adjustment
@@ -13,7 +18,13 @@ export interface DerivedAdjustments {
 // earlier one rather than accumulating. This is what the WebGL image layer's
 // shader uniforms are set from every render.
 export function deriveAdjustments(ops: readonly Operation[]): DerivedAdjustments {
-  const result: DerivedAdjustments = { brightness: 0, contrast: 0, saturation: 0, grayscale: false };
+  const result: DerivedAdjustments = {
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    filterId: null,
+    filterParams: {},
+  };
 
   for (const op of ops) {
     switch (op.type) {
@@ -27,7 +38,8 @@ export function deriveAdjustments(ops: readonly Operation[]): DerivedAdjustments
         result.saturation = op.value;
         break;
       case 'filter':
-        if (op.id === 'grayscale') result.grayscale = true;
+        result.filterId = op.id;
+        result.filterParams = op.params ?? {};
         break;
       default:
         break;

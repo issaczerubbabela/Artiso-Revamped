@@ -10,7 +10,9 @@ const MODES: { id: ToolMode; label: string }[] = [
   { id: 'crop', label: 'Crop' },
   { id: 'rotateFlip', label: 'Rotate/Flip' },
   { id: 'adjustments', label: 'Adjust' },
+  { id: 'filters', label: 'Filters' },
   { id: 'grid', label: 'Grid' },
+  { id: 'presets', label: 'Presets' },
   { id: 'export', label: 'Export' },
 ];
 
