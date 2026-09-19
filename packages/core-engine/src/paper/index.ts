@@ -6,3 +6,4 @@ export * from './defaults';
 export * from './orientation';
 export * from './framing';
 export * from './migrate-legacy';
+export * from './framed-bitmap';

@@ -52,10 +52,12 @@ export class GridLayer {
     viewport: ViewportState,
     canvasWidth: number,
     canvasHeight: number,
-    options: { labelScale?: number; pixelRatio?: number } = {},
+    options: { labelScale?: number; pixelRatio?: number; lineScale?: number } = {},
   ): void {
     const labelFontPx = LABEL_FONT_PX * (options.labelScale ?? 1);
     const pixelRatio = options.pixelRatio ?? 1;
+    // Export draws at many px per mm, so it scales the screen-px line widths.
+    const lineScale = options.lineScale ?? 1;
     const ctx = this.ctx;
     // canvasWidth/Height and the viewport are in CSS px; the backing store is
     // pixelRatio times larger.
@@ -71,7 +73,7 @@ export class GridLayer {
 
       ctx.globalAlpha = config.opacity / 100;
       ctx.strokeStyle = config.color;
-      ctx.lineWidth = THICKNESS_PX[config.thickness] / viewport.scale;
+      ctx.lineWidth = (THICKNESS_PX[config.thickness] * lineScale) / viewport.scale;
 
       for (const line of geometry.lines) {
         ctx.beginPath();

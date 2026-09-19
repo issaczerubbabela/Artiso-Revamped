@@ -96,6 +96,13 @@ export async function decodeBlobToWorkingBitmap(
   }
 }
 
+// The full-resolution decode, EXIF-oriented -- the same "original" that
+// Asset.width/height and every crop measurement refer to. The caller owns the
+// bitmap and must close() it.
+export async function decodeOriginalBitmap(blob: Blob): Promise<ImageBitmap> {
+  return decodeBitmap(blob);
+}
+
 async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(blob, { imageOrientation: 'from-image' });

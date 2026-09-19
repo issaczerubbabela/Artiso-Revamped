@@ -34,6 +34,47 @@ export function isGuideConfig(config: GridConfig): boolean {
   return config.type === 'perspective' || config.type === 'ruleOfThirds' || config.type === 'goldenRatio';
 }
 
+/**
+ * What a rotate or flip does to a rectangle within the image plane it acts on:
+ * the plane is transformed and the rectangle goes with it. Any other operation
+ * leaves both unchanged. Rotation is clockwise, matching the canvas
+ * (apply-geometry-ops.ts): (x, y) -> (H - y, x) for 90 degrees.
+ */
+export function transformRectByOp(
+  rect: PixelRect,
+  plane: Dimensions,
+  op: Operation,
+): { rect: PixelRect; plane: Dimensions } {
+  const { width: W, height: H } = plane;
+  if (op.type === 'rotate') {
+    if (op.degrees === 90) {
+      return {
+        rect: { x: H - (rect.y + rect.h), y: rect.x, w: rect.h, h: rect.w },
+        plane: { width: H, height: W },
+      };
+    }
+    if (op.degrees === 180) {
+      return {
+        rect: { x: W - (rect.x + rect.w), y: H - (rect.y + rect.h), w: rect.w, h: rect.h },
+        plane,
+      };
+    }
+    if (op.degrees === 270) {
+      return {
+        rect: { x: rect.y, y: W - (rect.x + rect.w), w: rect.h, h: rect.w },
+        plane: { width: H, height: W },
+      };
+    }
+  }
+  if (op.type === 'flip') {
+    return {
+      rect: op.axis === 'horizontal' ? { ...rect, x: W - (rect.x + rect.w) } : { ...rect, y: H - (rect.y + rect.h) },
+      plane,
+    };
+  }
+  return { rect, plane };
+}
+
 export interface FoldedCrop {
   /** The original's size after rotate/flip. */
   oriented: Dimensions;
@@ -51,43 +92,22 @@ export interface FoldedCrop {
  * tracking the plane's size and the rectangle.
  */
 export function foldLegacyCrop(original: Dimensions, ops: readonly Operation[]): FoldedCrop {
-  let W = original.width;
-  let H = original.height;
-  let rect: PixelRect = { x: 0, y: 0, w: W, h: H };
+  let plane: Dimensions = { width: original.width, height: original.height };
+  let rect: PixelRect = { x: 0, y: 0, w: plane.width, h: plane.height };
 
   for (const op of ops) {
-    switch (op.type) {
-      case 'crop':
-        rect = {
-          x: rect.x + op.rect.x * rect.w,
-          y: rect.y + op.rect.y * rect.h,
-          w: op.rect.w * rect.w,
-          h: op.rect.h * rect.h,
-        };
-        break;
-      case 'rotate':
-        // Canvas rotation is clockwise: (x, y) -> (H - y, x) for 90 degrees.
-        if (op.degrees === 90) {
-          rect = { x: H - (rect.y + rect.h), y: rect.x, w: rect.h, h: rect.w };
-          [W, H] = [H, W];
-        } else if (op.degrees === 180) {
-          rect = { x: W - (rect.x + rect.w), y: H - (rect.y + rect.h), w: rect.w, h: rect.h };
-        } else if (op.degrees === 270) {
-          rect = { x: rect.y, y: W - (rect.x + rect.w), w: rect.h, h: rect.w };
-          [W, H] = [H, W];
-        }
-        break;
-      case 'flip':
-        rect =
-          op.axis === 'horizontal'
-            ? { ...rect, x: W - (rect.x + rect.w) }
-            : { ...rect, y: H - (rect.y + rect.h) };
-        break;
-      default:
-        break;
+    if (op.type === 'crop') {
+      rect = {
+        x: rect.x + op.rect.x * rect.w,
+        y: rect.y + op.rect.y * rect.h,
+        w: op.rect.w * rect.w,
+        h: op.rect.h * rect.h,
+      };
+    } else {
+      ({ rect, plane } = transformRectByOp(rect, plane, op));
     }
   }
-  return { oriented: { width: W, height: H }, rect };
+  return { oriented: plane, rect };
 }
 
 export interface LegacyMigrationInput {
