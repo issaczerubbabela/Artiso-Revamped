@@ -34,9 +34,20 @@ export async function syncReference(reference: Reference): Promise<SyncReference
   };
   const { error } = await supabase.from('references').upsert(row);
   if (error) throw new Error(error.message);
-  const { data, error: readError } = await supabase.from('references').select('version').eq('id', reference.id).single();
+  const { data, error: readError } = await supabase
+    .from('references')
+    .select('version, updated_at')
+    .eq('id', reference.id)
+    .single();
   if (readError) throw new Error(readError.message);
-  return (data as { version: number }).version === reference.version ? 'synced' : 'stale';
+  const stored = data as { version: number; updated_at: string };
+  // Version alone can't tell whether *our* write is what's stored: two
+  // people editing from the same base both reach the same next version, the
+  // server keeps the first, and the second would otherwise read back an equal
+  // version and wrongly conclude it had landed. updated_at is set per write
+  // by the client, so matching both means the stored row is ours.
+  const isOurs = stored.version === reference.version && Date.parse(stored.updated_at) === Date.parse(reference.updatedAt);
+  return isOurs ? 'synced' : 'stale';
 }
 
 export async function pullReference(id: string): Promise<Reference | null> {

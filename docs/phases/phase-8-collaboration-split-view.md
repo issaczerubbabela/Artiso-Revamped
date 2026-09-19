@@ -56,9 +56,8 @@ sync. Both were deferred there and activated by direct user instruction.
       edit still waiting to persist is never overwritten).
 - [x] Viewer role: server RLS rejects writes; the client also disables the
       editing tools, shows "View only", and the store refuses every edit.
-- [ ] Verified live against the real Supabase project with two accounts
-      (needs the migration re-run and a second confirmed account -- see
-      below).
+- [x] Verified live against the real Supabase project with two accounts
+      (see Verification).
 
 ## Verification
 
@@ -73,10 +72,18 @@ sync. Both were deferred there and activated by direct user instruction.
   view, viewer enforcement, shared-project cards, tombstone persistence, and
   loading rows saved before the newer fields existed.
 
-**Not yet verified:** the network round trip with two real accounts
-(supabase-js against the live project: RPC calls, Storage downloads by a
-collaborator, and a real two-browser edit/merge). The pieces are each tested,
-but not end to end.
+**Live two-account test (real Supabase, two isolated browsers, run once and
+not kept in the suite because it mutates the live database):** owner syncs a
+reference and invites the guest as an editor; the guest sees the project and
+opens it (the image arrives through Storage under the collaborator policy);
+both draw at the same moment and, after refresh, both sides hold both
+annotations; the guest deletes theirs and it is gone for the owner and not
+resurrected; the owner downgrades the guest to viewer and the guest becomes
+read-only; the owner removes the guest and the project disappears for them.
+It found one real bug, now fixed and covered by :
+when two people reached the same next version, the loser read back an equal
+version and wrongly believed its write had landed. Stale detection now also
+compares the stored .
 
 ## Known limitations
 
@@ -99,5 +106,5 @@ but not end to end.
       deletion is not undone by one (`merge-reference.test.ts`)
 - [x] A viewer's writes are rejected by the server
       (`sharing-rls.test.ts`), and the client is read-only for viewers
-- [ ] An editor's changes reach the owner (and vice versa) end to end against
-      the live Supabase project
+- [x] An editor's changes reach the owner (and vice versa) end to end against
+      the live Supabase project (live test above)
