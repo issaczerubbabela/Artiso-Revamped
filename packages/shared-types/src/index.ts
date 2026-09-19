@@ -2,6 +2,7 @@ export * from './schemas/common';
 export * from './schemas/filter';
 export * from './schemas/operation';
 export * from './schemas/grid-config';
+export * from './schemas/paper';
 export * from './schemas/annotation';
 export * from './schemas/export-settings';
 export * from './schemas/asset';

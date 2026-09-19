@@ -52,6 +52,11 @@ export function mergeReferences(base: Reference | null, local: Reference, remote
     editStack,
     gridConfig: pick(base?.gridConfig, local.gridConfig, remote.gridConfig),
     secondaryGridConfig: pick(base?.secondaryGridConfig, local.secondaryGridConfig, remote.secondaryGridConfig),
+    // Placeholder per-field merge so nothing is dropped; paper + crop become one
+    // joint "framing" group when they gain a persisted column.
+    paper: pick(base?.paper, local.paper, remote.paper),
+    crop: pick(base?.crop, local.crop, remote.crop),
+    gridSettings: pick(base?.gridSettings, local.gridSettings, remote.gridSettings),
     annotations: mergeAnnotations(local.annotations, remote.annotations, new Set(removedAnnotationIds)),
     removedAnnotationIds,
     notes: pick(base?.notes, local.notes, remote.notes),

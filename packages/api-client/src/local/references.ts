@@ -16,6 +16,10 @@ export async function createReference(input: CreateReferenceInput): Promise<Refe
     editStack: [],
     gridConfig: input.gridConfig,
     secondaryGridConfig: null,
+    // Filled in by the workspace when the reference is first opened.
+    paper: null,
+    crop: null,
+    gridSettings: null,
     annotations: [],
     removedAnnotationIds: [],
     notes: '',

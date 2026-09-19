@@ -3,6 +3,7 @@ import { IdSchema, IsoDateTimeSchema } from './common';
 import { OperationSchema } from './operation';
 import { GridConfigSchema } from './grid-config';
 import { AnnotationSchema } from './annotation';
+import { CropSchema, GridSettingsSchema, PaperSchema } from './paper';
 
 export const ReferenceSchema = z.object({
   id: IdSchema,
@@ -15,6 +16,13 @@ export const ReferenceSchema = z.object({
   // overlay on a rectangular grid). Nullable + defaulted so References saved
   // before this field existed keep parsing without a data migration.
   secondaryGridConfig: GridConfigSchema.nullable().default(null),
+  // Drawing-grid model (docs/phases/phase-9-drawing-grid-overhaul.md). All
+  // three are null on References saved before the overhaul; they are filled in
+  // lazily when such a Reference is first opened (legacy migration). `crop` is
+  // never baked into the EditStack -- rotate/flip stay there and apply first.
+  paper: PaperSchema.nullable().default(null),
+  crop: CropSchema.nullable().default(null),
+  gridSettings: GridSettingsSchema.nullable().default(null),
   // Annotation layer (docs/phases/phase-7-guides-workspace-export.md): drawn
   // on top of the image/grid, never affecting the EditStack pipeline or grid
   // geometry (ki-grid-image-independence's "independent overlay" pattern

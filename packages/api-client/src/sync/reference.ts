@@ -73,6 +73,11 @@ function rowToReference(row: ReferenceRow): Reference {
     editStack: EditStackSchema.parse(row.edit_stack),
     gridConfig: GridConfigSchema.parse(row.grid_config),
     secondaryGridConfig: row.secondary_grid_config ? GridConfigSchema.parse(row.secondary_grid_config) : null,
+    // No server columns yet -- these are still local-only until the paper/crop
+    // migration lands, so a pulled row always starts unmigrated.
+    paper: null,
+    crop: null,
+    gridSettings: null,
     annotations: AnnotationsSchema.parse(row.annotations ?? []),
     removedAnnotationIds: RemovedIdsSchema.parse(row.removed_annotation_ids ?? []),
     notes: row.notes,
