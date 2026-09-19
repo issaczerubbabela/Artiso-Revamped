@@ -44,6 +44,8 @@ export function PaperCropPanel() {
   const dpi = useDisplayStore((s) => s.dpi);
   const setUnit = useDisplayStore((s) => s.setUnit);
   const setDpi = useDisplayStore((s) => s.setDpi);
+  const calibrated = useDisplayStore((s) => s.screen !== null);
+  const openCalibration = useDisplayStore((s) => s.openCalibration);
 
   if (!draft) return null;
   const { paper } = draft;
@@ -114,6 +116,8 @@ export function PaperCropPanel() {
       <p style={{ ...labelStyle, textTransform: 'none', letterSpacing: 0, margin: 0, lineHeight: 1.4 }}>
         Drag and zoom the photo to frame it. The window stays the shape of the paper.
       </p>
+
+      <PanelButton onClick={openCalibration}>{calibrated ? 'Recalibrate screen' : 'Calibrate screen for Real size'}</PanelButton>
 
       <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
         <PanelButton variant="primary" onClick={() => setToolMode('idle')}>

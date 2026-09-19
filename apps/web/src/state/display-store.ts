@@ -51,6 +51,12 @@ interface DisplayState extends Persisted {
   setUnit: (unit: Unit) => void;
   setDpi: (dpi: number) => void;
   setScreen: (screen: ScreenCalibration | null) => void;
+
+  // Whether the calibration dialog is open. Transient UI state, never persisted:
+  // Real size and the Paper panel both open it, one dialog serves them all.
+  calibrationOpen: boolean;
+  openCalibration: () => void;
+  closeCalibration: () => void;
 }
 
 export const useDisplayStore = create<DisplayState>((set, get) => {
@@ -66,5 +72,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => {
       if (dpi > 0 && Number.isFinite(dpi)) persist({ dpi });
     },
     setScreen: (screen) => persist({ screen }),
+    calibrationOpen: false,
+    openCalibration: () => set({ calibrationOpen: true }),
+    closeCalibration: () => set({ calibrationOpen: false }),
   };
 });

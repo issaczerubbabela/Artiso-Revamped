@@ -47,6 +47,8 @@ const PRESENTATION_MIN_LINE_PX = 2.5;
 export interface StageViewInfo {
   // CSS px per mm of paper (the viewport scale).
   scale: number;
+  // The scale at which the whole paper fits; the zoom readout is relative to it.
+  fitScale: number;
   isRealSize: boolean;
   // Whether Real size can be reached (the screen has been calibrated).
   realSizeAvailable: boolean;
@@ -328,11 +330,19 @@ export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession
         if (!cb || engine.mode !== 'draw') return;
         const info: StageViewInfo = {
           scale: engine.viewport.getState().scale,
+          fitScale: engine.viewport.getFitScale(),
           isRealSize: engine.viewport.isRealSize(),
           realSizeAvailable: engine.viewport.getRealScale() !== null,
         };
         const last = engine.lastInfo;
-        if (last && last.scale === info.scale && last.isRealSize === info.isRealSize && last.realSizeAvailable === info.realSizeAvailable) return;
+        if (
+          last &&
+          last.scale === info.scale &&
+          last.fitScale === info.fitScale &&
+          last.isRealSize === info.isRealSize &&
+          last.realSizeAvailable === info.realSizeAvailable
+        )
+          return;
         engine.lastInfo = info;
         cb(info);
       }

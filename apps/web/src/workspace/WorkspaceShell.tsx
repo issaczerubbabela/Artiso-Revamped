@@ -1,6 +1,5 @@
 'use client';
 
-import { CanvasStage } from '@/canvas/CanvasStage';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { useBreakpoint } from './use-breakpoint';
 import { PanelButton } from './PanelButton';
@@ -10,6 +9,8 @@ import { SideRail } from './SideRail';
 import { SideDock } from './SideDock';
 import { TabStrip } from './TabStrip';
 import { PANEL_TITLES, ToolPanel } from './ToolPanel';
+import { PaneStage } from './PaneStage';
+import { CalibrationDialog } from './CalibrationDialog';
 
 // Adaptive, not two apps (CLAUDE.md): one component tree, chrome swaps by
 // breakpoint (docs/architecture/06-workspace-interaction.md). Compact/Regular
@@ -29,7 +30,7 @@ export function WorkspaceShell() {
 
   const canvasArea = (
     <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-      {hasReference ? <CanvasStage /> : <EmptyState error={importError} />}
+      {hasReference ? <PaneStage /> : <EmptyState error={importError} />}
     </div>
   );
 
@@ -57,7 +58,7 @@ export function WorkspaceShell() {
               outlineOffset: -2,
             }}
           >
-            <CanvasStage session={isFocused ? undefined : (splitParked ?? undefined)} />
+            <PaneStage session={isFocused ? undefined : (splitParked ?? undefined)} />
           </div>
         );
       })}
@@ -90,6 +91,7 @@ export function WorkspaceShell() {
           {splitActive ? splitCanvasArea : canvasArea}
         </div>
         <SideDock />
+        <CalibrationDialog />
       </div>
     );
   }
@@ -105,6 +107,7 @@ export function WorkspaceShell() {
       ) : null}
 
       <Toolbar />
+      <CalibrationDialog />
     </div>
   );
 }
