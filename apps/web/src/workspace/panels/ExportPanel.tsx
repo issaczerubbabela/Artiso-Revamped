@@ -12,7 +12,9 @@ import { EXPORT_PROFILES } from '@/state/export-profiles';
 export function ExportPanel() {
   const assetId = useWorkspaceStore((s) => s.assetId);
   const editStack = useWorkspaceStore((s) => s.editStack);
-  const gridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const paper = useWorkspaceStore((s) => s.paper);
+  const crop = useWorkspaceStore((s) => s.crop);
+  const gridSettings = useWorkspaceStore((s) => s.gridSettings);
   const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
   const annotations = useWorkspaceStore((s) => s.annotations);
   const exportSettings = useWorkspaceStore((s) => s.exportSettings);
@@ -26,7 +28,16 @@ export function ExportPanel() {
     setIsExporting(true);
     setError(null);
     try {
-      await exportReference({ assetId, editStack, gridConfig, secondaryGridConfig, annotations, ...exportSettings });
+      await exportReference({
+        assetId,
+        editStack,
+        paper,
+        crop,
+        gridSettings,
+        secondaryGridConfig,
+        annotations,
+        ...exportSettings,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed.');
     } finally {

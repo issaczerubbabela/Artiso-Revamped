@@ -8,7 +8,7 @@ import { importReference } from '@/session/import-reference';
 import { closeWorkspace } from '@/session/close-workspace';
 
 const MODES: { id: ToolMode; label: string }[] = [
-  { id: 'crop', label: 'Crop' },
+  { id: 'paper', label: 'Paper' },
   { id: 'rotateFlip', label: 'Rotate/Flip' },
   { id: 'adjustments', label: 'Adjust' },
   { id: 'filters', label: 'Filters' },

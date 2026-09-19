@@ -1,4 +1,5 @@
 import { deepEqual, getProject, getReference, subscribeReferenceUpdates, syncReferenceNow } from '@artiso/api-client';
+import { orientationOps } from '@artiso/core-engine';
 import type { Operation } from '@artiso/shared-types';
 import { useAuthStore } from '@/state/auth-store';
 import { hasPendingPersist, useWorkspaceStore } from '@/state/workspace-store';
@@ -11,8 +12,11 @@ import { refreshProjectsFromServer } from './auth-bootstrap';
 // merges in whatever a collaborator (or another of the user's devices) did.
 const REFRESH_INTERVAL_MS = 30_000;
 
-function geometryOps(editStack: Operation[]): Operation[] {
-  return editStack.filter((op) => op.type === 'crop' || op.type === 'rotate' || op.type === 'flip');
+// What decides the working bitmap: the rotate/flip operations, the paper and the
+// crop. (Legacy crop operations still in an EditStack are ignored once a
+// reference has a paper, so they can't cause a reload.)
+function framingOf(editStack: Operation[], paper: unknown, crop: unknown) {
+  return { orientation: orientationOps(editStack), paper, crop };
 }
 
 // Sync changed a reference's *local* copy (a merge landed). The open
@@ -41,9 +45,24 @@ async function adoptFromLocal(referenceId: string): Promise<void> {
   const current = useWorkspaceStore.getState();
   if (current.referenceId !== referenceId) return;
 
-  // A collaborator changed the crop/rotation, which changes the working
-  // bitmap itself -- that needs a real reload, not a field swap.
-  if (!deepEqual(geometryOps(reference.editStack), geometryOps(current.editStack))) {
+  // A reference the other side hasn't migrated yet arrives without a paper or
+  // crop. This device already migrated it, so keep our framing rather than
+  // treating the difference as a collaborator's change.
+  const unmigrated = reference.paper === null || reference.crop === null;
+
+  // A collaborator changed the crop, paper or rotation, which changes the
+  // working bitmap itself -- that needs a real reload, not a field swap.
+  if (
+    !unmigrated &&
+    !deepEqual(
+      framingOf(reference.editStack, reference.paper, reference.crop),
+      framingOf(current.editStack, current.paper, current.crop),
+    )
+  ) {
+    await loadReferenceIntoWorkspace(project, reference);
+    return;
+  }
+  if (unmigrated && !deepEqual(orientationOps(reference.editStack), orientationOps(current.editStack))) {
     await loadReferenceIntoWorkspace(project, reference);
     return;
   }
@@ -51,7 +70,8 @@ async function adoptFromLocal(referenceId: string): Promise<void> {
   current.adoptSyncedFields({
     editStack: reference.editStack,
     gridConfig: reference.gridConfig,
-    secondaryGridConfig: reference.secondaryGridConfig,
+    secondaryGridConfig: unmigrated ? current.secondaryGridConfig : reference.secondaryGridConfig,
+    gridSettings: reference.gridSettings ?? current.gridSettings,
     annotations: reference.annotations,
     removedAnnotationIds: reference.removedAnnotationIds,
   });

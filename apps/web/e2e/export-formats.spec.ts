@@ -33,7 +33,10 @@ test('SVG export produces a grid-only vector document', async ({ page }) => {
   expect(filePath).not.toBeNull();
   const content = await readFile(filePath as string, 'utf-8');
   expect(content).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
-  expect(content).toContain('<line ');
+  // Sized in real millimetres (A4 landscape, the default for a wide photo) so it
+  // prints at physical scale, with the squares as one batched path.
+  expect(content).toMatch(/width="297mm" height="210mm" viewBox="0 0 297 210"/);
+  expect(content).toContain('<path id="squares"');
   expect(content).not.toContain('<image');
 });
 

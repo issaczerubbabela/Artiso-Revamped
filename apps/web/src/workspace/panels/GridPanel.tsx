@@ -1,309 +1,256 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { formatLength, toMm } from '@artiso/core-engine';
 import type { GridConfig } from '@artiso/shared-types';
+import { NumberField, Segmented, Slider, Swatches, Switch, labelStyle } from '@/components/controls';
 import { PanelButton } from '@/workspace/PanelButton';
+import { useDisplayStore } from '@/state/display-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
-const DENSITY_PRESETS = [4, 6, 8, 10, 12];
-const THICKNESS_OPTIONS: GridConfig['thickness'][] = ['veryThin', 'thin', 'medium', 'thick', 'extraThick'];
-const NUMBERING_OPTIONS: NonNullable<Extract<GridConfig, { type: 'rectangular' }>['numberingMode']>[] = [
-  'off',
-  'numbers',
-  'letters',
-  'alphanumeric',
-];
-const TYPE_OPTIONS: { type: GridConfig['type']; label: string }[] = [
-  { type: 'rectangular', label: 'Rectangular' },
+const LABEL_SCHEMES = [
+  { value: 'numbers', label: 'Numbers' },
+  { value: 'letters', label: 'Letters' },
+] as const;
+
+// A few starting points; the custom swatch covers everything else.
+const GRID_COLORS = ['#ffffff', '#000000', '#ff3b30', '#34e2e2', '#ffd60a'] as const;
+
+const GUIDE_TYPES: { type: GridConfig['type']; label: string }[] = [
   { type: 'ruleOfThirds', label: 'Thirds' },
   { type: 'goldenRatio', label: 'Golden ratio' },
   { type: 'perspective', label: 'Perspective' },
-  { type: 'radial', label: 'Radial' },
 ];
 
-// Guide type + type-specific geometry controls, plus the style controls
-// shared by every type (color/opacity/thickness/visibility). Every change
-// here recomputes GridGeometry; nothing else in the app does
-// (ki-grid-image-independence). Per docs/phases/phase-7-guides-workspace-
-// export.md, five guide types are in scope: rectangular, perspective,
-// radial, rule-of-thirds, golden-ratio -- plus an optional second, layered
-// guide (major+minor) rendered as its own overlay pass
-// (.agents/workflows/add-new-grid-type-recipe.md's step 6).
+const THICKNESS_LEVELS: GridConfig['thickness'][] = ['veryThin', 'thin', 'medium', 'thick', 'extraThick'];
+const THICKNESS_NAMES = ['Hairline', 'Thin', 'Medium', 'Thick', 'Heavy'];
+
+const SECTION_STYLE = { display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' } as const;
+
+// The drawing grid (Grid-Feature-Spec.md §6-§9) and, below it, the optional
+// guide layer. Every change here repaints the grid and nothing else -- the image
+// pipeline is untouched (ki-grid-image-independence). Each value gets the
+// control its data shape calls for (docs/design.md §4): switches for the
+// overlays, sliders with live readouts for the continuous values, a segmented
+// control for the label scheme, swatches for colour.
 export function GridPanel() {
-  const gridConfig = useWorkspaceStore((s) => s.gridConfig);
-  const setGridConfig = useWorkspaceStore((s) => s.setGridConfig);
-  const setGridType = useWorkspaceStore((s) => s.setGridType);
+  const gridSettings = useWorkspaceStore((s) => s.gridSettings);
+  const paper = useWorkspaceStore((s) => s.paper);
+  const setGridSettings = useWorkspaceStore((s) => s.setGridSettings);
+  const unit = useDisplayStore((s) => s.unit);
+  const dpi = useDisplayStore((s) => s.dpi);
 
-  const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
-  const setSecondaryGridConfig = useWorkspaceStore((s) => s.setSecondaryGridConfig);
-  const setSecondaryGridType = useWorkspaceStore((s) => s.setSecondaryGridType);
-  const removeSecondaryGrid = useWorkspaceStore((s) => s.removeSecondaryGrid);
+  const { cellMm, showSquares, showDiagonals, showRadial, radialStepDeg, labels, style } = gridSettings;
+  // A slider that can reach the whole useful range: from a fine 2 mm grid up to
+  // a third of the long side. Exact values beyond it are typed into the field.
+  const cellMax = Math.max(10, Math.round(Math.max(paper.widthMm, paper.heightMm) / 3));
+  const formatCell = (mm: number) => `${formatLength(mm, unit, dpi)} ${unit}`;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-      <GuideEditor config={gridConfig} onPatch={setGridConfig} onTypeChange={setGridType} visibilityLabel="grid" />
+    <div style={SECTION_STYLE}>
+      <Switch label="Squares" checked={showSquares} onChange={(showSquares) => setGridSettings({ showSquares })} />
 
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-md)' }}>
-        {secondaryGridConfig ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            <Row label="Layered guide">
-              <PanelButton onClick={removeSecondaryGrid}>Remove layer</PanelButton>
-            </Row>
-            <GuideEditor
-              config={secondaryGridConfig}
-              onPatch={setSecondaryGridConfig}
-              onTypeChange={setSecondaryGridType}
-              visibilityLabel="layer"
-            />
-          </div>
-        ) : (
-          <PanelButton onClick={() => setSecondaryGridType('ruleOfThirds')}>Add layered guide</PanelButton>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// One guide's full control set (type selector, type-specific fields, shared
-// style, visibility) -- reused for both the primary grid and the optional
-// secondary layer, since a layered guide is just a second instance of the
-// same editor, not a different shape (see the recipe's "composition, not a
-// new type" rule).
-function GuideEditor({
-  config,
-  onPatch,
-  onTypeChange,
-  visibilityLabel,
-}: {
-  config: GridConfig;
-  onPatch: (patch: Partial<GridConfig>) => void;
-  onTypeChange: (type: GridConfig['type']) => void;
-  visibilityLabel: string;
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-      <Row label="Guide type">
-        <ButtonGroup>
-          {TYPE_OPTIONS.map(({ type, label }) => (
-            <PanelButton key={type} active={config.type === type} onClick={() => onTypeChange(type)}>
-              {label}
-            </PanelButton>
-          ))}
-        </ButtonGroup>
-      </Row>
-
-      {config.type === 'rectangular' && (
+      {showSquares ? (
         <>
-          <Row label="Density">
-            <ButtonGroup>
-              {DENSITY_PRESETS.map((n) => (
-                <PanelButton
-                  key={n}
-                  active={config.rows === n && config.cols === n}
-                  onClick={() => onPatch({ rows: n, cols: n })}
-                >
-                  {n}×{n}
-                </PanelButton>
-              ))}
-            </ButtonGroup>
-          </Row>
+          <Slider
+            label="Cell size"
+            value={Math.min(cellMm, cellMax)}
+            min={2}
+            max={cellMax}
+            step={0.5}
+            format={formatCell}
+            onChange={(cellMm) => setGridSettings({ cellMm })}
+          />
+          <NumberField
+            label={`Exact cell size (${unit})`}
+            value={cellMm}
+            format={(mm) => formatLength(mm, unit, dpi)}
+            suffix={unit}
+            onCommit={(v) => setGridSettings({ cellMm: toMm(v, unit, dpi) })}
+          />
 
-          <Row label="Numbering">
-            <ButtonGroup>
-              {NUMBERING_OPTIONS.map((numberingMode) => (
-                <PanelButton
-                  key={numberingMode}
-                  active={config.numberingMode === numberingMode}
-                  onClick={() => onPatch({ numberingMode })}
-                >
-                  {numberingMode}
-                </PanelButton>
-              ))}
-            </ButtonGroup>
-          </Row>
+          <Switch
+            label="Labels"
+            checked={labels.enabled}
+            onChange={(enabled) => setGridSettings({ labels: { enabled } })}
+          />
+          {labels.enabled ? (
+            <>
+              <Segmented
+                label="Columns"
+                value={labels.columns}
+                options={LABEL_SCHEMES}
+                onChange={(columns) => setGridSettings({ labels: { columns } })}
+              />
+              <Segmented
+                label="Rows"
+                value={labels.rows}
+                options={LABEL_SCHEMES}
+                onChange={(rows) => setGridSettings({ labels: { rows } })}
+              />
+            </>
+          ) : null}
         </>
-      )}
+      ) : null}
 
-      {config.type === 'perspective' && (
-        <>
-          <Row label="Vanishing points">
-            <ButtonGroup>
-              {([1, 2, 3] as const).map((count) => (
-                <PanelButton
-                  key={count}
-                  active={config.vanishingPointCount === count}
-                  onClick={() => onPatch({ vanishingPointCount: count })}
-                >
-                  {count}
-                </PanelButton>
-              ))}
-            </ButtonGroup>
-          </Row>
+      <Switch
+        label="Diagonals"
+        checked={showDiagonals}
+        onChange={(showDiagonals) => setGridSettings({ showDiagonals })}
+      />
 
-          <Row label={`Horizon (${Math.round(config.horizonY * 100)}%)`}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(config.horizonY * 100)}
-              onChange={(event) => onPatch({ horizonY: Number(event.target.value) / 100 })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-
-          <Row label={`Line count (${config.lineCount})`}>
-            <input
-              type="range"
-              min={2}
-              max={48}
-              value={config.lineCount}
-              onChange={(event) => onPatch({ lineCount: Number(event.target.value) })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-
-          {config.vanishingPointCount === 3 && (
-            <Row label="Third point">
-              <ButtonGroup>
-                {(['above', 'below'] as const).map((position) => (
-                  <PanelButton
-                    key={position}
-                    active={config.thirdPointPosition === position}
-                    onClick={() => onPatch({ thirdPointPosition: position })}
-                  >
-                    {position}
-                  </PanelButton>
-                ))}
-              </ButtonGroup>
-            </Row>
-          )}
-        </>
-      )}
-
-      {config.type === 'radial' && (
-        <>
-          <Row label={`Rings (${config.rings})`}>
-            <input
-              type="range"
-              min={1}
-              max={24}
-              value={config.rings}
-              onChange={(event) => onPatch({ rings: Number(event.target.value) })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-
-          <Row label={`Spokes (${config.spokes})`}>
-            <input
-              type="range"
-              min={1}
-              max={48}
-              value={config.spokes}
-              onChange={(event) => onPatch({ spokes: Number(event.target.value) })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-
-          <Row label={`Center X (${Math.round(config.centerX * 100)}%)`}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(config.centerX * 100)}
-              onChange={(event) => onPatch({ centerX: Number(event.target.value) / 100 })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-
-          <Row label={`Center Y (${Math.round(config.centerY * 100)}%)`}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(config.centerY * 100)}
-              onChange={(event) => onPatch({ centerY: Number(event.target.value) / 100 })}
-              style={{ accentColor: 'var(--color-accent)' }}
-            />
-          </Row>
-        </>
-      )}
-
-      {config.type === 'goldenRatio' && (
-        <Row label="Orientation">
-          <ButtonGroup>
-            {(['horizontal', 'vertical', 'both'] as const).map((orientation) => (
-              <PanelButton
-                key={orientation}
-                active={config.orientation === orientation}
-                onClick={() => onPatch({ orientation })}
-              >
-                {orientation}
-              </PanelButton>
-            ))}
-          </ButtonGroup>
-        </Row>
-      )}
-
-      <Row label="Color">
-        <input
-          type="color"
-          value={config.color}
-          onChange={(event) => onPatch({ color: event.target.value })}
-          style={{
-            minHeight: 'var(--touch-target-min)',
-            minWidth: 'var(--touch-target-min)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'none',
-          }}
+      <Switch label="Radial" checked={showRadial} onChange={(showRadial) => setGridSettings({ showRadial })} />
+      {showRadial ? (
+        <Slider
+          label="Radial step"
+          value={radialStepDeg}
+          min={1}
+          max={90}
+          step={1}
+          format={(v) => `${v}°`}
+          onChange={(radialStepDeg) => setGridSettings({ radialStepDeg })}
         />
-      </Row>
+      ) : null}
 
-      <Row label={`Opacity (${config.opacity})`}>
-        <input
-          type="range"
+      <Section title="Style">
+        <Swatches
+          label="Colour"
+          value={style.color}
+          colors={GRID_COLORS}
+          onChange={(color) => setGridSettings({ style: { color } })}
+        />
+        <Slider
+          label="Line width"
+          value={style.widthPx}
+          min={0.5}
+          max={6}
+          step={0.5}
+          format={(v) => `${v} px`}
+          onChange={(widthPx) => setGridSettings({ style: { widthPx } })}
+        />
+        <Slider
+          label="Opacity"
+          value={Math.round(style.opacity * 100)}
           min={0}
           max={100}
-          value={config.opacity}
-          onChange={(event) => onPatch({ opacity: Number(event.target.value) })}
-          style={{ accentColor: 'var(--color-accent)' }}
+          step={5}
+          format={(v) => `${v}%`}
+          onChange={(percent) => setGridSettings({ style: { opacity: percent / 100 } })}
         />
-      </Row>
+      </Section>
 
-      <Row label="Thickness">
-        <ButtonGroup>
-          {THICKNESS_OPTIONS.map((thickness) => (
-            <PanelButton key={thickness} active={config.thickness === thickness} onClick={() => onPatch({ thickness })}>
-              {thickness}
-            </PanelButton>
-          ))}
-        </ButtonGroup>
-      </Row>
-
-      <PanelButton active={config.visible} onClick={() => onPatch({ visible: !config.visible })}>
-        {config.visible ? `Hide ${visibilityLabel}` : `Show ${visibilityLabel}`}
-      </PanelButton>
+      <Section title="Guides">
+        <GuidePanel />
+      </Section>
     </div>
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-      <span
-        style={{
-          fontFamily: 'var(--font-family-base)',
-          fontSize: 'var(--font-label-size)',
-          color: 'var(--color-ink-muted)',
-        }}
-      >
-        {label}
-      </span>
+    <div style={{ ...SECTION_STYLE, borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-md)' }}>
+      <span style={{ ...labelStyle, color: 'var(--color-ink)' }}>{title}</span>
       {children}
     </div>
   );
 }
 
-function ButtonGroup({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>{children}</div>;
+// The optional guide (perspective / rule of thirds / golden ratio) drawn beneath
+// the grid, with its own style. Not part of the grid's "one shared style".
+function GuidePanel() {
+  const guide = useWorkspaceStore((s) => s.secondaryGridConfig);
+  const setGuide = useWorkspaceStore((s) => s.setSecondaryGridConfig);
+  const setGuideType = useWorkspaceStore((s) => s.setSecondaryGridType);
+  const removeGuide = useWorkspaceStore((s) => s.removeSecondaryGrid);
+
+  if (!guide) {
+    return <PanelButton onClick={() => setGuideType('ruleOfThirds')}>Add a guide</PanelButton>;
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+        {GUIDE_TYPES.map(({ type, label }) => (
+          <PanelButton key={type} active={guide.type === type} onClick={() => setGuideType(type)}>
+            {label}
+          </PanelButton>
+        ))}
+      </div>
+
+      {guide.type === 'perspective' && (
+        <>
+          <Segmented
+            label="Vanishing points"
+            value={String(guide.vanishingPointCount) as '1' | '2' | '3'}
+            options={[
+              { value: '1', label: '1' },
+              { value: '2', label: '2' },
+              { value: '3', label: '3' },
+            ]}
+            onChange={(count) => setGuide({ vanishingPointCount: Number(count) as 1 | 2 | 3 })}
+          />
+          <Slider
+            label="Horizon"
+            value={Math.round(guide.horizonY * 100)}
+            min={0}
+            max={100}
+            format={(v) => `${v}%`}
+            onChange={(v) => setGuide({ horizonY: v / 100 })}
+          />
+          <Slider
+            label="Line count"
+            value={guide.lineCount}
+            min={2}
+            max={48}
+            onChange={(lineCount) => setGuide({ lineCount })}
+          />
+          {guide.vanishingPointCount === 3 && (
+            <Segmented
+              label="Third point"
+              value={guide.thirdPointPosition}
+              options={[
+                { value: 'above', label: 'Above' },
+                { value: 'below', label: 'Below' },
+              ]}
+              onChange={(thirdPointPosition) => setGuide({ thirdPointPosition })}
+            />
+          )}
+        </>
+      )}
+
+      {guide.type === 'goldenRatio' && (
+        <Segmented
+          label="Orientation"
+          value={guide.orientation}
+          options={[
+            { value: 'horizontal', label: 'Horizontal' },
+            { value: 'vertical', label: 'Vertical' },
+            { value: 'both', label: 'Both' },
+          ]}
+          onChange={(orientation) => setGuide({ orientation })}
+        />
+      )}
+
+      <Swatches label="Guide colour" value={guide.color} colors={GRID_COLORS} onChange={(color) => setGuide({ color })} />
+      <Slider
+        label="Guide opacity"
+        value={guide.opacity}
+        min={0}
+        max={100}
+        step={5}
+        format={(v) => `${v}%`}
+        onChange={(opacity) => setGuide({ opacity })}
+      />
+      <Slider
+        label="Guide line width"
+        value={THICKNESS_LEVELS.indexOf(guide.thickness)}
+        min={0}
+        max={THICKNESS_LEVELS.length - 1}
+        format={(i) => THICKNESS_NAMES[i] ?? ''}
+        onChange={(i) => setGuide({ thickness: THICKNESS_LEVELS[i] ?? 'medium' })}
+      />
+      <Switch label="Show guide" checked={guide.visible} onChange={(visible) => setGuide({ visible })} />
+      <PanelButton onClick={removeGuide}>Remove guide</PanelButton>
+    </>
+  );
 }

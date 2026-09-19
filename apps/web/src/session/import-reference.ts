@@ -1,4 +1,11 @@
-import { deterministicUuid, importImage } from '@artiso/core-engine';
+import {
+  DEFAULT_GRID_SETTINGS,
+  decodeOriginalBitmap,
+  defaultFraming,
+  deterministicUuid,
+  importImage,
+  renderFramedBitmap,
+} from '@artiso/core-engine';
 import { LOCAL_OWNER_ID, createReference, saveAsset, scheduleReferenceSync, updateProject } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
 import { useWorkspaceStore } from '@/state/workspace-store';
@@ -13,6 +20,11 @@ import { createProjectAction } from './project-actions';
 // (api-client's local persistence, pushed to Supabase if signed in) -> hand
 // off to the workspace. Each import is its own Project -- multi-reference
 // projects are a data-model allowance only until Phase 6's workspace UI.
+//
+// A new reference starts framed: A4 turned to match the photo, the largest
+// centred crop of that shape, and the default grid (squares and labels on), so
+// one tap gets the artist a usable grid and the Paper & crop tool is only for
+// changing it (ki-simplicity-first).
 export async function importReference(): Promise<void> {
   const store = useWorkspaceStore.getState();
   store.setImportError(null);
@@ -40,25 +52,41 @@ export async function importReference(): Promise<void> {
     // queue.ts's runReferenceSync). Pushing it immediately would race the
     // asset upload and violate projects_thumbnail_asset_id_fkey.
     await updateProject(project.id, { thumbnailAssetId: asset.id });
+
+    const { paper, crop } = defaultFraming({ width: imported.originalWidth, height: imported.originalHeight });
     const reference = await createReference({
       projectId: project.id,
       originalAssetId: asset.id,
       gridConfig: DEFAULT_GRID_CONFIG,
+      paper,
+      crop,
+      gridSettings: DEFAULT_GRID_SETTINGS,
     });
 
     if (useAuthStore.getState().user) scheduleReferenceSync(project.id, reference.id);
+
+    // The drawn bitmap is the crop region, rendered from the full-resolution
+    // decode; importImage's whole-image working bitmap isn't used.
+    imported.workingBitmap.close();
+    const original = await decodeOriginalBitmap(blob);
+    const framed = await renderFramedBitmap(original, [], crop).finally(() => original.close());
 
     store.loadReference({
       projectId: project.id,
       projectName: project.name,
       referenceId: reference.id,
       assetId: asset.id,
-      workingBitmap: imported.workingBitmap,
-      workingWidth: imported.workingWidth,
-      workingHeight: imported.workingHeight,
+      workingBitmap: framed.bitmap,
+      workingWidth: framed.width,
+      workingHeight: framed.height,
       editStack: [],
       gridConfig: reference.gridConfig,
       secondaryGridConfig: reference.secondaryGridConfig,
+      paper,
+      crop,
+      gridSettings: DEFAULT_GRID_SETTINGS,
+      orientedWidth: framed.orientedWidth,
+      orientedHeight: framed.orientedHeight,
       annotations: reference.annotations,
       removedAnnotationIds: reference.removedAnnotationIds,
       role: 'owner',

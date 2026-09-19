@@ -1,35 +1,10 @@
 'use client';
 
-import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import { useWorkspaceStore } from '@/state/workspace-store';
 import { PanelButton } from './PanelButton';
-import { CropPanel } from './panels/CropPanel';
-import { RotateFlipPanel } from './panels/RotateFlipPanel';
-import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
-import { FiltersPanel } from './panels/FiltersPanel';
-import { GridPanel } from './panels/GridPanel';
-import { AnnotationPanel } from './panels/AnnotationPanel';
-import { PresetsPanel } from './panels/PresetsPanel';
-import { ExportPanel } from './panels/ExportPanel';
-import type { NormalizedRect } from './panels/CropOverlay';
+import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 
 const DOCK_WIDTH = 300;
-
-const PANEL_TITLES: Record<ToolMode, string> = {
-  idle: '',
-  crop: 'Crop',
-  rotateFlip: 'Rotate & flip',
-  adjustments: 'Adjustments',
-  filters: 'Filters',
-  grid: 'Grid',
-  annotate: 'Draw',
-  presets: 'Presets',
-  export: 'Export',
-};
-
-interface SideDockProps {
-  cropRect: NormalizedRect;
-  onResetCropRect: () => void;
-}
 
 // Wide-breakpoint counterpart to the Compact BottomSheet. Deliberately
 // capped at a modest fixed width (300px) so it never competes with the
@@ -42,7 +17,7 @@ interface SideDockProps {
 // vanishing instantly. The inner content div keeps a fixed width and the
 // outer wrapper clips it via overflow:hidden, so nothing reflows or wraps
 // mid-transition -- it just gets revealed or clipped.
-export function SideDock({ cropRect, onResetCropRect }: SideDockProps) {
+export function SideDock() {
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
   const isOpen = toolMode !== 'idle';
@@ -86,14 +61,7 @@ export function SideDock({ cropRect, onResetCropRect }: SideDockProps) {
             Close
           </PanelButton>
         </div>
-        {toolMode === 'crop' && <CropPanel rect={cropRect} onResetRect={onResetCropRect} />}
-        {toolMode === 'rotateFlip' && <RotateFlipPanel />}
-        {toolMode === 'adjustments' && <AdjustmentsPanel />}
-        {toolMode === 'filters' && <FiltersPanel />}
-        {toolMode === 'grid' && <GridPanel />}
-        {toolMode === 'annotate' && <AnnotationPanel />}
-        {toolMode === 'presets' && <PresetsPanel />}
-        {toolMode === 'export' && <ExportPanel />}
+        <ToolPanel mode={toolMode} />
       </div>
     </div>
   );

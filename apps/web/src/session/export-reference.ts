@@ -1,69 +1,74 @@
 import { PDFDocument } from 'pdf-lib';
 import {
-  applyGeometryOps,
+  MM_PER_CSS_PX,
+  decodeOriginalBitmap,
   deriveAdjustments,
+  generateDrawingGridSvg,
   generateGridGeometry,
-  generateGridSvg,
+  renderFramedBitmap,
   resolveAnnotationGeometry,
   type GridSvgLayer,
 } from '@artiso/core-engine';
-import { AnnotationLayer, GridLayer, ImageLayer, type GridDrawLayer } from '@artiso/renderer';
-import type { Annotation, ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
+import { AnnotationLayer, DrawingGridLayer, GridLayer, ImageLayer } from '@artiso/renderer';
+import type { Annotation, Crop, ExportSettings, GridConfig, GridSettings, Operation, Paper } from '@artiso/shared-types';
 import { getAssetBlob } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
 
 export interface ExportOptions extends ExportSettings {
   assetId: string;
   editStack: Operation[];
-  gridConfig: GridConfig;
+  paper: Paper;
+  crop: Crop;
+  gridSettings: GridSettings;
+  // The Guides layer, drawn beneath the grid.
   secondaryGridConfig: GridConfig | null;
   annotations: Annotation[];
 }
 
 const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0 };
 const NO_ADJUSTMENTS = { brightness: 0, contrast: 0, saturation: 0, filterId: null, filterParams: {} } as const;
+const POINTS_PER_MM = 72 / 25.4;
 
 // Re-runs the exact same core-engine/renderer functions the live preview
-// uses -- crop/rotate/flip, the adjustment shader, grid geometry -- against
-// the full-resolution original asset instead of the downsampled working
-// bitmap, with no viewport transform (export is the whole image, not the
-// current pan/zoom framing). Never a separate export-only reimplementation
+// uses -- rotate/flip and the crop region, the adjustment shader, the grid --
+// against the full-resolution original asset instead of the downsampled working
+// bitmap, with no viewport transform (export is the whole framed paper, not the
+// current pan/zoom). Never a separate export-only reimplementation
 // (.agents/workflows/build-export-pipeline.md's "re-run, don't reimplement"
 // rule -- the #1 way export output drifts from what the artist saw).
+//
+// The output is the crop region at its native resolution. The grid is drawn at
+// the paper's physical scale (pixels per millimetre follows from the crop), with
+// line widths and label sizes scaled from screen pixels so it looks as it did on
+// screen; the SVG and PDF are sized in real millimetres.
 export async function exportReference(options: ExportOptions): Promise<void> {
-  const originalBlob = await getAssetBlob(options.assetId, 'original');
-  if (!originalBlob) throw new Error('Original image is no longer available.');
-
-  const sourceBitmap = await createImageBitmap(originalBlob, { imageOrientation: 'from-image' });
-  const geometryOps = options.editStack.filter(
-    (op) => op.type === 'crop' || op.type === 'rotate' || op.type === 'flip',
-  );
-  const geometry =
-    geometryOps.length > 0
-      ? await applyGeometryOps(sourceBitmap, geometryOps)
-      : { bitmap: sourceBitmap, width: sourceBitmap.width, height: sourceBitmap.height };
+  const { paper, gridSettings } = options;
 
   // SVG is always grid-only (docs/architecture/07-export-engine.md) -- no
-  // raster compositing at all, just the same GridGeometry the live preview
-  // and PNG/JPEG export use, rendered as vector lines/labels. Bails out
-  // before any canvas work since there's no image layer to composite.
+  // raster compositing at all, just the same segment functions the live preview
+  // and PNG/JPEG export use, in millimetres. Needs no image, so it bails out
+  // before any decoding.
   if (options.format === 'svg') {
-    const svgLayers: GridSvgLayer[] = [
-      {
-        geometry: generateGridGeometry(geometry.width, geometry.height, options.gridConfig),
-        config: { ...options.gridConfig, visible: true },
-      },
-    ];
-    if (options.secondaryGridConfig) {
-      svgLayers.push({
-        geometry: generateGridGeometry(geometry.width, geometry.height, options.secondaryGridConfig),
-        config: { ...options.secondaryGridConfig, visible: true },
-      });
-    }
-    const svg = generateGridSvg(geometry.width, geometry.height, svgLayers);
+    const guides: GridSvgLayer[] = options.secondaryGridConfig
+      ? [
+          {
+            geometry: generateGridGeometry(paper.widthMm, paper.heightMm, options.secondaryGridConfig),
+            config: { ...options.secondaryGridConfig, visible: true },
+          },
+        ]
+      : [];
+    const svg = generateDrawingGridSvg({ paper, settings: gridSettings, guides });
     await getPlatformAdapter().saveFile(new Blob([svg], { type: 'image/svg+xml' }), 'reference.svg');
     return;
   }
+
+  const originalBlob = await getAssetBlob(options.assetId, 'original');
+  if (!originalBlob) throw new Error('Original image is no longer available.');
+
+  const sourceBitmap = await decodeOriginalBitmap(originalBlob);
+  const geometry = await renderFramedBitmap(sourceBitmap, options.editStack, options.crop, Number.POSITIVE_INFINITY).finally(
+    () => sourceBitmap.close(),
+  );
 
   const outputCanvas = new OffscreenCanvas(geometry.width, geometry.height);
   const outputCtx = outputCanvas.getContext('2d');
@@ -83,25 +88,34 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   }
 
   if (options.includeGrid) {
+    const pxPerMm = geometry.width / paper.widthMm;
+    // Screen px -> output px at 96 dpi, so a 1px line is as thick relative to the
+    // paper as it looked on screen at real size.
+    const scaleUp = pxPerMm * MM_PER_CSS_PX;
+    const view = { scale: pxPerMm, translateX: 0, translateY: 0 };
     const gridCanvas = new OffscreenCanvas(geometry.width, geometry.height);
-    const gridLayer = new GridLayer(gridCanvas);
-    // Export's includeGrid toggle is its own decision, independent of
-    // whether the grid happens to be hidden in the live workspace right now
-    // -- both the primary and (if present) the layered secondary guide
-    // force visible: true here for the same reason.
-    const layers: GridDrawLayer[] = [
-      {
-        geometry: generateGridGeometry(geometry.width, geometry.height, options.gridConfig),
-        config: { ...options.gridConfig, visible: true },
-      },
-    ];
+
+    // Guides first, then the grid over them. Export's includeGrid toggle is its
+    // own decision, independent of whether the grid happens to be hidden in the
+    // live workspace right now.
     if (options.secondaryGridConfig) {
-      layers.push({
-        geometry: generateGridGeometry(geometry.width, geometry.height, options.secondaryGridConfig),
-        config: { ...options.secondaryGridConfig, visible: true },
-      });
+      new GridLayer(gridCanvas).draw(
+        [
+          {
+            geometry: generateGridGeometry(paper.widthMm, paper.heightMm, options.secondaryGridConfig),
+            config: { ...options.secondaryGridConfig, visible: true },
+          },
+        ],
+        view,
+        geometry.width,
+        geometry.height,
+        { lineScale: scaleUp, labelScale: scaleUp },
+      );
     }
-    gridLayer.draw(layers, IDENTITY_VIEWPORT, geometry.width, geometry.height);
+    new DrawingGridLayer(gridCanvas).draw(
+      { paper, settings: gridSettings, view, width: geometry.width, height: geometry.height },
+      { clear: !options.secondaryGridConfig, lineScale: scaleUp, labelScale: scaleUp },
+    );
     outputCtx.drawImage(gridCanvas, 0, 0);
   }
 
@@ -117,17 +131,16 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     outputCtx.drawImage(annotationCanvas, 0, 0);
   }
 
-  // PDF bakes the exact same raster composite PNG does into a single-page
-  // PDF (page size in points == image size in pixels -- physical page
-  // sizing/DPI is out of scope for this pass) rather than a separate
-  // encode path, keeping the "re-run, don't reimplement" rule intact all
-  // the way to the final format.
+  // PDF bakes the exact same raster composite PNG does into a single page the
+  // size of the paper itself, so it prints at physical scale.
   if (options.format === 'pdf') {
     const pngBlob = await outputCanvas.convertToBlob({ type: 'image/png' });
     const pdfDoc = await PDFDocument.create();
     const pngImage = await pdfDoc.embedPng(new Uint8Array(await pngBlob.arrayBuffer()));
-    const page = pdfDoc.addPage([geometry.width, geometry.height]);
-    page.drawImage(pngImage, { x: 0, y: 0, width: geometry.width, height: geometry.height });
+    const pageWidth = paper.widthMm * POINTS_PER_MM;
+    const pageHeight = paper.heightMm * POINTS_PER_MM;
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    page.drawImage(pngImage, { x: 0, y: 0, width: pageWidth, height: pageHeight });
     const pdfBytes = await pdfDoc.save();
     await getPlatformAdapter().saveFile(new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' }), 'reference.pdf');
     return;

@@ -1,4 +1,4 @@
-import type { ExportSettings, GridConfig, Operation, Preset } from '@artiso/shared-types';
+import type { ExportSettings, GridConfig, GridSettings, Operation, Preset } from '@artiso/shared-types';
 import {
   LOCAL_OWNER_ID,
   createPreset as createLocalPreset,
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/state/auth-store';
 export async function createPresetAction(input: {
   name: string;
   gridConfig: GridConfig;
+  gridSettings: GridSettings;
   filterStack: Operation[];
   exportSettings: ExportSettings;
 }): Promise<Preset> {

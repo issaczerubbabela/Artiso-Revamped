@@ -7,7 +7,7 @@ import { PanelButton } from '@/workspace/PanelButton';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { createPresetAction, deletePresetAction, renamePresetAction } from '@/session/preset-actions';
 
-// Save current grid config + filter stack + export settings as a named,
+// Save current grid settings + filter stack + export settings as a named,
 // reusable Preset; apply/rename/delete (docs/phases/phase-3-filters-presets-
 // export.md). Synced across devices when signed in (see auth-bootstrap.ts's
 // mergeRemotePresets) -- local-only and fully functional when signed out.
@@ -15,6 +15,7 @@ export function PresetsPanel() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const gridSettings = useWorkspaceStore((s) => s.gridSettings);
   const editStack = useWorkspaceStore((s) => s.editStack);
   const exportSettings = useWorkspaceStore((s) => s.exportSettings);
   const applyPreset = useWorkspaceStore((s) => s.applyPreset);
@@ -38,7 +39,7 @@ export function PresetsPanel() {
     const filterStack = editStack.filter(
       (op) => op.type === 'brightness' || op.type === 'contrast' || op.type === 'saturation' || op.type === 'filter',
     );
-    await createPresetAction({ name, gridConfig, filterStack, exportSettings });
+    await createPresetAction({ name, gridConfig, gridSettings, filterStack, exportSettings });
     void refresh();
   }
 
@@ -88,7 +89,7 @@ export function PresetsPanel() {
                 <PanelButton
                   onClick={() =>
                     applyPreset({
-                      gridConfig: preset.gridConfig,
+                      gridSettings: preset.gridSettings,
                       filterStack: preset.filterStack,
                       exportSettings: preset.exportSettings,
                     })

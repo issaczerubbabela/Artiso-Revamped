@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { CanvasStage } from '@/canvas/CanvasStage';
-import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import { useWorkspaceStore } from '@/state/workspace-store';
 import { useBreakpoint } from './use-breakpoint';
 import { PanelButton } from './PanelButton';
 import { Toolbar } from './Toolbar';
@@ -10,29 +9,7 @@ import { BottomSheet } from './BottomSheet';
 import { SideRail } from './SideRail';
 import { SideDock } from './SideDock';
 import { TabStrip } from './TabStrip';
-import { CropOverlay, type NormalizedRect } from './panels/CropOverlay';
-import { CropPanel } from './panels/CropPanel';
-import { RotateFlipPanel } from './panels/RotateFlipPanel';
-import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
-import { FiltersPanel } from './panels/FiltersPanel';
-import { GridPanel } from './panels/GridPanel';
-import { AnnotationPanel } from './panels/AnnotationPanel';
-import { PresetsPanel } from './panels/PresetsPanel';
-import { ExportPanel } from './panels/ExportPanel';
-
-const FULL_FRAME: NormalizedRect = { x: 0, y: 0, w: 1, h: 1 };
-
-const PANEL_TITLES: Record<ToolMode, string> = {
-  idle: '',
-  crop: 'Crop',
-  rotateFlip: 'Rotate & flip',
-  adjustments: 'Adjustments',
-  filters: 'Filters',
-  grid: 'Grid',
-  annotate: 'Draw',
-  presets: 'Presets',
-  export: 'Export',
-};
+import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 
 // Adaptive, not two apps (CLAUDE.md): one component tree, chrome swaps by
 // breakpoint (docs/architecture/06-workspace-interaction.md). Compact/Regular
@@ -44,31 +21,15 @@ export function WorkspaceShell() {
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const importError = useWorkspaceStore((s) => s.importError);
-  const requestViewportReset = useWorkspaceStore((s) => s.requestViewportReset);
   const presentationMode = useWorkspaceStore((s) => s.presentationMode);
   const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
   const splitParked = useWorkspaceStore((s) => s.splitParked);
   const splitFocusedSide = useWorkspaceStore((s) => s.splitFocusedSide);
   const focusSplitPane = useWorkspaceStore((s) => s.focusSplitPane);
-  const [cropRect, setCropRect] = useState<NormalizedRect>(FULL_FRAME);
-
-  useEffect(() => {
-    if (toolMode === 'crop') {
-      setCropRect(FULL_FRAME);
-      requestViewportReset();
-    }
-  }, [toolMode, requestViewportReset]);
 
   const canvasArea = (
     <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-      {hasReference ? (
-        <>
-          <CanvasStage />
-          {toolMode === 'crop' ? <CropOverlay rect={cropRect} onChange={setCropRect} /> : null}
-        </>
-      ) : (
-        <EmptyState error={importError} />
-      )}
+      {hasReference ? <CanvasStage /> : <EmptyState error={importError} />}
     </div>
   );
 
@@ -97,7 +58,6 @@ export function WorkspaceShell() {
             }}
           >
             <CanvasStage session={isFocused ? undefined : (splitParked ?? undefined)} />
-            {isFocused && toolMode === 'crop' ? <CropOverlay rect={cropRect} onChange={setCropRect} /> : null}
           </div>
         );
       })}
@@ -129,7 +89,7 @@ export function WorkspaceShell() {
           {hasReference ? <TabStrip /> : null}
           {splitActive ? splitCanvasArea : canvasArea}
         </div>
-        <SideDock cropRect={cropRect} onResetCropRect={() => setCropRect(FULL_FRAME)} />
+        <SideDock />
       </div>
     );
   }
@@ -140,14 +100,7 @@ export function WorkspaceShell() {
 
       {toolMode !== 'idle' && hasReference ? (
         <BottomSheet title={PANEL_TITLES[toolMode]}>
-          {toolMode === 'crop' && <CropPanel rect={cropRect} onResetRect={() => setCropRect(FULL_FRAME)} />}
-          {toolMode === 'rotateFlip' && <RotateFlipPanel />}
-          {toolMode === 'adjustments' && <AdjustmentsPanel />}
-          {toolMode === 'filters' && <FiltersPanel />}
-          {toolMode === 'grid' && <GridPanel />}
-          {toolMode === 'annotate' && <AnnotationPanel />}
-          {toolMode === 'presets' && <PresetsPanel />}
-          {toolMode === 'export' && <ExportPanel />}
+          <ToolPanel mode={toolMode} />
         </BottomSheet>
       ) : null}
 

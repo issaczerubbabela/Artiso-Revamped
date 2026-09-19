@@ -23,19 +23,23 @@ test('import, edit, grid, export, and resume a session', async ({ page }) => {
   const canvas = page.locator('canvas').first();
   await canvas.waitFor({ state: 'visible', timeout: 15000 });
 
-  // Grid: default config renders visibly; turning on numbering adds labels.
+  // Grid: a fresh import is already framed on A4 with squares and labels on, so
+  // the grid is usable straight away; the artist adds the diagonals.
   await page.getByRole('button', { name: 'Grid', exact: true }).click();
-  await page.getByRole('button', { name: 'numbers' }).click();
-  await expect(page.getByRole('button', { name: 'Hide grid' })).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Squares' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('switch', { name: 'Labels' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('switch', { name: 'Diagonals' }).click();
+  await expect(page.getByRole('switch', { name: 'Diagonals' })).toHaveAttribute('aria-checked', 'true');
 
-  // Rotate/flip commits immediately and swaps the grid to the new dimensions.
+  // Rotate/flip commits immediately; a quarter turn also turns the paper.
   await page.getByRole('button', { name: 'Rotate/Flip' }).click();
   await page.getByRole('button', { name: 'Rotate 90°' }).click();
 
-  // Crop overlay appears with its Apply/Reset/Cancel controls.
-  await page.getByRole('button', { name: 'Crop', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Apply crop' })).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  // Paper & crop: choose the paper and frame the photo, then Done.
+  await page.getByRole('button', { name: 'Paper', exact: true }).click();
+  await expect(page.getByLabel('Paper size')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
 
   // Adjustments: brightness/contrast/saturation sliders present and live.
   await page.getByRole('button', { name: 'Adjust', exact: true }).click();

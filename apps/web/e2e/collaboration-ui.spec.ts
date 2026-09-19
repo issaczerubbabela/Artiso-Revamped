@@ -38,6 +38,10 @@ async function patchStore(page: Page, storeName: 'projects' | 'references', patc
           delete legacy.annotations;
           delete legacy.removedAnnotationIds;
           delete legacy.secondaryGridConfig;
+          // ...and before the drawing-grid overhaul gave it a paper, a crop and grid settings.
+          delete legacy.paper;
+          delete legacy.crop;
+          delete legacy.gridSettings;
           const legacyGrid = { ...(legacy.gridConfig as Record<string, unknown>) };
           delete legacyGrid.type;
           legacy.gridConfig = legacyGrid;
@@ -77,7 +81,7 @@ test('a project shared as view-only opens read-only', async ({ page }) => {
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 });
 
   await expect(page.getByText('View only')).toBeVisible();
-  for (const name of ['Crop', 'Rotate/Flip', 'Adjust', 'Filters', 'Grid', 'Draw', 'Presets']) {
+  for (const name of ['Paper', 'Rotate/Flip', 'Adjust', 'Filters', 'Grid', 'Draw', 'Presets']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   }
   // Looking and exporting still work.
@@ -146,10 +150,33 @@ test('a reference saved before newer fields existed still opens and works', asyn
   await page.reload();
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 });
 
-  // These panels read annotations / gridConfig.type; on unnormalized legacy
+  // These panels read annotations / gridSettings; on unnormalized legacy
   // data they used to throw.
   await page.getByRole('button', { name: 'Draw', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Undo last' })).toBeDisabled();
   await page.getByRole('button', { name: 'Grid', exact: true }).click();
-  await expect(page.getByRole('button', { name: '8×8' })).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Squares' })).toBeVisible();
+});
+
+test('a reference saved before the drawing-grid overhaul is migrated onto A4 and keeps working', async ({ page }) => {
+  await importFixture(page);
+  await page.waitForTimeout(800);
+  await patchStore(page, 'references', 'legacy');
+  const [stripped] = await readReferences(page);
+  expect(stripped?.paper).toBeUndefined();
+  expect(stripped?.gridSettings).toBeUndefined();
+
+  await page.reload();
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 });
+  // Opening it went straight into a working grid...
+  await page.getByRole('button', { name: 'Grid', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Squares' })).toHaveAttribute('aria-checked', 'true');
+
+  // ...and the migration was written back, so it only ever happens once.
+  await page.waitForTimeout(800);
+  const [migrated] = await readReferences(page);
+  expect(migrated?.paper).toMatchObject({ preset: 'A4', orientation: 'landscape', widthMm: 297, heightMm: 210 });
+  const crop = migrated?.crop as { x: number; y: number; w: number; h: number };
+  expect(crop.w / crop.h).toBeCloseTo(297 / 210, 6);
+  expect(migrated?.gridSettings).toMatchObject({ showSquares: true, marginMm: 0 });
 });
