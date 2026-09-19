@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CanvasStage } from '@/canvas/CanvasStage';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
 import { useBreakpoint } from './use-breakpoint';
+import { PanelButton } from './PanelButton';
 import { Toolbar } from './Toolbar';
 import { BottomSheet } from './BottomSheet';
 import { SideRail } from './SideRail';
@@ -43,6 +44,8 @@ export function WorkspaceShell() {
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const importError = useWorkspaceStore((s) => s.importError);
   const requestViewportReset = useWorkspaceStore((s) => s.requestViewportReset);
+  const presentationMode = useWorkspaceStore((s) => s.presentationMode);
+  const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
   const [cropRect, setCropRect] = useState<NormalizedRect>(FULL_FRAME);
 
   useEffect(() => {
@@ -64,6 +67,22 @@ export function WorkspaceShell() {
       )}
     </div>
   );
+
+  // Presentation mode is a display toggle over the same tree, not a fork:
+  // the same canvasArea renders, just without the toolbar/rail/dock/sheet.
+  if (presentationMode && hasReference) {
+    return (
+      <div style={{ position: 'relative', display: 'flex', height: '100dvh', background: '#000000' }}>
+        {canvasArea}
+        <PanelButton
+          onClick={() => setPresentationMode(false)}
+          style={{ position: 'absolute', top: 'var(--space-md)', right: 'var(--space-md)', opacity: 0.85 }}
+        >
+          Exit presentation
+        </PanelButton>
+      </div>
+    );
+  }
 
   if (breakpoint === 'wide') {
     return (

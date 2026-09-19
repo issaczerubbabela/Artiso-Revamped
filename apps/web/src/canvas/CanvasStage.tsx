@@ -94,7 +94,7 @@ export function CanvasStage() {
       engine.imageLayer.draw(engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight, adjustments);
 
       const geometry = getCachedGridGeometry(geometryCacheRef, state.workingWidth, state.workingHeight, state.gridConfig);
-      const layers: GridDrawLayer[] = [{ geometry, config: state.gridConfig }];
+      const layers: GridDrawLayer[] = [{ geometry, config: presentationStyle(state.gridConfig, state.presentationMode) }];
       if (state.secondaryGridConfig) {
         const secondaryGeometry = getCachedGridGeometry(
           secondaryGeometryCacheRef,
@@ -102,9 +102,14 @@ export function CanvasStage() {
           state.workingHeight,
           state.secondaryGridConfig,
         );
-        layers.push({ geometry: secondaryGeometry, config: state.secondaryGridConfig });
+        layers.push({
+          geometry: secondaryGeometry,
+          config: presentationStyle(state.secondaryGridConfig, state.presentationMode),
+        });
       }
-      engine.gridLayer.draw(layers, engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight);
+      engine.gridLayer.draw(layers, engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight, {
+        labelScale: state.presentationMode ? PRESENTATION_LABEL_SCALE : 1,
+      });
 
       const resolved = getCachedAnnotationGeometry(annotationCacheRef, state.workingWidth, state.workingHeight, state.annotations);
       engine.annotationLayer.draw(resolved, engine.draft, engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight);
@@ -120,7 +125,12 @@ export function CanvasStage() {
       // gestures over the same pointer events -- while the Annotate tool is
       // active, pan/zoom is suppressed the same way Settings' (future)
       // Gesture Lock suppresses it, rather than fighting over the same drag.
-      isGestureLocked: () => useWorkspaceStore.getState().toolMode === 'annotate',
+      // Presentation mode locks gestures too, so a classroom display can't
+      // be nudged out of framing by an accidental touch.
+      isGestureLocked: () => {
+        const state = useWorkspaceStore.getState();
+        return state.toolMode === 'annotate' || state.presentationMode;
+      },
     });
     engineRef.current = engine;
 
@@ -148,6 +158,10 @@ export function CanvasStage() {
       engine.pixelWidth = nextWidth;
       engine.pixelHeight = nextHeight;
       engine.viewport.resize(nextWidth, nextHeight);
+      // Presentation mode's chrome removal changes the container size right
+      // after the mode flips, so re-fit here too -- gestures are locked and
+      // the viewer couldn't recover a good framing themselves.
+      if (useWorkspaceStore.getState().presentationMode) engine.viewport.zoomToFit();
       engine.dirty = true;
     });
     resizeObserver.observe(container);
@@ -169,6 +183,7 @@ export function CanvasStage() {
   const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
   const annotations = useWorkspaceStore((s) => s.annotations);
   const toolMode = useWorkspaceStore((s) => s.toolMode);
+  const presentationMode = useWorkspaceStore((s) => s.presentationMode);
   const viewportResetSignal = useWorkspaceStore((s) => s.viewportResetSignal);
 
   // A committed geometry op (crop/rotate/flip) swaps the bitmap -- re-fit the
@@ -188,6 +203,15 @@ export function CanvasStage() {
     if (!engine) return;
     engine.dirty = true;
   }, [editStack, gridConfig, secondaryGridConfig, annotations]);
+
+  // Entering presentation mode re-fits the view, since gestures are locked
+  // and the viewer couldn't otherwise recover a good framing.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (presentationMode) engine.viewport.reset();
+    engine.dirty = true;
+  }, [presentationMode]);
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -359,6 +383,17 @@ export function CanvasStage() {
       ) : null}
     </div>
   );
+}
+
+const PRESENTATION_LABEL_SCALE = 2;
+
+// High-contrast display override for presentation/classroom mode: full
+// opacity and at least "thick" lines so the grid reads from across a room.
+// Applied at draw time only -- the stored GridConfig is never touched.
+function presentationStyle(config: GridConfig, presentationMode: boolean): GridConfig {
+  if (!presentationMode) return config;
+  const boosted = config.thickness === 'veryThin' || config.thickness === 'thin' || config.thickness === 'medium';
+  return { ...config, opacity: 100, thickness: boosted ? 'thick' : config.thickness };
 }
 
 // Which fields affect geometry differs per grid type (rows/cols for

@@ -40,6 +40,7 @@ export function SideRail() {
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const isImporting = useWorkspaceStore((s) => s.isImporting);
+  const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
 
   return (
     <nav
@@ -74,6 +75,9 @@ export function SideRail() {
           {mode.label}
         </PanelButton>
       ))}
+      <PanelButton disabled={!hasReference} onClick={() => setPresentationMode(true)} style={RAIL_BUTTON_STYLE}>
+        Present
+      </PanelButton>
       <div style={{ flex: 1 }} />
       <SyncStatusBadge />
     </nav>

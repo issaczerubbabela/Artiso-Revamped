@@ -27,6 +27,13 @@ interface WorkspaceState {
   toolMode: ToolMode;
   setToolMode: (mode: ToolMode) => void;
 
+  // Presentation/classroom mode (docs/phases/phase-7-guides-workspace-
+  // export.md): a display toggle over the same component tree -- chrome
+  // hidden, gestures locked, high-contrast grid with larger labels -- not a
+  // separate app. Transient per session, never persisted on the Reference.
+  presentationMode: boolean;
+  setPresentationMode: (enabled: boolean) => void;
+
   isImporting: boolean;
   importError: string | null;
   setImporting: (isImporting: boolean) => void;
@@ -122,6 +129,11 @@ function schedulePersist(
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   toolMode: 'idle',
   setToolMode: (mode) => set({ toolMode: mode }),
+
+  presentationMode: false,
+  // Entering also closes any open tool panel so nothing lingers behind the
+  // hidden chrome (and so the Draw tool's pointer capture is released).
+  setPresentationMode: (enabled) => set(enabled ? { presentationMode: true, toolMode: 'idle' } : { presentationMode: false }),
 
   isImporting: false,
   importError: null,
@@ -303,6 +315,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   reset: () =>
     set({
       toolMode: 'idle',
+      presentationMode: false,
       projectId: null,
       referenceId: null,
       assetId: null,

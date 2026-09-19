@@ -26,6 +26,7 @@ export function Toolbar() {
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const isImporting = useWorkspaceStore((s) => s.isImporting);
+  const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
 
   return (
     <nav
@@ -53,6 +54,9 @@ export function Toolbar() {
           {mode.label}
         </PanelButton>
       ))}
+      <PanelButton disabled={!hasReference} onClick={() => setPresentationMode(true)}>
+        Present
+      </PanelButton>
       <SyncStatusBadge />
     </nav>
   );

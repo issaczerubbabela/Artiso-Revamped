@@ -59,8 +59,12 @@ task; see [Deferred](#deferred).
       annotations are not re-transformed if crop/rotate/flip changes after
       annotating (the Import -> Prepare -> Grid -> Draw workflow puts
       geometry edits first); undo is single-step plus clear-all.
-- [ ] Presentation/classroom mode (large labels, high-contrast, locked
-      gestures) for the Art Teacher persona
+- [x] Presentation/classroom mode (large labels, high-contrast, locked
+      gestures) for the Art Teacher persona -- transient `presentationMode`
+      flag: chrome hidden behind a single "Exit presentation" control,
+      `InputController` gesture-locked, grid drawn at full opacity/thick
+      lines with 2x label size (draw-time override; stored GridConfig is
+      untouched)
 - [ ] Multi-reference workspace (split-view, tabs) -- desktop-first per the
       original reviewer decision; mobile stays single-reference
 
@@ -99,8 +103,10 @@ task; see [Deferred](#deferred).
       draws all four types via real pointer gestures, reloads, and confirms
       they're still there. Note the app-wide 400ms persist debounce: an
       annotation drawn less than 400ms before a reload/close isn't saved yet.
-- [ ] Presentation mode is a workspace display toggle, not a fork of the
-      component tree (CLAUDE.md: "adaptive, not two apps")
+- [x] Presentation mode is a workspace display toggle, not a fork of the
+      component tree (CLAUDE.md: "adaptive, not two apps") -- verified at
+      Compact and Wide by `apps/web/e2e/presentation-mode.spec.ts`, which
+      also proves the gesture lock with an unlocked control
 - [ ] Multi-reference workspace only changes desktop/Wide-breakpoint chrome;
       Compact/mobile stays single-reference, matching the reviewer's original
       split-view deferral rationale

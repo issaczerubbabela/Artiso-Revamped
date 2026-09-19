@@ -44,7 +44,17 @@ export class GridLayer {
     this.ctx = ctx;
   }
 
-  draw(layers: GridDrawLayer[], viewport: ViewportState, canvasWidth: number, canvasHeight: number): void {
+  // labelScale multiplies the numbering font size -- presentation/classroom
+  // mode passes a larger value so labels read from across a room; every
+  // other caller omits it and gets the normal size.
+  draw(
+    layers: GridDrawLayer[],
+    viewport: ViewportState,
+    canvasWidth: number,
+    canvasHeight: number,
+    options: { labelScale?: number } = {},
+  ): void {
+    const labelFontPx = LABEL_FONT_PX * (options.labelScale ?? 1);
     const ctx = this.ctx;
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -74,7 +84,7 @@ export class GridLayer {
         ctx.fillStyle = config.color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = `${LABEL_FONT_PX / viewport.scale}px system-ui, sans-serif`;
+        ctx.font = `${labelFontPx / viewport.scale}px system-ui, sans-serif`;
         for (const label of geometry.labels) {
           ctx.fillText(label.text, label.x, label.y);
         }
