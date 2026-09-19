@@ -2,21 +2,38 @@
  * CSS custom-property mirror of the TS token modules in this directory.
  * Keep values in sync by hand for now (Phase 0, no build step generates
  * this file); if the token set grows, revisit generating it from TS.
+ *
+ * Locked direction: Dark Matte Studio + Drafting Board canvas
+ * (docs/design.md). Dark is the DEFAULT theme now — :root carries the dark
+ * values directly; opt into light with [data-theme="light"].
  */
 
 :root {
-  /* Color — light (default) */
-  --color-surface: #f6f4ef;
-  --color-surface-raised: #fbfaf7;
-  --color-ink: #201e1b;
-  --color-ink-muted: #6b6459;
-  --color-border: #e3dfd6;
-  --color-accent: #1e7fa6;
-  --color-accent-contrast: #ffffff;
-  --color-danger: #b0402c;
-  --shadow-dock: 0 -2px 12px rgba(32, 30, 27, 0.1);
+  /* Color — dark (default) */
+  --color-surface: #0A0A0B;
+  --color-surface-raised: #141416;
+  --color-ink: #EDEDEA;
+  --color-ink-muted: #8B8883;
+  --color-border: #26272A;
+  --color-accent: #34E2E2;
+  --color-accent-secondary: #FFB454;
+  --color-accent-contrast: #052227;
+  --color-danger: #E5484D;
 
-  /* Spacing */
+  /* Matte panel (rail, dock, top bar, zoom pill) */
+  --panel-bg: rgba(19, 20, 22, .86);
+  --panel-blur: 10px;
+  --panel-border: rgba(255, 255, 255, .055);
+  --panel-hi: rgba(255, 255, 255, .035);
+  --panel-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+
+  /* Drafting Board canvas surface */
+  --canvas-glow: radial-gradient(circle at 20% 15%, rgba(255, 200, 140, .16), transparent 45%);
+  --canvas-base: linear-gradient(160deg, #2A2622 0%, #1A1714 55%, #121010 100%);
+  --canvas-texture: radial-gradient(circle, rgba(255, 255, 255, .06) 1px, transparent 1.6px);
+  --canvas-texture-size: 14px 14px;
+
+  /* Spacing (unchanged) */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -26,60 +43,89 @@
   --space-3xl: 64px;
 
   /* Typography */
-  --font-family-base: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-label-size: 13px;
+  --font-family-heading: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-label-size: 12px;
   --font-label-line-height: 16px;
-  --font-label-weight: 500;
+  --font-label-weight: 600;
   --font-body-size: 15px;
   --font-body-line-height: 22px;
   --font-body-weight: 400;
   --font-heading-size: 20px;
   --font-heading-line-height: 26px;
   --font-heading-weight: 600;
+  --font-mono-size: 12px;
+  --font-mono-line-height: 16px;
+  --font-mono-weight: 500;
+
+  /* Compat aliases: names the pre-rewrite tokens exposed, still referenced by
+     ~40 inline styles in apps/web. Point them at the Dark Matte Studio tokens
+     so the app keeps its font/shadow until those call sites are migrated. */
+  --font-family-base: var(--font-family-body);
+  --shadow-dock: var(--panel-shadow);
 
   /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
 
   /* Touch target */
   --touch-target-min: 44px;
   --touch-target-recommended: 48px;
 
-  /* Motion */
-  --motion-duration: 180ms;
-  --motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Motion — no animated transitions by design, see motion.ts */
+  --motion-duration: 0ms;
+  --motion-easing: linear;
 
   /* Breakpoints, for reference in comments/JS only — CSS can't consume these
      as custom properties inside @media, see packages/ui/src/tokens/breakpoints.ts */
 }
 
-:root[data-theme='dark'] {
-  --color-surface: #17191b;
-  --color-surface-raised: #202327;
-  --color-ink: #edeae4;
-  --color-ink-muted: #9b958a;
-  --color-border: #33363a;
-  --color-accent: #5ab4da;
-  --color-accent-contrast: #0b1114;
-  --color-danger: #e27b62;
-  --shadow-dock: 0 -2px 12px rgba(0, 0, 0, 0.45);
+:root[data-theme='light'] {
+  /* Derived, NOT yet visually verified as an artboard — see docs/design.md §8 */
+  --color-surface: #F5F1EA;
+  --color-surface-raised: #FBF8F2;
+  --color-ink: #221F1B;
+  --color-ink-muted: #6B675F;
+  --color-border: #E2DCCF;
+  --color-accent: #0E7A7A;
+  --color-accent-secondary: #B4650A;
+  --color-accent-contrast: #FFFFFF;
+  --color-danger: #C23B3B;
+
+  --panel-bg: rgba(251, 248, 242, .9);
+  --panel-border: rgba(34, 31, 27, .08);
+  --panel-hi: rgba(255, 255, 255, .6);
+  --panel-shadow: 0 10px 30px rgba(34, 31, 27, .12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --color-surface: #17191b;
-    --color-surface-raised: #202327;
-    --color-ink: #edeae4;
-    --color-ink-muted: #9b958a;
-    --color-border: #33363a;
-    --color-accent: #5ab4da;
-    --color-accent-contrast: #0b1114;
-    --color-danger: #e27b62;
-    --shadow-dock: 0 -2px 12px rgba(0, 0, 0, 0.45);
+@media (prefers-color-scheme: light) {
+  /* System preference only flips the theme when the app hasn't been told
+     explicitly — an explicit data-theme (either value) always wins. Dark
+     stays the app's own default absent any signal at all. */
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    --color-surface: #F5F1EA;
+    --color-surface-raised: #FBF8F2;
+    --color-ink: #221F1B;
+    --color-ink-muted: #6B675F;
+    --color-border: #E2DCCF;
+    --color-accent: #0E7A7A;
+    --color-accent-secondary: #B4650A;
+    --color-accent-contrast: #FFFFFF;
+    --color-danger: #C23B3B;
+
+    --panel-bg: rgba(251, 248, 242, .9);
+    --panel-border: rgba(34, 31, 27, .08);
+    --panel-hi: rgba(255, 255, 255, .6);
+    --panel-shadow: 0 10px 30px rgba(34, 31, 27, .12);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Already 0ms by default (see motion.ts) — kept for parity so a build
+     step that consumes only this file still sees the rule explicitly. */
   :root {
     --motion-duration: 0ms;
   }

@@ -6,3 +6,4 @@ export * from './touch-target';
 export * from './radius';
 export * from './motion';
 export * from './elevation';
+export * from './canvas';

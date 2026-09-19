@@ -19,10 +19,14 @@ them, don't re-derive architecture from scratch.
    read the specific module doc(s) for whatever you're touching (01–11,
    indexed in [`docs/README.md`](docs/README.md)).
 2. **What order to build it in** → [`docs/phases/`](docs/phases/) —
-   `phase-0` through `phase-6`. Work belongs to the phase it's scoped to;
+   `phase-0` through `phase-9`. Work belongs to the phase it's scoped to;
    don't pull a later phase's feature forward without flagging it to the
-   user first (this happened once already for multi-reference/split-view —
-   it's deferred to `phase-6` by explicit decision).
+   user first. Phases 7 and 8 (guides, multi-reference tabs, split view,
+   collaboration) shipped after being pulled forward from `phase-6` by
+   explicit instruction. **Phase 9** (drawing-grid overhaul, requirements in
+   [`docs/architecture/Grid-Feature-Spec.md`](docs/architecture/Grid-Feature-Spec.md))
+   is the active phase; where the spec conflicts with
+   `architecture/04-grid-engine.md` the spec wins.
 3. **How to build a specific feature** →
    [`.agents/workflows/`](.agents/workflows/) — step-by-step procedures for
    each module, plus two reusable recipes (add a filter, add a grid type).
@@ -39,6 +43,9 @@ them, don't re-derive architecture from scratch.
    Specification.md`](<docs/Drawing Grid for the Artist_ Reverse-Engineered Product Specification.md>) —
    the source of truth for *why* a given behavior exists when a doc above
    cites it (e.g. "source spec §4.17").
+6. **The visual design system** → [`docs/design.md`](docs/design.md) — the
+   full color/type/material/control-mapping spec behind the condensed
+   version in this file's Design Language section below.
 
 ## Stack (decided, see `docs/architecture/00-system-overview.md`)
 
@@ -54,51 +61,73 @@ Still open (don't assume an answer, ask if it blocks you): Zustand vs.
 Redux Toolkit for state management, Turborepo vs. Nx. Default to Zustand +
 Turborepo per the architecture doc's recommendation unless told otherwise.
 
-## Design language — minimal, modern, quiet
+## Design language — Dark Matte Studio (locked)
 
-The source app scored 9/10 on "Aesthetic & Minimalist Design" precisely
-*because* it gets out of the way. The rebuild's UI must earn that same
-score with a more contemporary visual language. Concrete rules, not
-vibes:
+**This replaces the previous "minimal, modern, quiet" design language in
+full** — that palette, IBM Plex Sans, and the neutral+one-accent rule are
+retired. The full spec (colors, type, material recipes, control-mapping
+rules) lives in [`docs/design.md`](docs/design.md); this section is the
+condensed version for quick reference. If the two ever disagree,
+`docs/design.md` wins.
 
-- **The canvas dominates.** At every breakpoint, chrome is a thin frame
-  around the reference image, never a competing focal point. See
-  [`ki-canvas-first-design`](.agents/knowledge/ki-canvas-first-design.md).
-- **Neutral surfaces, one accent color.** Background/panel surfaces in a
-  restrained near-neutral palette (light and dark, both first-class, no
-  "dark mode as an afterthought"). A single accent color marks
-  active/selected state (active tool, focused input, grid color swatch
-  selection) — don't introduce a second accent without a reason.
-- **Flat by default, elevation only to clarify hierarchy.** Shadows/borders
-  are used sparingly — e.g. a bottom sheet or side dock lifted subtly above
-  the canvas — never as decoration.
-- **One typeface, clear scale.** A single clean sans-serif, a small
-  well-defined size/weight scale (label, body, heading — not a dozen ad hoc
-  sizes). Labeled icons by default, per
-  [`ki-simplicity-first`](.agents/knowledge/ki-simplicity-first.md) —
-  icon-only is an opt-in density setting, never the default.
-- **Motion is smooth and purposeful, never decorative.** Panel open/close,
-  mode switches, breakpoint transitions: short (~150–250ms), eased
-  transitions. No bounce, no attention-seeking animation. Respect
-  `prefers-reduced-motion` unconditionally. Canvas pan/zoom itself is not
-  "animated" in this sense — it's direct-manipulation and must track the
-  input 1:1 (see
+- **The canvas dominates, full-bleed.** The reference photo fills the
+  entire viewport edge to edge; chrome floats *over* it as inset matte
+  panels (16px margin, rounded corners), never a hard-edged sidebar that
+  eats into the image. See
+  [`ki-canvas-first-design`](.agents/knowledge/ki-canvas-first-design.md)
+  (unchanged by this revision).
+- **Matte, not glass.** Panels (rail, dock, top bar, zoom pill) are opaque
+  matte surfaces — `rgba(19,20,22,.86)` with only `blur(10px)`, a hairline
+  border, and a soft drop shadow. No frosted/heavy-blur glass anywhere in
+  the chrome. See `docs/design.md` §5 for the exact recipe.
+- **Two accents, one rule.** Cyan (`#34E2E2`) is the general interactive
+  accent (selection, slider fill, focus, links). Amber (`#FFB454`) is
+  reserved *only* for the active-tool glow — it never appears anywhere
+  else. Don't add a third accent.
+- **The canvas surface itself is "Drafting Board."** A warm graphite-brown
+  base with a soft desk-lamp glow (upper-left) and a fine dot-paper texture
+  underneath, independent of the artist's own configurable grid overlay.
+  See `docs/design.md` §6.
+- **One type system, three roles.** Space Grotesk for headings, Manrope for
+  body/UI, JetBrains Mono for numeric readouts (thickness, opacity, zoom %,
+  coordinates) — self-hosted for the offline/Android build. Three sizes
+  only: label / body / heading.
+- **Icon-only by default, tooltip on hover/focus.** This reverses the
+  previous "labeled icons by default" rule —
+  [`ki-simplicity-first`](.agents/knowledge/ki-simplicity-first.md) has been
+  updated to match; read it before touching toolbar/rail components.
+- **Control type follows data shape, not habit.** Continuous values
+  (thickness, opacity, zoom) get a slider with a live monospace readout,
+  never a button group. Exact counts get a stepper. A small exclusive set
+  (≤5 options) gets segmented icon buttons. Free color gets swatches.
+  Booleans get a switch. See `docs/design.md` §4 for the full table — this
+  was a real bug in the previous grid-thickness control (a button group
+  standing in for a slider) and the rule exists specifically to stop it
+  recurring.
+- **No animated transitions.** Hover/active/open/close states are instant
+  swaps — the material carries the "modern" feeling, not motion. Canvas
+  pan/zoom is still direct-manipulation and must track input 1:1 (unaffected
+  by this rule — it was never "animation" in this sense, see
   [`ki-immediate-feedback`](.agents/knowledge/ki-immediate-feedback.md)).
-- **Generous spacing, no clutter.** Whitespace in the chrome is a feature —
-  it's part of what keeps the tool feeling calm next to a physical drawing
-  surface. Don't fill empty space with controls just because it's
-  available, especially on wide/desktop layouts.
-- **Adaptive, not two apps.** Side panels on wide viewports (≥1024px),
-  bottom sheets below that — one component tree, chrome swaps by
-  breakpoint. See
+- **Adaptive, not two apps.** Persistent floating rail + dock on wide
+  viewports (≥1024px), bottom matte toolbar + bottom matte sheet below
+  768px, a dismissible overlay drawer in between — one component tree,
+  chrome swaps by breakpoint, same structure as before, restyled. See
   [`06-workspace-interaction.md`](docs/architecture/06-workspace-interaction.md).
-- **Every touch target ≥44px**, regardless of how dense the layout looks —
-  non-negotiable, carried from the source app's own accessibility gap
-  (scored 6.5/10, explicit improvement target).
+- **Immersive/fullscreen mode.** Rail and dock collapse to a 4px edge hint
+  that reveals on hover/cursor-near-edge; only an exit-fullscreen pill and
+  the current-tool chip remain visible while actively drawing.
+- **Every touch target ≥44px**, regardless of density — unchanged,
+  non-negotiable.
+
+Light theme colors are defined in `docs/design.md` §2 (contrast-corrected
+derivations of the dark palette) but have not been visually verified as an
+artboard yet — treat them as provisional until that pass happens.
 
 When a screen or component's look-and-feel isn't fully specified by the
-above, default to *less* UI, not more. If in doubt, prototype the sparser
-version first.
+above, default to the confirmed Dark Matte Studio material and the
+control-mapping table in `docs/design.md` §4, not to "less UI" for its own
+sake — this system is intentionally richer than the retired one.
 
 ## Git discipline
 
@@ -168,7 +197,7 @@ version first.
 /packages/ui           Shared design-system components (design tokens live here)
 /packages/api-client    Sync/offline-queue logic, Supabase client
 /packages/shared-types  Zod schemas — source of truth for client + DB schema
-/docs                  Architecture, phases (see above)
+/docs                  Architecture, phases, design system (see above)
 /.agents                Workflows, Knowledge Items (see above)
 ```
 
@@ -178,6 +207,7 @@ If a decision genuinely isn't settled by the architecture docs, phase docs,
 workflows, or KIs — ask the user rather than guessing, especially for
 anything touching the data model, the sync/conflict model, or the fixed
 pipeline ordering (crop/rotate/flip → adjustments → filters → grid). Design
-and UX details not covered above should default to "sparser and quieter,"
-per this file's Design Language section, and can be a judgment call without
+and UX details not covered above should default to the Dark Matte Studio
+material and control-mapping rules in this file's Design Language section
+(full detail in `docs/design.md`), and can be a judgment call without
 stopping to ask.

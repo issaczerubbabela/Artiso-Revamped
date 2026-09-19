@@ -1,10 +1,13 @@
-// Restrained on purpose: two radii, not a "rounded-everything" default. Small
-// for controls/swatches, medium for the sheet/dock surfaces that lift above
-// the canvas (see CLAUDE.md: "flat by default, elevation only to clarify
-// hierarchy").
+// Locked direction (docs/design.md §5): the matte-panel chrome and the
+// floating zoom pill use more generous rounding than the retired
+// "flat-by-default, sm/md only" scale. Four steps instead of two — sm for
+// small controls/swatches, md for standard panels, lg for the rail/dock's
+// larger surfaces, pill for the fully-rounded floating zoom control.
 export const RADIUS = {
-  sm: 6,
-  md: 10,
+  sm: 8,
+  md: 12,
+  lg: 18,
+  pill: 999,
 } as const;
 
 export type RadiusToken = keyof typeof RADIUS;
