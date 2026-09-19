@@ -52,10 +52,14 @@ export class GridLayer {
     viewport: ViewportState,
     canvasWidth: number,
     canvasHeight: number,
-    options: { labelScale?: number } = {},
+    options: { labelScale?: number; pixelRatio?: number } = {},
   ): void {
     const labelFontPx = LABEL_FONT_PX * (options.labelScale ?? 1);
+    const pixelRatio = options.pixelRatio ?? 1;
     const ctx = this.ctx;
+    // canvasWidth/Height and the viewport are in CSS px; the backing store is
+    // pixelRatio times larger.
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.save();

@@ -50,6 +50,11 @@ export class ImageLayer {
   };
   private sourceWidth = 0;
   private sourceHeight = 0;
+  // The size the image occupies in *content units* (the units the Viewport
+  // works in). Defaults to the bitmap's own pixel size; the drawing view sets
+  // it to the paper in mm, so the bitmap is stretched over the paper.
+  private contentWidth: number | null = null;
+  private contentHeight: number | null = null;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
     const gl = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
@@ -105,9 +110,25 @@ export class ImageLayer {
     this.sourceHeight = bitmap.height;
   }
 
-  draw(viewport: ViewportState, canvasWidth: number, canvasHeight: number, adjustments: DerivedAdjustments): void {
+  // Draw the image over `width` x `height` content units instead of its own
+  // pixel size (pass null to go back to the bitmap's size).
+  setContentSize(width: number | null, height: number | null): void {
+    this.contentWidth = width;
+    this.contentHeight = height;
+  }
+
+  // canvasWidth/Height are in CSS px (the units the Viewport works in); the
+  // backing store is `pixelRatio` times larger, which only the GL viewport needs
+  // to know -- clip space is resolution independent.
+  draw(
+    viewport: ViewportState,
+    canvasWidth: number,
+    canvasHeight: number,
+    adjustments: DerivedAdjustments,
+    pixelRatio = 1,
+  ): void {
     const gl = this.gl;
-    gl.viewport(0, 0, canvasWidth, canvasHeight);
+    gl.viewport(0, 0, Math.round(canvasWidth * pixelRatio), Math.round(canvasHeight * pixelRatio));
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -124,7 +145,7 @@ export class ImageLayer {
     const scaleY = (-2 * viewport.scale) / canvasHeight;
     const offsetY = 1 - (2 * viewport.translateY) / canvasHeight;
 
-    gl.uniform2f(this.uniforms.size, this.sourceWidth, this.sourceHeight);
+    gl.uniform2f(this.uniforms.size, this.contentWidth ?? this.sourceWidth, this.contentHeight ?? this.sourceHeight);
     gl.uniform2f(this.uniforms.scale, scaleX, scaleY);
     gl.uniform2f(this.uniforms.offset, offsetX, offsetY);
     // Texture-space, not canvas-space -- the multi-tap filters (blur, sharpen,

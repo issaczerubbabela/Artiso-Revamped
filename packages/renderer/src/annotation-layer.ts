@@ -40,8 +40,12 @@ export class AnnotationLayer {
     viewport: ViewportState,
     canvasWidth: number,
     canvasHeight: number,
+    pixelRatio = 1,
   ): void {
     const ctx = this.ctx;
+    // canvasWidth/Height and the viewport are in CSS px; the backing store is
+    // pixelRatio times larger.
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.save();
