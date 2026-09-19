@@ -17,9 +17,13 @@ breakpoint — not a separate mobile app and desktop app.
 
 | Breakpoint | Width | Chrome |
 | --- | --- | --- |
-| Compact | < 768px | Bottom toolbar + bottom sheets/dialogs for tool panels (matches source app's touch-first pattern) — single column, canvas fills the rest |
-| Regular (transitional) | 768–1023px | Collapsible side drawer (overlay, dismissible) instead of a bottom sheet, bottom toolbar remains for mode switching |
-| Wide | ≥ 1024px | Persistent left icon rail (mode switch) + persistent right dock (active tool's config panel) — canvas keeps the remaining center space |
+| Compact | < 768px | Floating bottom toolbar (icon + label, scrolls with edge fades) + floating bottom sheet for the tool panel — the canvas is full-bleed underneath |
+| Regular (transitional) | 768–1023px | Same floating left rail as Wide; the tool panel is a dismissible overlay drawer instead of a persistent dock |
+| Wide | ≥ 1024px | Floating left icon rail (mode switch) + floating right dock (active tool's config panel) + floating top pill (reference tabs, split) — all inset matte panels over a full-bleed canvas |
+
+Every panel *floats over* the canvas (see [`docs/design.md`](../design.md) §5–§7);
+none takes layout space from it. The canvas stays full-bleed and instead *fits its
+content to the region the chrome leaves uncovered* — see "Inset-aware view" below.
 
 The same `WorkspaceState` (active tool mode, EditStack, viewport) drives
 both chrome modes — only the *container component* rendering the active
@@ -64,11 +68,13 @@ than show errors.
 
 ## Toolbar redesign baseline (source spec §7.33, adopted)
 
-Icons are **labeled by default** (not icon-only) — directly fixes the
-source app's lowest-scoring usability heuristic (§9.5, "Recognition Rather
-Than Recall," 6/10) at effectively zero cost. An icon-only *compact* density
-option exists in Settings for returning users who no longer need labels,
-but it is opt-in, not the default.
+**Revised by the Dark Matte Studio design language** ([`docs/design.md`](../design.md)
+§7): on Wide and Regular the rail is **icon-only**, and every button carries an
+`aria-label` plus a tooltip (immediate on keyboard focus, ~300ms on mouse hover).
+That keeps the source spec's recognition-over-recall goal (§9.5, 6/10) without a
+permanent text label per icon. **Compact has no hover, so it keeps a short label
+under each icon.** The active tool's icon switches to its filled weight and the
+button exposes `aria-pressed`, so the active state is never colour-only.
 
 ## Interaction model (extends source spec §2.19/§7.20-22 with desktop input)
 
@@ -130,6 +136,26 @@ Idle/Home. Implemented in [10-mobile-android-shell.md](10-mobile-android-shell.m
   [04](04-grid-engine.md)) — mode panels dispatch into their state.
 - [Settings](09-settings-preferences.md) — Gesture Lock, Performance Mode,
   toolbar density.
+
+## Inset-aware view (UI revamp)
+
+The canvas is full-bleed, so floating chrome would otherwise cover part of the
+reference (about 30% at 1024px). Each floating panel reports the edge it occupies
+(`left` rail, `right` dock, `top` pill, `bottom` bar/sheet/zoom pill) and its
+rectangle to a small `chrome-insets` store; each `CanvasStage` turns the rectangles
+that overlap *its own container* into `{left, top, right, bottom}` insets (each panel
+plus a 16px gap) and passes them to `Viewport.setInsets()`. The viewport then:
+
+- computes **Fit** against the container minus the insets and centres content in
+  that region (the crop frame does the same);
+- uses that region's centre as the anchor for zoom buttons / Real size;
+- measures pan limits against that region, so every part of the content can be
+  brought into view even though the surface extends under the chrome.
+
+Zero insets reproduce the previous behaviour exactly. Changing the insets re-fits
+only if the view was already at Fit, so opening a panel never yanks a zoomed-in view
+around. In split view a pane only counts chrome that overlaps it; presentation mode
+mounts no chrome, so it fits the full viewport.
 
 ## Phase 9 addendum — paper & crop mode, Fit / Real size
 

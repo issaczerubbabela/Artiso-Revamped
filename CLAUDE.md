@@ -73,27 +73,33 @@ condensed version for quick reference. If the two ever disagree,
 - **The canvas dominates, full-bleed.** The reference photo fills the
   entire viewport edge to edge; chrome floats *over* it as inset matte
   panels (16px margin, rounded corners), never a hard-edged sidebar that
-  eats into the image. See
+  eats into the image. Fit and centring are computed against the region the
+  chrome leaves uncovered, so nothing important hides under a panel. See
   [`ki-canvas-first-design`](.agents/knowledge/ki-canvas-first-design.md)
   (unchanged by this revision).
 - **Matte, not glass.** Panels (rail, dock, top bar, zoom pill) are opaque
-  matte surfaces — `rgba(19,20,22,.86)` with only `blur(10px)`, a hairline
-  border, and a soft drop shadow. No frosted/heavy-blur glass anywhere in
-  the chrome. See `docs/design.md` §5 for the exact recipe.
+  matte surfaces — `rgba(19,20,22,.95)` with **no** backdrop blur (needed for
+  4.5:1 text over any photo, and it keeps the 60fps canvas cheap), a hairline
+  border, and a soft drop shadow. No frosted/blurred glass anywhere in the
+  chrome. Operable controls use the stronger `borderStrong` (≥3:1). See
+  `docs/design.md` §2 and §5 for the exact recipe.
 - **Two accents, one rule.** Cyan (`#34E2E2`) is the general interactive
-  accent (selection, slider fill, focus, links). Amber (`#FFB454`) is
-  reserved *only* for the active-tool glow — it never appears anywhere
-  else. Don't add a third accent.
+  accent (selection, slider fill, focus, links). Amber (`#FFB454`, token
+  `accentTool`) is reserved *only* for the active-tool glow — it never
+  appears anywhere else, and the active tool's icon also switches to its
+  filled weight so state is never colour-only. Don't add a third accent.
 - **The canvas surface itself is "Drafting Board."** A warm graphite-brown
   base with a soft desk-lamp glow (upper-left) and a fine dot-paper texture
   underneath, independent of the artist's own configurable grid overlay.
-  See `docs/design.md` §6.
+  A flat **Neutral** surround is available for colour-critical work. See
+  `docs/design.md` §6.
 - **One type system, three roles.** Space Grotesk for headings, Manrope for
   body/UI, JetBrains Mono for numeric readouts (thickness, opacity, zoom %,
   coordinates) — self-hosted for the offline/Android build. Three sizes
   only: label / body / heading.
-- **Icon-only by default, tooltip on hover/focus.** This reverses the
-  previous "labeled icons by default" rule —
+- **Icon-only by default on Wide/Regular, tooltip on focus/hover; Compact
+  keeps a short label under each icon** (touch has no hover). This reverses
+  the previous "labeled icons by default" rule —
   [`ki-simplicity-first`](.agents/knowledge/ki-simplicity-first.md) has been
   updated to match; read it before touching toolbar/rail components.
 - **Control type follows data shape, not habit.** Continuous values
@@ -114,15 +120,17 @@ condensed version for quick reference. If the two ever disagree,
   768px, a dismissible overlay drawer in between — one component tree,
   chrome swaps by breakpoint, same structure as before, restyled. See
   [`06-workspace-interaction.md`](docs/architecture/06-workspace-interaction.md).
-- **Immersive/fullscreen mode.** Rail and dock collapse to a 4px edge hint
-  that reveals on hover/cursor-near-edge; only an exit-fullscreen pill and
-  the current-tool chip remain visible while actively drawing.
+- **Immersive/fullscreen mode.** Rail, dock and top bar hide; only a small
+  exit-fullscreen pill and the current-tool chip remain visible while
+  actively drawing. A mouse at the screen edge (4px hint) reveals the chrome;
+  the pill is also tappable/focusable for touch and keyboard.
 - **Every touch target ≥44px**, regardless of density — unchanged,
   non-negotiable.
 
-Light theme colors are defined in `docs/design.md` §2 (contrast-corrected
-derivations of the dark palette) but have not been visually verified as an
-artboard yet — treat them as provisional until that pass happens.
+**Dark is the only shipping theme.** Light colours are defined in
+`docs/design.md` §2 but have not been visually verified as an artboard, so the
+app does **not** follow the OS light preference — light is reachable only via an
+explicit `data-theme="light"` until that pass happens.
 
 When a screen or component's look-and-feel isn't fully specified by the
 above, default to the confirmed Dark Matte Studio material and the

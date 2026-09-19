@@ -28,12 +28,14 @@ without experimentation. Simplicity is about *actual* ease of use, not
 merely a sparse UI.
 
 **Design revision (see [`docs/design.md`](../../docs/design.md)):** the
-confirmed Dark Matte Studio design language makes the toolbar/rail
+confirmed Dark Matte Studio design language makes the Wide/Regular rail
 icon-only *by default*, reversing this KI's original "labeled icons by
 default" rule. The recognition-rather-than-recall problem this KI exists to
-prevent is addressed differently now — a tooltip label on hover/focus,
-shown immediately, with no delay — rather than by keeping a permanent text
-label next to every icon. The underlying principle (a first-time user must
+prevent is addressed differently now — a tooltip label, shown immediately on
+keyboard focus and after a short (~300ms) hover delay so it doesn't flicker as
+the pointer crosses the rail — rather than a permanent text label next to
+every icon. **Compact keeps a short label under each icon**, because touch has
+no hover to reveal a tooltip. The underlying principle (a first-time user must
 be able to tell what a control does without blind experimentation) is
 unchanged; only the mechanism is.
 
@@ -46,12 +48,13 @@ only for someone who already learned it.
 
 ## Rules
 
-- **Do** default to icon-only toolbar/rail controls with a tooltip label on
-  hover/focus (per [`docs/design.md`](../../docs/design.md) §7) — every icon
+- **Do** default to icon-only toolbar/rail controls on Wide/Regular with a
+  tooltip label (per [`docs/design.md`](../../docs/design.md) §7) — every icon
   button needs both a real `aria-label` (for screen readers, always
-  present) and a visible tooltip (for sighted users, shown on
-  hover/focus, no delay). An icon with neither is not compliant with this
-  KI regardless of how "obvious" the icon seems.
+  present) and a visible tooltip (for sighted users: immediate on keyboard
+  focus, ~300ms after mouse hover). On Compact, show a short text label under
+  the icon instead. An icon with neither is not compliant with this KI
+  regardless of how "obvious" the icon seems.
 - **Do** count taps/clicks for any new common action during design review;
   if it exceeds two for something a Beginner or Student persona would do
   routinely, reconsider the flow.
@@ -71,6 +74,6 @@ only for someone who already learned it.
 
 Ask two questions: *"Can a first-time user tell what this control does
 without trying it?"* and *"How many interactions does the common case
-take?"* For an icon-only control specifically, also ask: *"Does hovering or
-focusing it show a label immediately?"* — if not, it fails this KI even if
-the rest of the design is otherwise icon-only by intent.
+take?"* For an icon-only control specifically, also ask: *"Does focusing it
+show a label, and does hovering it show one shortly after?"* — if not, it fails
+this KI even if the rest of the design is otherwise icon-only by intent.

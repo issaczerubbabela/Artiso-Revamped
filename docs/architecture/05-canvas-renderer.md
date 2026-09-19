@@ -121,6 +121,11 @@ Per [phase-9](../phases/phase-9-drawing-grid-overhaul.md) and
   mm**; minimum zoom = fit paper; `setRealSize(pxPerMmCss)` gives 1 mm on paper
   = 1 mm on the physical screen (calibrated via screen diagonal + native
   resolution, stored device-locally). Fit and Real size act per pane.
+- **Insets (UI revamp):** `Viewport.setInsets({left, top, right, bottom})` names
+  the part of the container that floating chrome covers. Fit, centring, the zoom
+  anchor and the default pan limits all work in the *uncovered region*; with zero
+  insets (the default) behaviour is identical to before. See
+  [06-workspace-interaction.md](06-workspace-interaction.md#inset-aware-view-ui-revamp).
 - **DPR:** pointer coordinates, viewport state and layout are all in CSS px;
   each canvas is sized `css × devicePixelRatio` and draws under
   `setTransform(dpr, …)`. (Previously the input layer used CSS px while the
