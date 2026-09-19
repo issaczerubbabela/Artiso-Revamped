@@ -172,9 +172,11 @@ grid-config UI.
 
 **Neutral surround (option).** A warm surround can bias how an artist reads the
 photo's colours, which is why grading tools use neutral grey. Drafting Board stays
-the default; the canvas-background swatches (§4) include a **Neutral** option — flat
-`#1B1B1C`, no glow, no texture — for colour-critical work. It is a per-device
-preference.
+the default; a **Neutral canvas** toggle at the foot of the rail switches to a flat
+`#1B1B1C` — no glow, no texture — for colour-critical work. There are only two
+surfaces, so it is a toggle (cyan, not the tool amber) rather than a swatch row. It
+is a per-device preference, kept in `localStorage`, and applies to the projects
+screen too.
 
 **Full-bleed, inset-aware.** The surface always fills the viewport, but *Fit*,
 initial centring and the crop frame are computed against the region **not covered by
@@ -222,11 +224,15 @@ top chrome; Compact has none, so the canvas gets the full height.
 Every touch target stays ≥44px.
 
 **Immersive / fullscreen mode** (the existing *Present* action): rail, dock and top
-bar are hidden; the canvas fits the whole viewport; only a small matte
-exit-fullscreen pill and a current-tool chip remain. Moving a mouse to a screen edge
-reveals the chrome again (a 4px edge hint marks where). Touch and keyboard have no
-hover, so the exit pill is itself tappable/focusable and toggles the chrome back —
-edge *swipes* are deliberately not used, because they collide with OS back gestures.
+bar are hidden; the canvas fits the whole viewport; only a tiny icon-only matte
+exit pill (44px, so it covers as little of the photo as possible) and a current-tool
+chip remain. Moving a mouse to a screen edge reveals the rail (left) or dock (right,
+if a tool is open); a 4px hint marks each edge, and the revealed panel hides ~250ms
+after the pointer leaves it, so it also goes away if the mouse never entered it.
+Touch and keyboard have no hover, so the exit pill is itself tappable/focusable and
+returns the full chrome — edge *swipes* are deliberately not used, because they
+collide with OS back gestures. Revealing the chrome never changes the fit, so a
+classroom display is not nudged out of framing.
 
 ## 8. What's still open
 
@@ -266,6 +272,6 @@ edge *swipes* are deliberately not used, because they collide with OS back gestu
 | 4 | Icon-only + hover tooltips fails on touch | Compact keeps a label under each icon; tooltips also on focus (§7) |
 | 5 | OS light preference flipped to an unverified light theme | Dark-only; `color-scheme: dark` + `theme-color` (§2) |
 | 6 | Active tool = amber glow only (colour-only) | Filled icon weight + `aria-pressed` (§5) |
-| 7 | Warm surround can bias colour judgement | Neutral surround option, Drafting Board stays default (§6) |
+| 7 | Warm surround can bias colour judgement | Neutral canvas toggle, Drafting Board stays default (§6) |
 | 8 | Hover-edge reveal impossible on touch; edge swipes fight OS gestures | Tappable exit pill toggles chrome; no edge swipes (§7) |
 | 9 | Top bar undefined, rail flat at 11 items, no focus ring spec, no icon set | Defined in §4 and §7 |
