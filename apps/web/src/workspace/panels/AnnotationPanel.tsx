@@ -53,7 +53,7 @@ export function AnnotationPanel() {
           style={{
             minHeight: 'var(--touch-target-min)',
             minWidth: 'var(--touch-target-min)',
-            border: '1px solid var(--color-border)',
+            border: '1px solid var(--color-border-strong)',
             borderRadius: 'var(--radius-sm)',
             background: 'none',
           }}

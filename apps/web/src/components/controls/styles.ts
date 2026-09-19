@@ -34,7 +34,7 @@ export const inputBaseStyle: CSSProperties = {
   minHeight: 'var(--touch-target-min)',
   padding: '0 var(--space-sm)',
   borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--color-border)',
+  border: '1px solid var(--color-border-strong)',
   background: 'var(--color-surface-raised)',
   color: 'var(--color-ink)',
   fontFamily: 'var(--font-family-body)',

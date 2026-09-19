@@ -42,7 +42,7 @@ export function Switch({ label, checked, onChange, disabled }: SwitchProps) {
           width: 40,
           height: 22,
           borderRadius: 'var(--radius-pill)',
-          border: `1px solid ${checked ? 'var(--color-accent)' : 'var(--color-border)'}`,
+          border: `1px solid ${checked ? 'var(--color-accent)' : 'var(--color-border-strong)'}`,
           background: checked ? 'var(--color-accent)' : 'var(--color-surface-raised)',
         }}
       >

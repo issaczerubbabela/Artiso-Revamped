@@ -39,7 +39,7 @@ export function Segmented<T extends string>({ label, value, options, onChange, d
                 minHeight: 'var(--touch-target-min)',
                 padding: '0 var(--space-sm)',
                 borderRadius: 'var(--radius-sm)',
-                border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border-strong)'}`,
                 background: active ? 'var(--color-accent)' : 'var(--color-surface-raised)',
                 color: active ? 'var(--color-accent-contrast)' : 'var(--color-ink)',
                 fontFamily: 'var(--font-family-body)',

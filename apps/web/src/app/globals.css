@@ -1,6 +1,7 @@
 @import '@artiso/ui/tokens.css';
 
-/* Minimal reset only — no product styling in Phase 0. */
+/* Minimal reset. Component styling lives in chrome.css (floating chrome) and
+   in the control primitives; token values live in @artiso/ui. */
 * {
   box-sizing: border-box;
 }
@@ -14,5 +15,16 @@ body {
 body {
   background: var(--color-surface);
   color: var(--color-ink);
-  font-family: var(--font-family-base);
+  font-family: var(--font-family-body);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line-height);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Keyboard focus ring for everything interactive (docs/design.md §4). Drawn on
+   :focus-visible only, so mouse use stays clean, and never removed. */
+:where(button, a, input, select, textarea, summary, [role='button'], [role='tab'], [tabindex]):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }

@@ -98,7 +98,7 @@ function CalibrationForm() {
         style={{
           background: 'var(--color-surface-raised)',
           borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border)',
+          border: '1px solid var(--color-border-strong)',
           boxShadow: 'var(--panel-shadow, 0 10px 30px rgba(0, 0, 0, 0.55))',
           padding: 'var(--space-lg)',
           width: '100%',

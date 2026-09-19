@@ -77,7 +77,7 @@ export function NumberField({
             ...readoutStyle,
             flex: 1,
             minWidth: 0,
-            border: `1px solid ${invalid ? 'var(--color-danger)' : 'var(--color-border)'}`,
+            border: `1px solid ${invalid ? 'var(--color-danger)' : 'var(--color-border-strong)'}`,
           }}
         />
         {suffix ? <span style={{ ...readoutStyle, color: 'var(--color-ink-muted)' }}>{suffix}</span> : null}

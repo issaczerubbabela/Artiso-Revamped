@@ -1,0 +1,529 @@
+/*
+ * Floating chrome for the workspace (docs/design.md §5-§7).
+ *
+ * Everything here is class-based on purpose: the design needs :hover,
+ * :focus-visible, [aria-pressed] and [hidden] states, which inline styles
+ * cannot express. Values come from the tokens in @artiso/ui (tokens.css).
+ *
+ * No transitions anywhere -- every state change is an instant swap.
+ */
+
+/* ---------- Workspace surface: full-bleed Drafting Board ---------- */
+
+.workspace {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* The reference photo's surface: warm graphite with a desk-lamp glow, plus a
+   fine dot-paper texture, independent of the artist's own grid overlay. */
+.surface {
+  background: var(--canvas-glow), var(--canvas-base);
+}
+
+.surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--canvas-texture);
+  background-size: var(--canvas-texture-size);
+  pointer-events: none;
+}
+
+/* Colour-critical work: flat neutral, no glow, no texture (docs/design.md §6). */
+.surface[data-surface='neutral'] {
+  background: var(--canvas-neutral);
+}
+
+.surface[data-surface='neutral']::before {
+  display: none;
+}
+
+.workspace__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.pane {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Matte panel (rail, dock, top bar, zoom pill) ---------- */
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: inset 0 1px 0 var(--panel-hi), var(--panel-shadow);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+}
+
+/* The top bar and pills are a touch tighter than the rail and dock. */
+.pill {
+  border-radius: 10px;
+}
+
+/* ---------- Layout of the floating chrome ---------- */
+
+/* Sits over the full-bleed canvas. It is transparent to pointer events so the
+   canvas keeps every pan/zoom gesture; only the panels themselves catch them. */
+.chrome-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  pointer-events: none;
+}
+
+.chrome-layer > * {
+  pointer-events: auto;
+}
+
+/* The middle column holds the top bar; it must not swallow canvas gestures. */
+.chrome-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.chrome-center > * {
+  pointer-events: auto;
+}
+
+/* ---------- Left rail ---------- */
+
+.rail {
+  align-self: center;
+  width: 72px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.rail__sep {
+  width: 28px;
+  height: 1px;
+  margin: var(--space-xs) 0;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.rail__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  padding: 0 var(--space-xs);
+}
+
+.status-text {
+  max-width: 100%;
+  font-family: var(--font-family-body);
+  font-size: var(--font-label-size);
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--color-ink-muted);
+}
+
+/* ---------- Right dock (Wide/Regular) ---------- */
+
+.dock {
+  align-self: flex-start;
+  width: 300px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.dock[hidden] {
+  display: none;
+}
+
+/* Regular: the same panel, narrowed so it never swallows the canvas. */
+@media (max-width: 1023px) {
+  .dock {
+    width: min(300px, calc(100vw - 140px));
+  }
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.panel-title {
+  margin: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-heading-size);
+  line-height: var(--font-heading-line-height);
+  font-weight: var(--font-heading-weight);
+}
+
+/* ---------- Top bar: reference tabs ---------- */
+
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 100%;
+  padding: var(--space-xs);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tabbar__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.tabbar__title {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Icon button and tooltip ---------- */
+
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-family: var(--font-family-body);
+  cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-ink);
+}
+
+.icon-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.icon-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+/* The active tool: amber glow (the one place amber appears) plus a filled icon
+   weight, set in IconButton, so state is never colour-only. */
+.icon-btn[aria-pressed='true'] {
+  background: var(--glow-tool-bg);
+  border-color: var(--glow-tool-border);
+  box-shadow: var(--glow-tool-shadow);
+  color: var(--color-accent-tool);
+}
+
+/* Non-tool toggles (e.g. the neutral canvas) use the general cyan accent. */
+.icon-btn--toggle[aria-pressed='true'] {
+  background: var(--glow-accent-bg);
+  border-color: var(--glow-accent-border);
+  box-shadow: 0 0 14px rgba(52, 226, 226, 0.18);
+  color: var(--color-accent);
+}
+
+/* Compact: icon with a short label beneath (there is no hover on touch). */
+.icon-btn--labeled {
+  min-width: 60px;
+  min-height: 56px;
+  padding: 4px 6px;
+}
+
+.icon-btn__label {
+  font-size: var(--font-label-size);
+  line-height: 1;
+  font-weight: var(--font-label-weight);
+  white-space: nowrap;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+  box-shadow: var(--panel-shadow);
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+  font-size: var(--font-label-size);
+  line-height: var(--font-label-line-height);
+  font-weight: var(--font-label-weight);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tooltip[data-side='right'] {
+  transform: translateY(-50%);
+}
+
+.tooltip[data-side='bottom'] {
+  transform: translateX(-50%);
+}
+
+.tooltip[data-side='top'] {
+  transform: translate(-50%, -100%);
+}
+
+/* ---------- Text button (PanelButton) ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+  font-size: var(--font-body-size);
+  font-weight: var(--font-label-weight);
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Selected: solid cyan with a soft glow, never a left-border stripe. */
+.btn--active,
+.btn--active:hover:not(:disabled),
+.btn--active:active:not(:disabled) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 0 14px rgba(52, 226, 226, 0.25);
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.btn--primary:hover:not(:disabled),
+.btn--primary:active:not(:disabled) {
+  background: var(--color-accent);
+  filter: brightness(1.08);
+}
+
+/* Borderless variant for buttons that live inside a pill. */
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn--ghost[aria-pressed='true'] {
+  border-color: var(--color-accent);
+}
+
+/* ---------- Zoom pill (per pane) ---------- */
+
+.zoom-pill {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  touch-action: manipulation;
+}
+
+.readout {
+  min-width: 4ch;
+  padding: 0 var(--space-xs);
+  text-align: right;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-mono-size);
+  line-height: var(--font-mono-line-height);
+  font-weight: var(--font-mono-weight);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.badge-1to1 {
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-mono-size);
+  font-weight: var(--font-mono-weight);
+}
+
+/* ---------- Compact: bottom toolbar and sheet ---------- */
+
+.compact-stack {
+  position: absolute;
+  left: var(--space-md);
+  right: var(--space-md);
+  bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+
+.compact-stack > * {
+  pointer-events: auto;
+}
+
+.toolbar {
+  overflow: hidden;
+}
+
+/* Scrolls sideways; the faded ends signal that there is more. The padding keeps
+   the first and last button clear of the fade at rest. */
+.toolbar__scroller {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
+.toolbar__scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--space-sm) 2px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-height: 45dvh;
+  padding: var(--space-md);
+  overflow-y: auto;
+}
+
+/* ---------- Immersive (presentation) mode ---------- */
+
+.present-exit {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: var(--z-chrome);
+  padding: var(--space-xs);
+}
+
+.tool-chip {
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  z-index: var(--z-chrome);
+  padding: 0 var(--space-md);
+  min-height: var(--touch-target-min);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-label-size);
+  font-weight: var(--font-label-weight);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  pointer-events: none;
+}
+
+/* A 4px hint at each edge: moving the mouse there reveals the chrome. */
+.edge-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: var(--z-chrome);
+  width: 4px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.edge-hint[data-edge='left'] {
+  left: 0;
+}
+
+.edge-hint[data-edge='right'] {
+  right: 0;
+}
+
+/* ---------- Empty state ---------- */
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  text-align: center;
+}
+
+.empty h1 {
+  margin: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-heading-size);
+  line-height: var(--font-heading-line-height);
+  font-weight: var(--font-heading-weight);
+}
+
+/* Range inputs follow the cyan accent (fill) on a track that clears 3:1. */
+input[type='range'] {
+  accent-color: var(--color-accent);
+}

@@ -149,7 +149,7 @@ export function ShareDialog({ project, onClose }: { project: Project; onClose: (
               minHeight: 'var(--touch-target-min)',
               padding: '0 var(--space-sm)',
               borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
+              border: '1px solid var(--color-border-strong)',
               background: 'var(--color-surface)',
               color: 'var(--color-ink)',
               fontFamily: 'var(--font-family-base)',

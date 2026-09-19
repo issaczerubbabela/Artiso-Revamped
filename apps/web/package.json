@@ -15,6 +15,7 @@
     "@artiso/renderer": "workspace:*",
     "@artiso/shared-types": "workspace:*",
     "@artiso/ui": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
     "next": "^15.1.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.0.0",

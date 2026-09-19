@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // docs/architecture/10-mobile-android-shell.md).
   output: 'export',
   images: { unoptimized: true },
+  // Icons are imported by name from the package root; this keeps only the ones used.
+  experimental: { optimizePackageImports: ['@phosphor-icons/react'] },
   transpilePackages: [
     '@artiso/ui',
     '@artiso/core-engine',
