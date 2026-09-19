@@ -18,6 +18,20 @@ export interface ViewportConstraint {
   clampPan(state: ViewportState): ViewportState;
 }
 
+// Container px covered by floating chrome (rail, dock, top bar, bottom bar,
+// zoom pill), each edge measured inward from the container edge. The surface
+// stays full-bleed; the viewport just treats the *uncovered* region as "the
+// place content should fit and be centred", so nothing important ends up
+// hidden under a panel (docs/architecture/06-workspace-interaction.md).
+export interface ViewportInsets {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export const NO_INSETS: Readonly<ViewportInsets> = { left: 0, top: 0, right: 0, bottom: 0 };
+
 export interface ViewportOptions {
   // 'fit' makes the smallest zoom "the whole content fits the container"
   // (Grid-Feature-Spec.md §10); a number is a fixed floor. Default 0.05.
@@ -55,6 +69,7 @@ export class Viewport {
   private state: ViewportState = { scale: 1, translateX: 0, translateY: 0 };
   private realScale: number | null = null;
   private custom: ViewportConstraint | null = null;
+  private insets: ViewportInsets = { ...NO_INSETS };
   private readonly options: Required<Omit<ViewportOptions, 'panSlack'>> & { panSlack: number | null };
 
   constructor(
@@ -132,22 +147,54 @@ export class Viewport {
     this.zoomToFit();
   }
 
-  // The scale at which the whole content (plus fitPadding) fits the container.
+  // The scale at which the whole content (plus fitPadding) fits the part of the
+  // container that chrome does not cover.
   getFitScale(): number {
     const pad = this.options.fitPadding * 2;
-    const availableW = Math.max(1, this.containerWidth - pad);
-    const availableH = Math.max(1, this.containerHeight - pad);
+    const region = this.visibleRegion();
+    const availableW = Math.max(1, region.width - pad);
+    const availableH = Math.max(1, region.height - pad);
     return Math.min(availableW / this.contentWidth, availableH / this.contentHeight);
   }
 
   zoomToFit(): void {
     const constraint = this.constraint();
     const scale = constraint.clampScale(this.getFitScale());
+    const region = this.visibleRegion();
     this.state = constraint.clampPan({
       scale,
-      translateX: (this.containerWidth - this.contentWidth * scale) / 2,
-      translateY: (this.containerHeight - this.contentHeight * scale) / 2,
+      translateX: region.x + (region.width - this.contentWidth * scale) / 2,
+      translateY: region.y + (region.height - this.contentHeight * scale) / 2,
     });
+  }
+
+  // Tells the viewport which strips of the container floating chrome covers.
+  // A view that was showing the whole content re-fits into the new visible
+  // region; a zoomed-in view keeps its framing (opening a panel must not yank
+  // it around) and is only re-clamped. Non-finite or negative values count as 0.
+  setInsets(insets: Partial<ViewportInsets>): void {
+    const next: ViewportInsets = {
+      left: cleanInset(insets.left),
+      top: cleanInset(insets.top),
+      right: cleanInset(insets.right),
+      bottom: cleanInset(insets.bottom),
+    };
+    const prev = this.insets;
+    if (next.left === prev.left && next.top === prev.top && next.right === prev.right && next.bottom === prev.bottom) {
+      return;
+    }
+    const wasFit = this.isAtFit();
+    this.insets = next;
+    if (wasFit) {
+      this.zoomToFit();
+      return;
+    }
+    const constraint = this.constraint();
+    this.state = constraint.clampPan({ ...this.state, scale: constraint.clampScale(this.state.scale) });
+  }
+
+  getInsets(): ViewportInsets {
+    return { ...this.insets };
   }
 
   reset(): void {
@@ -198,7 +245,7 @@ export class Viewport {
   // window resizes (see docs/architecture/05-canvas-renderer.md). A view that
   // was showing the whole content keeps doing so.
   resize(containerWidth: number, containerHeight: number): void {
-    const wasFit = Math.abs(this.state.scale - this.getFitScale()) <= 1e-9 * Math.max(1, this.state.scale);
+    const wasFit = this.isAtFit();
     const oldCenter = this.screenToImage(this.containerCenter());
     this.containerWidth = containerWidth;
     this.containerHeight = containerHeight;
@@ -216,8 +263,26 @@ export class Viewport {
     });
   }
 
+  private isAtFit(): boolean {
+    return Math.abs(this.state.scale - this.getFitScale()) <= 1e-9 * Math.max(1, this.state.scale);
+  }
+
+  // The part of the container that chrome does not cover. At least 1px each way
+  // so a degenerate inset can never produce a zero or negative fit.
+  private visibleRegion(): { x: number; y: number; width: number; height: number } {
+    const { left, top, right, bottom } = this.insets;
+    return {
+      x: left,
+      y: top,
+      width: Math.max(1, this.containerWidth - left - right),
+      height: Math.max(1, this.containerHeight - top - bottom),
+    };
+  }
+
+  // The centre of the visible region -- where zoom buttons and Real size anchor.
   private containerCenter(): Point {
-    return { x: this.containerWidth / 2, y: this.containerHeight / 2 };
+    const region = this.visibleRegion();
+    return { x: region.x + region.width / 2, y: region.y + region.height / 2 };
   }
 
   private constraint(): ViewportConstraint {
@@ -239,18 +304,25 @@ export class Viewport {
     clampPan: (state) => {
       const slack = this.options.panSlack;
       if (slack === null) return state;
+      const region = this.visibleRegion();
       return {
         scale: state.scale,
-        translateX: clampAxis(state.translateX, this.contentWidth * state.scale, this.containerWidth, slack),
-        translateY: clampAxis(state.translateY, this.contentHeight * state.scale, this.containerHeight, slack),
+        translateX: clampAxis(state.translateX, this.contentWidth * state.scale, region.x, region.width, slack),
+        translateY: clampAxis(state.translateY, this.contentHeight * state.scale, region.y, region.height, slack),
       };
     },
   };
 }
 
-// Content smaller than the container is centred; larger content may be dragged
-// until an edge is `slack` px inside the container.
-function clampAxis(translate: number, contentPx: number, containerPx: number, slack: number): number {
-  if (contentPx <= containerPx) return (containerPx - contentPx) / 2;
-  return Math.min(Math.max(translate, containerPx - contentPx - slack), slack);
+// Content smaller than the visible region is centred in it; larger content may
+// be dragged until an edge is `slack` px inside the region. `start`/`size` are
+// the region's offset and length on this axis (0 and the container length when
+// no chrome covers it).
+function clampAxis(translate: number, contentPx: number, start: number, size: number, slack: number): number {
+  if (contentPx <= size) return start + (size - contentPx) / 2;
+  return Math.min(Math.max(translate, start + size - contentPx - slack), start + slack);
+}
+
+function cleanInset(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : 0;
 }

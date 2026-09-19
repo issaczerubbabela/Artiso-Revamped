@@ -316,3 +316,116 @@ describe('Viewport with the crop tool constraint (image under a fixed frame)', (
     expect(viewport.getState().scale).toBe(0.05);
   });
 });
+
+describe('Viewport insets (floating chrome over a full-bleed surface)', () => {
+  const PAPER_OPTIONS: ViewportOptions = { minScale: 'fit', maxScale: 30, panSlack: 48, fitPadding: 16 };
+
+  it('behaves exactly as before with zero insets', () => {
+    const plain = new Viewport(1000, 700, 297, 210, PAPER_OPTIONS);
+    const zero = new Viewport(1000, 700, 297, 210, PAPER_OPTIONS);
+    zero.setInsets({ left: 0, top: 0, right: 0, bottom: 0 });
+    expect(zero.getState()).toEqual(plain.getState());
+    expect(zero.getFitScale()).toBe(plain.getFitScale());
+    expect(zero.getInsets()).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
+  });
+
+  it('fits and centres content in the uncovered region, not the whole container', () => {
+    // 1000x600, a 200px rail on the left and a 300px dock on the right leave a
+    // 500px-wide window. 1000x400 content fits by width: scale 0.5.
+    const viewport = new Viewport(1000, 600, 1000, 400);
+    viewport.setInsets({ left: 200, right: 300 });
+    const { scale, translateX, translateY } = viewport.getState();
+    expect(scale).toBeCloseTo(0.5);
+    // Centred in [200, 700]: content is 500px wide, so it starts at x = 200.
+    expect(translateX).toBeCloseTo(200);
+    // Vertically centred in the full height: (600 - 200) / 2.
+    expect(translateY).toBeCloseTo(200);
+    // Every edge of the content lies inside the uncovered region.
+    const left = viewport.imageToScreen({ x: 0, y: 0 });
+    const right = viewport.imageToScreen({ x: 1000, y: 400 });
+    expect(left.x).toBeGreaterThanOrEqual(200 - 1e-6);
+    expect(right.x).toBeLessThanOrEqual(700 + 1e-6);
+  });
+
+  it('respects top and bottom insets and fitPadding together', () => {
+    const viewport = new Viewport(800, 700, 400, 400, { fitPadding: 10 });
+    viewport.setInsets({ top: 60, bottom: 80 });
+    // Visible height 560, minus 2*10 padding = 540 -> scale 540/400.
+    expect(viewport.getState().scale).toBeCloseTo(540 / 400);
+    const top = viewport.imageToScreen({ x: 0, y: 0 }).y;
+    const bottom = viewport.imageToScreen({ x: 0, y: 400 }).y;
+    expect(top).toBeGreaterThanOrEqual(60);
+    expect(bottom).toBeLessThanOrEqual(700 - 80);
+  });
+
+  it('re-fits when the view was at fit, and leaves a zoomed-in view alone', () => {
+    const atFit = new Viewport(1000, 600, 1000, 400);
+    atFit.setInsets({ left: 300 });
+    expect(atFit.getState().scale).toBeCloseTo(0.7); // 700px window / 1000
+
+    const zoomed = new Viewport(1000, 600, 1000, 400);
+    zoomed.setZoom(2, { x: 500, y: 300 });
+    const before = zoomed.getState();
+    zoomed.setInsets({ left: 300 });
+    expect(zoomed.getState()).toEqual(before);
+  });
+
+  it('is a no-op when the insets have not changed', () => {
+    const viewport = new Viewport(1000, 600, 1000, 400);
+    viewport.setInsets({ left: 250 });
+    viewport.setZoom(3, { x: 700, y: 300 });
+    const before = viewport.getState();
+    viewport.setInsets({ left: 250 });
+    expect(viewport.getState()).toEqual(before);
+  });
+
+  it('anchors zoom buttons and Real size at the centre of the uncovered region', () => {
+    const viewport = new Viewport(1000, 600, 1000, 400);
+    viewport.setInsets({ left: 200, right: 300 }); // region x: 200..700 -> centre 450
+    viewport.setRealScale(2);
+    const centreBefore = viewport.screenToImage({ x: 450, y: 300 });
+    expect(viewport.setRealSize()).toBe(true);
+    const centreAfter = viewport.screenToImage({ x: 450, y: 300 });
+    expect(centreAfter.x).toBeCloseTo(centreBefore.x);
+    expect(centreAfter.y).toBeCloseTo(centreBefore.y);
+  });
+
+  it('keeps every part of oversized content reachable inside the uncovered region', () => {
+    const viewport = new Viewport(1000, 600, 1000, 400, PAPER_OPTIONS);
+    viewport.setInsets({ left: 200, right: 300 });
+    viewport.setZoom(4, { x: 450, y: 300 });
+    // Drag as far right as the limits allow: the content's left edge may reach
+    // at most `slack` past the region's left edge -- never further under the rail.
+    viewport.panBy(100000, 0);
+    expect(viewport.imageToScreen({ x: 0, y: 0 }).x).toBeCloseTo(200 + 48);
+    // ...and as far left as they allow: the right edge stops slack inside the region.
+    viewport.panBy(-100000, 0);
+    expect(viewport.imageToScreen({ x: 1000, y: 0 }).x).toBeCloseTo(700 - 48);
+  });
+
+  it('centres content smaller than the region (panning cannot push it under chrome)', () => {
+    const viewport = new Viewport(1000, 600, 100, 100, { minScale: 0.1, maxScale: 30, panSlack: 48, fitPadding: 16 });
+    viewport.setInsets({ left: 200, right: 300 });
+    viewport.setZoom(1);
+    viewport.panBy(500, 0);
+    // 100px content in a 500px region starting at 200: left edge at 200 + 200.
+    expect(viewport.getState().translateX).toBeCloseTo(400);
+  });
+
+  it('never lets a degenerate inset produce a zero or negative fit', () => {
+    const viewport = new Viewport(400, 400, 100, 100);
+    viewport.setInsets({ left: 900, right: 900, top: -5, bottom: Number.NaN });
+    expect(viewport.getFitScale()).toBeGreaterThan(0);
+    expect(Number.isFinite(viewport.getState().scale)).toBe(true);
+    expect(viewport.getInsets().top).toBe(0);
+    expect(viewport.getInsets().bottom).toBe(0);
+  });
+
+  it('keeps the fit through a container resize with insets in place', () => {
+    const viewport = new Viewport(1000, 600, 1000, 400);
+    viewport.setInsets({ left: 200, right: 300 });
+    viewport.resize(1200, 700);
+    expect(viewport.getState().scale).toBeCloseTo(viewport.getFitScale());
+    expect(viewport.getState().scale).toBeCloseTo(700 / 1000);
+  });
+});
