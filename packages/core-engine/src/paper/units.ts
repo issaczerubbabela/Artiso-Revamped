@@ -25,6 +25,22 @@ export function toMm(value: number, unit: Unit, dpi: number): number {
   }
 }
 
+/** Decimal places worth showing for a length in each unit. */
+export const UNIT_DECIMALS: Record<Unit, number> = { mm: 1, cm: 2, in: 3, px: 0 };
+
+/** Parses what a user typed into a number field; a comma is accepted as the decimal separator. */
+export function parseDecimal(text: string): number | null {
+  const cleaned = text.trim().replace(',', '.');
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** A length for display in `unit`: rounded to a sensible precision with trailing zeros dropped. */
+export function formatLength(mm: number, unit: Unit, dpi: number): string {
+  return String(Number(fromMm(mm, unit, dpi).toFixed(UNIT_DECIMALS[unit])));
+}
+
 export function fromMm(mm: number, unit: Unit, dpi: number): number {
   switch (unit) {
     case 'mm':

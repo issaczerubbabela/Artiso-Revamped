@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Unit } from '@artiso/shared-types';
-import { fromMm, toMm } from '../units';
+import { formatLength, fromMm, parseDecimal, toMm } from '../units';
 
 describe('toMm', () => {
   it('converts the physical units', () => {
@@ -31,6 +31,50 @@ describe('fromMm', () => {
     expect(fromMm(210, 'cm', 300)).toBeCloseTo(21, 10);
     expect(fromMm(25.4, 'in', 300)).toBeCloseTo(1, 10);
     expect(fromMm(25.4, 'px', 300)).toBeCloseTo(300, 10);
+  });
+});
+
+describe('parseDecimal', () => {
+  it.each([
+    ['210', 210],
+    ['  25.4 ', 25.4],
+    ['25,4', 25.4],
+    ['.5', 0.5],
+    ['7.', 7],
+    ['-3', -3],
+    ['0', 0],
+  ])('parses %j as %s', (text, expected) => {
+    expect(parseDecimal(text)).toBe(expected);
+  });
+
+  it.each(['', '  ', 'abc', '1.2.3', '1,2,3', '12mm', '--1', '.', '1e3', 'Infinity', '1 000'])(
+    'rejects %j',
+    (text) => {
+      expect(parseDecimal(text)).toBeNull();
+    },
+  );
+});
+
+describe('formatLength', () => {
+  it('rounds to a sensible precision per unit and drops trailing zeros', () => {
+    expect(formatLength(210, 'mm', 300)).toBe('210');
+    expect(formatLength(210.04, 'mm', 300)).toBe('210');
+    expect(formatLength(215.9, 'mm', 300)).toBe('215.9');
+    expect(formatLength(210, 'cm', 300)).toBe('21');
+    expect(formatLength(215.9, 'cm', 300)).toBe('21.59');
+    expect(formatLength(25.4, 'in', 300)).toBe('1');
+    expect(formatLength(210, 'in', 300)).toBe('8.268');
+    expect(formatLength(210, 'px', 300)).toBe('2480');
+  });
+
+  it('follows the dpi for pixels', () => {
+    expect(formatLength(25.4, 'px', 96)).toBe('96');
+    expect(formatLength(25.4, 'px', 300)).toBe('300');
+  });
+
+  it('round-trips a typed value back to the same millimetres, within display precision', () => {
+    const typed = formatLength(toMm(21, 'cm', 300), 'cm', 300);
+    expect(toMm(parseDecimal(typed)!, 'cm', 300)).toBeCloseTo(210, 9);
   });
 });
 
