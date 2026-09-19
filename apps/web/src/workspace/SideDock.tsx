@@ -13,7 +13,13 @@ import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 // not reflow anything; the canvas re-fits itself around the rectangle reported
 // here. Always mounted (hidden when idle) so it can report a zero-size rect and
 // keep its place in the tree; hidden means display:none, an instant swap.
-export function SideDock({ onPointerLeave }: { onPointerLeave?: PointerEventHandler<HTMLElement> }) {
+export function SideDock({
+  onPointerEnter,
+  onPointerLeave,
+}: {
+  onPointerEnter?: PointerEventHandler<HTMLElement>;
+  onPointerLeave?: PointerEventHandler<HTMLElement>;
+}) {
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
   const isOpen = toolMode !== 'idle';
@@ -27,6 +33,7 @@ export function SideDock({ onPointerLeave }: { onPointerLeave?: PointerEventHand
       aria-label={PANEL_TITLES[toolMode] || undefined}
       hidden={!isOpen}
       className="panel dock"
+      onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
       <div className="panel-header">

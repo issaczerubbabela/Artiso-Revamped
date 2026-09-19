@@ -16,7 +16,13 @@ import { closeWorkspace } from '@/session/close-workspace';
 // active tool's icon is filled and glows amber. It floats, so it never takes
 // space from the canvas -- the canvas fits itself around the rectangle this
 // reports instead (docs/architecture/06-workspace-interaction.md).
-export function SideRail({ onPointerLeave }: { onPointerLeave?: PointerEventHandler<HTMLElement> }) {
+export function SideRail({
+  onPointerEnter,
+  onPointerLeave,
+}: {
+  onPointerEnter?: PointerEventHandler<HTMLElement>;
+  onPointerLeave?: PointerEventHandler<HTMLElement>;
+}) {
   const { toolMode, hasReference, isImporting, isDisabled, toggleTool, present } = useToolbarState();
   const canvasSurface = useDisplayStore((s) => s.canvasSurface);
   const setCanvasSurface = useDisplayStore((s) => s.setCanvasSurface);
@@ -24,7 +30,7 @@ export function SideRail({ onPointerLeave }: { onPointerLeave?: PointerEventHand
   const neutral = canvasSurface === 'neutral';
 
   return (
-    <nav ref={reportRect} aria-label="Tools" data-testid="side-rail" className="panel rail" onPointerLeave={onPointerLeave}>
+    <nav ref={reportRect} aria-label="Tools" data-testid="side-rail" className="panel rail" onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
       {hasReference ? <IconButton icon={FolderOpen} label="Projects" onClick={closeWorkspace} /> : null}
       <IconButton
         icon={UploadSimple}

@@ -10,6 +10,7 @@ import { openProject } from '@/session/open-project';
 import { deleteProjectAction, leaveProjectAction, renameProjectAction } from '@/session/project-actions';
 import { refreshProjectsFromServer } from '@/session/auth-bootstrap';
 import { useAuthStore } from '@/state/auth-store';
+import { useDisplayStore } from '@/state/display-store';
 import { ShareDialog } from './ShareDialog';
 
 // Phase 2's Home/Projects screen (docs/phases/phase-2-cloud-projects-sync.md):
@@ -17,6 +18,7 @@ import { ShareDialog } from './ShareDialog';
 // browsing isn't needed yet (Phase 6), so this is really a flat list of
 // reference photos rather than a folder structure.
 export function ProjectsScreen() {
+  const canvasSurface = useDisplayStore((s) => s.canvasSurface);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +90,11 @@ export function ProjectsScreen() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-surface)' }}>
+    <div
+      className="surface surface--page"
+      data-surface={canvasSurface}
+      style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}
+    >
       <header
         style={{
           display: 'flex',
@@ -102,7 +108,7 @@ export function ProjectsScreen() {
         <div>
           <h1
             style={{
-              fontFamily: 'var(--font-family-base)',
+              fontFamily: 'var(--font-family-heading)',
               fontSize: 'var(--font-heading-size)',
               fontWeight: 'var(--font-heading-weight)',
               margin: 0,

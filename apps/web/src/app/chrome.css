@@ -40,6 +40,13 @@
   display: none;
 }
 
+/* A full-page (non-canvas) screen on the same surface: the texture sits behind
+   the content, not over it. */
+.surface--page > * {
+  position: relative;
+  z-index: 1;
+}
+
 .workspace__canvas {
   position: absolute;
   inset: 0;

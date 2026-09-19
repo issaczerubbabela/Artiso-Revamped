@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowsIn } from '@phosphor-icons/react';
+import { IconButton } from '@/components/chrome/IconButton';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { useDisplayStore } from '@/state/display-store';
 import { useBreakpoint } from './use-breakpoint';
-import { PanelButton } from './PanelButton';
 import { Toolbar } from './Toolbar';
 import { BottomSheet } from './BottomSheet';
 import { SideRail } from './SideRail';
@@ -13,6 +14,10 @@ import { TabStrip } from './TabStrip';
 import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 import { PaneStage } from './PaneStage';
 import { CalibrationDialog } from './CalibrationDialog';
+
+// How long the edge-revealed chrome lingers after the pointer leaves it (ms). A
+// delay, not an animation: the chrome still appears and disappears instantly.
+const REVEAL_HIDE_DELAY_MS = 250;
 
 // Adaptive, not two apps (CLAUDE.md): one component tree, chrome swaps by
 // breakpoint (docs/architecture/06-workspace-interaction.md, docs/design.md §7).
@@ -36,6 +41,23 @@ export function WorkspaceShell() {
   const canvasSurface = useDisplayStore((s) => s.canvasSurface);
   // Immersive mode: which edge the mouse has revealed the chrome from, if any.
   const [revealed, setRevealed] = useState<'left' | 'right' | null>(null);
+  // The revealed chrome hides a moment after the pointer leaves both the edge hint
+  // and the panel, so it also goes away if the mouse never entered the panel, and
+  // crossing the gap between hint and panel does not flicker it.
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHide = () => {
+    if (hideTimer.current !== null) clearTimeout(hideTimer.current);
+    hideTimer.current = null;
+  };
+  const scheduleHide = () => {
+    cancelHide();
+    hideTimer.current = setTimeout(() => setRevealed(null), REVEAL_HIDE_DELAY_MS);
+  };
+  const reveal = (edge: 'left' | 'right') => {
+    cancelHide();
+    setRevealed(edge);
+  };
+  useEffect(() => cancelHide, []);
 
   const canvasArea = <div className="workspace__canvas">{hasReference ? <PaneStage /> : <EmptyState error={importError} />}</div>;
 
@@ -81,18 +103,30 @@ export function WorkspaceShell() {
       <div className="workspace surface" data-surface={canvasSurface}>
         {canvasArea}
         {toolMode !== 'idle' ? <span className="panel pill tool-chip">{PANEL_TITLES[toolMode]}</span> : null}
+        {/* Tiny on purpose: the photo is the point of this mode. Tappable and
+            focusable, so touch and keyboard never depend on the hover reveal. */}
         <div className="panel pill present-exit">
-          <PanelButton variant="ghost" onClick={() => setPresentationMode(false)}>
-            Exit presentation
-          </PanelButton>
+          <IconButton icon={ArrowsIn} label="Exit presentation" tooltipSide="bottom" onClick={() => setPresentationMode(false)} />
         </div>
-        <div className="edge-hint" data-edge="left" onPointerEnter={() => setRevealed('left')} />
-        {toolMode !== 'idle' ? <div className="edge-hint" data-edge="right" onPointerEnter={() => setRevealed('right')} /> : null}
+        <div
+          className="edge-hint"
+          data-edge="left"
+          onPointerEnter={() => reveal('left')}
+          onPointerLeave={scheduleHide}
+        />
+        {toolMode !== 'idle' ? (
+          <div
+            className="edge-hint"
+            data-edge="right"
+            onPointerEnter={() => reveal('right')}
+            onPointerLeave={scheduleHide}
+          />
+        ) : null}
         {railRevealed || dockRevealed ? (
           <div className="chrome-layer">
-            {railRevealed ? <SideRail onPointerLeave={() => setRevealed(null)} /> : null}
+            {railRevealed ? <SideRail onPointerEnter={cancelHide} onPointerLeave={scheduleHide} /> : null}
             <div className="chrome-center" />
-            {dockRevealed ? <SideDock onPointerLeave={() => setRevealed(null)} /> : null}
+            {dockRevealed ? <SideDock onPointerEnter={cancelHide} onPointerLeave={scheduleHide} /> : null}
           </div>
         ) : null}
       </div>
