@@ -7,4 +7,5 @@ export * from './crop-constraint';
 export * from './input-controller';
 export * from './image-layer';
 export * from './grid-layer';
+export * from './drawing-grid-layer';
 export * from './annotation-layer';
