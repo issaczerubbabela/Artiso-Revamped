@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
+import { visibleCentre } from './visible-region';
 
 const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'reference.png');
 
@@ -19,10 +20,8 @@ test('arrow, circle, freehand, and note annotations draw and survive reload', as
   await canvas.waitFor({ state: 'visible', timeout: 15000 });
 
   await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no bounding box');
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
+  // The canvas is full-bleed under the chrome: draw where the photo really is.
+  const { x: cx, y: cy } = await visibleCentre(page);
 
   // Undo/Clear start disabled -- no annotations yet.
   await expect(page.getByRole('button', { name: 'Undo last' })).toBeDisabled();
@@ -83,10 +82,8 @@ test('drawing a stroke does not pan the canvas', async ({ page }) => {
   await canvas.waitFor({ state: 'visible', timeout: 15000 });
 
   await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no bounding box');
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
+  // The canvas is full-bleed under the chrome: draw where the photo really is.
+  const { x: cx, y: cy } = await visibleCentre(page);
 
   // Dragging with the Annotate tool active must commit a shape, not pan the
   // viewport -- Settings' Gesture Lock pattern (isGestureLocked) is what

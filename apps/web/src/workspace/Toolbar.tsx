@@ -1,66 +1,55 @@
 'use client';
 
-import { PanelButton } from './PanelButton';
+import { CornersOut, FolderOpen, UploadSimple } from '@phosphor-icons/react';
+import { IconButton } from '@/components/chrome/IconButton';
+import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import { ViewOnlyBadge } from './ViewOnlyBadge';
-import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import { TOOL_GROUPS, useToolbarState } from './tools';
 import { importReference } from '@/session/import-reference';
 import { closeWorkspace } from '@/session/close-workspace';
 
-const MODES: { id: ToolMode; label: string }[] = [
-  { id: 'paper', label: 'Paper' },
-  { id: 'rotateFlip', label: 'Rotate/Flip' },
-  { id: 'adjustments', label: 'Adjust' },
-  { id: 'filters', label: 'Filters' },
-  { id: 'grid', label: 'Grid' },
-  { id: 'annotate', label: 'Draw' },
-  { id: 'presets', label: 'Presets' },
-  { id: 'export', label: 'Export' },
-];
-
-// Context-aware: controls are disabled, not hidden, until a reference is
-// loaded (docs/architecture/06-workspace-interaction.md). Labeled by
-// default, never icon-only (ki-simplicity-first). Compact-breakpoint bottom
-// toolbar only -- see SideRail.tsx for the Wide equivalent.
+// Compact chrome: a floating matte toolbar along the bottom. There is no hover on
+// touch, so each icon carries a short label beneath it instead of a tooltip
+// (docs/design.md §7). It scrolls sideways; the faded ends say there is more.
+// Controls are disabled, not hidden, until a reference is loaded. Wide/Regular
+// use SideRail instead.
 export function Toolbar() {
-  const toolMode = useWorkspaceStore((s) => s.toolMode);
-  const setToolMode = useWorkspaceStore((s) => s.setToolMode);
-  const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
-  const isImporting = useWorkspaceStore((s) => s.isImporting);
-  const isViewer = useWorkspaceStore((s) => s.role === 'viewer');
-  const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
+  const { toolMode, hasReference, isImporting, isDisabled, toggleTool, present } = useToolbarState();
+  const reportRect = useReportChromeRect('bottom');
 
   return (
-    <nav
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-sm)',
-        padding: 'var(--space-sm) var(--space-md)',
-        background: 'var(--color-surface-raised)',
-        boxShadow: 'var(--shadow-dock)',
-        overflowX: 'auto',
-      }}
-    >
-      {hasReference ? <PanelButton onClick={closeWorkspace}>Projects</PanelButton> : null}
-      <PanelButton onClick={() => void importReference()} disabled={isImporting}>
-        {isImporting ? 'Importing…' : 'Import'}
-      </PanelButton>
-      {MODES.map((mode) => (
-        <PanelButton
-          key={mode.id}
-          active={toolMode === mode.id}
-          disabled={!hasReference || (isViewer && mode.id !== 'export')}
-          onClick={() => setToolMode(toolMode === mode.id ? 'idle' : mode.id)}
-        >
-          {mode.label}
-        </PanelButton>
-      ))}
-      <PanelButton disabled={!hasReference} onClick={() => setPresentationMode(true)}>
-        Present
-      </PanelButton>
-      <ViewOnlyBadge />
-      <SyncStatusBadge />
+    <nav ref={reportRect} aria-label="Tools" data-testid="bottom-toolbar" className="panel pill toolbar">
+      <div className="toolbar__scroller">
+        {hasReference ? <IconButton icon={FolderOpen} label="Projects" visibleLabel="Projects" onClick={closeWorkspace} /> : null}
+        <IconButton
+          icon={UploadSimple}
+          label="Import"
+          visibleLabel={isImporting ? 'Importing…' : 'Import'}
+          disabled={isImporting}
+          aria-busy={isImporting}
+          onClick={() => void importReference()}
+        />
+        {TOOL_GROUPS.map((group, index) => (
+          <div key={group[0]?.id ?? index} style={{ display: 'contents' }}>
+            <div role="separator" className="toolbar__sep" />
+            {group.map((tool) => (
+              <IconButton
+                key={tool.id}
+                icon={tool.icon}
+                label={tool.label}
+                visibleLabel={tool.short}
+                active={toolMode === tool.id}
+                disabled={isDisabled(tool)}
+                onClick={() => toggleTool(tool)}
+              />
+            ))}
+          </div>
+        ))}
+        <IconButton icon={CornersOut} label="Present" visibleLabel="Present" disabled={!hasReference} onClick={present} />
+        <ViewOnlyBadge />
+        <SyncStatusBadge />
+      </div>
     </nav>
   );
 }

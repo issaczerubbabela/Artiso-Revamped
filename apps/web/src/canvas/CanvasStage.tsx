@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import {
   cropFromView,
   deriveAdjustments,
@@ -21,10 +21,12 @@ import {
   GridLayer,
   ImageLayer,
   InputController,
+  NO_INSETS,
   Viewport,
   createCropConstraint,
   drawCropFrame,
   type GridDrawLayer,
+  type ViewportInsets,
   type ViewportOptions,
   type ViewportState,
 } from '@artiso/renderer';
@@ -73,6 +75,9 @@ interface Engine {
   cssWidth: number;
   cssHeight: number;
   dpr: number;
+  // The strips of the canvas that floating chrome covers. The surface is
+  // full-bleed; content fits and centres in what is left.
+  insets: ViewportInsets;
   dirty: boolean;
   raf: number;
   draft: ResolvedAnnotation | null;
@@ -162,10 +167,14 @@ function toViewportState(view: { scale: number; tx: number; ty: number }): Viewp
 // `session` is set for a split view's parked (non-focused) pane, which draws
 // that snapshot with its own independent pan/zoom and takes no tool input;
 // the focused pane omits it and reads the live workspace store.
-export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession; onViewChange?: (info: StageViewInfo) => void }>(
-  function CanvasStage({ session, onViewChange }, ref) {
+export const CanvasStage = forwardRef<
+  CanvasStageHandle,
+  { session?: PaneSession; onViewChange?: (info: StageViewInfo) => void; insets?: ViewportInsets }
+>(
+  function CanvasStage({ session, onViewChange, insets = NO_INSETS }, ref) {
     const sessionRef = useRef(session);
     const onViewChangeRef = useRef(onViewChange);
+    const insetsRef = useRef(insets);
     const isParked = session !== undefined;
     const containerRef = useRef<HTMLDivElement>(null);
     const imageCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -183,6 +192,16 @@ export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession
     useEffect(() => {
       onViewChangeRef.current = onViewChange;
     }, [onViewChange]);
+
+    // Floating chrome moved: tell the viewport which part of the canvas is
+    // still visible. A layout effect, so a panel that just appeared never gets a
+    // frame of the photo drawn underneath it. (The engine itself is created in
+    // the mount effect below, which reads insetsRef for the very first fit.)
+    useLayoutEffect(() => {
+      insetsRef.current = insets;
+      const engine = engineRef.current;
+      if (engine) applyInsets(engine, insets);
+    }, [insets.left, insets.top, insets.right, insets.bottom]);  // eslint-disable-line react-hooks/exhaustive-deps
 
     useImperativeHandle(
       ref,
@@ -226,6 +245,7 @@ export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession
       }
 
       const viewport = new Viewport(cssWidth, cssHeight, initial.paper.widthMm, initial.paper.heightMm, DRAW_VIEWPORT);
+      viewport.setInsets(insetsRef.current);
       const imageLayer = new ImageLayer(imageCanvas);
       // Two passes share the grid canvas: the guides beneath, then the grid.
       const gridLayer = new GridLayer(gridCanvas);
@@ -242,6 +262,7 @@ export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession
         cssWidth,
         cssHeight,
         dpr,
+        insets: insetsRef.current,
         dirty: true,
         raf: 0,
         draft: null,
@@ -635,6 +656,29 @@ export const CanvasStage = forwardRef<CanvasStageHandle, { session?: PaneSession
   },
 );
 
+// Puts new insets into effect. In the crop tool the frame is centred in the
+// visible region, so it is rebuilt on the next draw -- and the image is put back
+// where the *current crop* says it belongs, so a panel opening or closing never
+// changes what the user has framed.
+function applyInsets(engine: Engine, insets: ViewportInsets): void {
+  engine.insets = insets;
+  engine.viewport.setInsets(insets);
+  if (engine.mode === 'crop') {
+    engine.configuredContent = '';
+    engine.lastEmittedCrop = null;
+  }
+  engine.dirty = true;
+}
+
+// The crop frame, centred in the part of the canvas that chrome does not cover.
+function frameInVisibleRegion(engine: Engine, aspect: number): FrameRect {
+  const { left, top, right, bottom } = engine.insets;
+  const width = Math.max(1, engine.cssWidth - left - right);
+  const height = Math.max(1, engine.cssHeight - top - bottom);
+  const frame = frameInViewport(width, height, aspect, CROP_FRAME_MARGIN);
+  return { x: frame.x + left, y: frame.y + top, w: frame.w, h: frame.h };
+}
+
 // Brings the engine's image source, viewport content and limits in line with
 // what should be shown right now, doing only what changed. Runs at the top of
 // every redraw, so a mode switch, a new bitmap, a new paper or a resized
@@ -644,7 +688,7 @@ function syncEngine(engine: Engine, state: ViewData): void {
     const { framingDraft, cropSource, orientedWidth, orientedHeight } = state;
     const draft = framingDraft as FramingDraft;
     const source = cropSource as ImageBitmap;
-    const frame = frameInViewport(engine.cssWidth, engine.cssHeight, paperAspect(draft.paper), CROP_FRAME_MARGIN);
+    const frame = frameInVisibleRegion(engine, paperAspect(draft.paper));
     const content = `crop:${orientedWidth}x${orientedHeight}:${frame.x},${frame.y},${frame.w},${frame.h}`;
 
     if (engine.mode !== 'crop' || engine.configuredBitmap !== source) {

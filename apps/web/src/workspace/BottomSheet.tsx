@@ -2,45 +2,26 @@
 
 import type { ReactNode } from 'react';
 import { PanelButton } from './PanelButton';
+import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { useWorkspaceStore } from '@/state/workspace-store';
 
-// Compact-breakpoint chrome: a sheet lifted subtly above the canvas via
-// --shadow-dock, per CLAUDE.md's "flat by default, elevation only to
-// clarify hierarchy." Animated open/close transitions are a follow-up
-// polish item, not yet implemented.
+// Compact chrome: the active tool's panel as a floating matte sheet above the
+// toolbar (docs/design.md §7). It floats over the full-bleed canvas, which
+// re-fits itself around the rectangle this reports. Opens and closes as an
+// instant swap -- no animation.
 export function BottomSheet({ title, children }: { title: string; children: ReactNode }) {
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
+  const reportRect = useReportChromeRect('bottom');
 
   return (
-    <div
-      style={{
-        background: 'var(--color-surface-raised)',
-        borderTopLeftRadius: 'var(--radius-md)',
-        borderTopRightRadius: 'var(--radius-md)',
-        boxShadow: 'var(--shadow-dock)',
-        padding: 'var(--space-md)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-md)',
-        maxHeight: '40vh',
-        overflowY: 'auto',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span
-          style={{
-            fontFamily: 'var(--font-family-base)',
-            fontSize: 'var(--font-heading-size)',
-            fontWeight: 'var(--font-heading-weight)',
-          }}
-        >
-          {title}
-        </span>
+    <section ref={reportRect} aria-label={title} data-testid="bottom-sheet" className="panel sheet">
+      <div className="panel-header">
+        <h2 className="panel-title">{title}</h2>
         <PanelButton onClick={() => setToolMode('idle')} aria-label="Close panel">
           Close
         </PanelButton>
       </div>
       {children}
-    </div>
+    </section>
   );
 }

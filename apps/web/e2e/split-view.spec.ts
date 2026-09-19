@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { visibleCentre } from './visible-region';
 
 const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'reference.png');
 
@@ -60,17 +61,15 @@ test.describe('at the Wide breakpoint', () => {
     const left = page.getByTestId('split-pane-left');
     const right = page.getByTestId('split-pane-right');
 
-    // Focus the right pane (reference A) and annotate it.
-    await right.click({ position: { x: 20, y: 20 } });
+    // Focus the right pane (reference A) and annotate it. Click clear of the floating
+    // rail (left) and tab strip (top), which sit over the panes' corners.
+    await right.click({ position: { x: 200, y: 400 } });
     await expect(right).toHaveAttribute('data-focused', 'true');
     await expect(left).toHaveAttribute('data-focused', 'false');
     await expect(page.getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
 
     await page.getByRole('button', { name: 'Draw', exact: true }).click();
-    const box = await right.boundingBox();
-    if (!box) throw new Error('right pane has no bounding box');
-    const cx = box.x + box.width / 2;
-    const cy = box.y + box.height / 2;
+    const { x: cx, y: cy } = await visibleCentre(right);
     await page.mouse.move(cx, cy);
     await page.mouse.down();
     await page.mouse.move(cx + 60, cy + 40, { steps: 5 });
@@ -78,12 +77,12 @@ test.describe('at the Wide breakpoint', () => {
     await expect(page.getByRole('button', { name: 'Undo last' })).toBeEnabled();
 
     // Focus the left pane (reference B): it has no annotations of its own.
-    await left.click({ position: { x: 20, y: 20 } });
+    await left.click({ position: { x: 200, y: 400 } });
     await expect(left).toHaveAttribute('data-focused', 'true');
     await expect(page.getByRole('button', { name: 'Undo last' })).toBeDisabled();
 
     // And back: A's annotation is still there, on the pane it was drawn in.
-    await right.click({ position: { x: 20, y: 20 } });
+    await right.click({ position: { x: 200, y: 400 } });
     await expect(page.getByRole('button', { name: 'Undo last' })).toBeEnabled();
   });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { PanelButton } from './PanelButton';
+import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { useTabsStore } from '@/state/tabs-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { closeWorkspace } from '@/session/close-workspace';
@@ -8,49 +9,40 @@ import { closeTabAndSwitch, switchToTab } from '@/session/switch-tab';
 import { openInSplit } from '@/session/split-view';
 
 // Multi-reference workspace tabs (docs/phases/phase-7-guides-workspace-
-// export.md). Wide breakpoint only -- mobile stays single-reference, so
-// WorkspaceShell simply never renders this on Compact. A thin strip, not a
-// second focal point (CLAUDE.md's canvas-first rule).
+// export.md), as the floating top bar of the Wide chrome (docs/design.md §7).
+// Wide only -- mobile stays single-reference, so WorkspaceShell never renders
+// this on Compact/Regular. A small matte pill, not a second focal point
+// (CLAUDE.md's canvas-first rule); it reports its rectangle so the canvas fits
+// itself clear of it.
 export function TabStrip() {
   const tabs = useTabsStore((s) => s.tabs);
   const activeReferenceId = useWorkspaceStore((s) => s.referenceId);
   const parkedReferenceId = useWorkspaceStore((s) => s.splitParked?.referenceId ?? null);
   const closeSplit = useWorkspaceStore((s) => s.closeSplit);
+  const reportRect = useReportChromeRect('top');
 
   return (
     <div
+      ref={reportRect}
       role="tablist"
       aria-label="Open references"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--space-sm)',
-        padding: 'var(--space-xs) var(--space-md)',
-        background: 'var(--color-surface-raised)',
-        boxShadow: 'var(--shadow-dock)',
-        overflowX: 'auto',
-        flexShrink: 0,
-      }}
+      data-testid="tab-strip"
+      className="panel pill tabbar"
     >
       {tabs.map((tab) => {
         const isActive = tab.referenceId === activeReferenceId;
         const isParked = tab.referenceId === parkedReferenceId;
         return (
-          <div key={tab.referenceId} style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+          <div key={tab.referenceId} className="tabbar__item">
             <PanelButton
               role="tab"
               aria-selected={isActive}
               active={isActive}
+              className="tabbar__title"
               onClick={() => void switchToTab(tab)}
-              style={{
-                maxWidth: 200,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                // The other pane's tab, in split view -- outlined rather than
-                // filled so the focused pane stays the one accent-marked tab.
-                borderColor: isParked ? 'var(--color-accent)' : undefined,
-              }}
+              // The other pane's tab, in split view -- outlined rather than
+              // filled so the focused pane stays the one accent-marked tab.
+              style={isParked ? { borderColor: 'var(--color-accent)' } : undefined}
             >
               {tab.title}
             </PanelButton>

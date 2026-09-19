@@ -1,88 +1,71 @@
 'use client';
 
-import { PanelButton } from './PanelButton';
+import type { PointerEventHandler } from 'react';
+import { CornersOut, FolderOpen, Palette, UploadSimple } from '@phosphor-icons/react';
+import { IconButton } from '@/components/chrome/IconButton';
+import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import { ViewOnlyBadge } from './ViewOnlyBadge';
-import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import { TOOL_GROUPS, useToolbarState } from './tools';
+import { useDisplayStore } from '@/state/display-store';
 import { importReference } from '@/session/import-reference';
 import { closeWorkspace } from '@/session/close-workspace';
 
-const MODES: { id: ToolMode; label: string }[] = [
-  { id: 'paper', label: 'Paper' },
-  { id: 'rotateFlip', label: 'Rotate/Flip' },
-  { id: 'adjustments', label: 'Adjust' },
-  { id: 'filters', label: 'Filters' },
-  { id: 'grid', label: 'Grid' },
-  { id: 'annotate', label: 'Draw' },
-  { id: 'presets', label: 'Presets' },
-  { id: 'export', label: 'Export' },
-];
-
-const RAIL_WIDTH = 92;
-
-// Labels wrap onto a second line rather than truncating -- "Rotate/Flip"
-// doesn't fit this rail's width on one line at the default padding, and a
-// clipped label defeats the point of labeling controls at all.
-const RAIL_BUTTON_STYLE = {
-  width: '100%',
-  whiteSpace: 'normal' as const,
-  textAlign: 'center' as const,
-  lineHeight: 1.25,
-  padding: 'var(--space-xs) var(--space-xs)',
-};
-
-// Wide-breakpoint chrome: a persistent, deliberately slim vertical rail
-// replacing the Compact bottom toolbar (docs/architecture/06-workspace-
-// interaction.md). Unlike the collapsible SideDock, this one doesn't
-// collapse -- it's the fixed, minimal anchor the dock opens and closes
-// against, and staying narrow is what keeps the canvas dominant.
-export function SideRail() {
-  const toolMode = useWorkspaceStore((s) => s.toolMode);
-  const setToolMode = useWorkspaceStore((s) => s.setToolMode);
-  const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
-  const isImporting = useWorkspaceStore((s) => s.isImporting);
-  const isViewer = useWorkspaceStore((s) => s.role === 'viewer');
-  const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
+// Wide/Regular chrome: a floating, icon-only matte rail over the full-bleed
+// canvas (docs/design.md §7). Every button has an aria-label and a tooltip; the
+// active tool's icon is filled and glows amber. It floats, so it never takes
+// space from the canvas -- the canvas fits itself around the rectangle this
+// reports instead (docs/architecture/06-workspace-interaction.md).
+export function SideRail({ onPointerLeave }: { onPointerLeave?: PointerEventHandler<HTMLElement> }) {
+  const { toolMode, hasReference, isImporting, isDisabled, toggleTool, present } = useToolbarState();
+  const canvasSurface = useDisplayStore((s) => s.canvasSurface);
+  const setCanvasSurface = useDisplayStore((s) => s.setCanvasSurface);
+  const reportRect = useReportChromeRect('left');
+  const neutral = canvasSurface === 'neutral';
 
   return (
-    <nav
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-sm)',
-        width: RAIL_WIDTH,
-        flexShrink: 0,
-        padding: 'var(--space-md) var(--space-sm)',
-        background: 'var(--color-surface-raised)',
-        boxShadow: 'var(--shadow-dock)',
-        overflowY: 'auto',
-      }}
-    >
-      {hasReference ? (
-        <PanelButton onClick={closeWorkspace} style={RAIL_BUTTON_STYLE}>
-          Projects
-        </PanelButton>
-      ) : null}
-      <PanelButton onClick={() => void importReference()} disabled={isImporting} style={RAIL_BUTTON_STYLE}>
-        {isImporting ? '…' : 'Import'}
-      </PanelButton>
-      {MODES.map((mode) => (
-        <PanelButton
-          key={mode.id}
-          active={toolMode === mode.id}
-          disabled={!hasReference || (isViewer && mode.id !== 'export')}
-          onClick={() => setToolMode(toolMode === mode.id ? 'idle' : mode.id)}
-          style={RAIL_BUTTON_STYLE}
-        >
-          {mode.label}
-        </PanelButton>
+    <nav ref={reportRect} aria-label="Tools" data-testid="side-rail" className="panel rail" onPointerLeave={onPointerLeave}>
+      {hasReference ? <IconButton icon={FolderOpen} label="Projects" onClick={closeWorkspace} /> : null}
+      <IconButton
+        icon={UploadSimple}
+        label="Import"
+        disabled={isImporting}
+        aria-busy={isImporting}
+        onClick={() => void importReference()}
+      />
+
+      {TOOL_GROUPS.map((group, index) => (
+        <div key={group[0]?.id ?? index} style={{ display: 'contents' }}>
+          <div role="separator" className="rail__sep" />
+          {group.map((tool) => (
+            <IconButton
+              key={tool.id}
+              icon={tool.icon}
+              label={tool.label}
+              active={toolMode === tool.id}
+              disabled={isDisabled(tool)}
+              onClick={() => toggleTool(tool)}
+            />
+          ))}
+        </div>
       ))}
-      <PanelButton disabled={!hasReference} onClick={() => setPresentationMode(true)} style={RAIL_BUTTON_STYLE}>
-        Present
-      </PanelButton>
-      <div style={{ flex: 1 }} />
-      <ViewOnlyBadge />
-      <SyncStatusBadge />
+
+      <IconButton icon={CornersOut} label="Present" disabled={!hasReference} onClick={present} />
+
+      <div role="separator" className="rail__sep" />
+      {/* A per-device preference, not a tool: cyan, never the tool amber. */}
+      <IconButton
+        icon={Palette}
+        tone="toggle"
+        label="Neutral canvas"
+        active={neutral}
+        onClick={() => setCanvasSurface(neutral ? 'draftingBoard' : 'neutral')}
+      />
+
+      <div className="rail__status">
+        <ViewOnlyBadge />
+        <SyncStatusBadge />
+      </div>
     </nav>
   );
 }

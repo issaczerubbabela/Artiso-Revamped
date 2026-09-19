@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useWorkspaceStore } from '@/state/workspace-store';
+import { useDisplayStore } from '@/state/display-store';
 import { useBreakpoint } from './use-breakpoint';
 import { PanelButton } from './PanelButton';
 import { Toolbar } from './Toolbar';
@@ -13,10 +15,14 @@ import { PaneStage } from './PaneStage';
 import { CalibrationDialog } from './CalibrationDialog';
 
 // Adaptive, not two apps (CLAUDE.md): one component tree, chrome swaps by
-// breakpoint (docs/architecture/06-workspace-interaction.md). Compact/Regular
-// get a bottom toolbar + bottom sheet; Wide gets a persistent left rail plus
-// a right dock that collapses smoothly rather than the Compact sheet's
-// instant show/hide.
+// breakpoint (docs/architecture/06-workspace-interaction.md, docs/design.md §7).
+// The canvas is always full-bleed on the Drafting Board surface, and every piece
+// of chrome floats over it as a matte panel:
+//   Wide (>=1024)    floating icon rail + floating dock + floating top bar (tabs)
+//   Regular (768-1023) the same rail and dock (no tabs; the dock is the overlay drawer)
+//   Compact (<768)   floating bottom toolbar + floating bottom sheet
+// Nothing takes layout space from the canvas; each panel reports where it is and
+// the canvas fits its content to whatever is left uncovered.
 export function WorkspaceShell() {
   const breakpoint = useBreakpoint();
   const toolMode = useWorkspaceStore((s) => s.toolMode);
@@ -27,12 +33,11 @@ export function WorkspaceShell() {
   const splitParked = useWorkspaceStore((s) => s.splitParked);
   const splitFocusedSide = useWorkspaceStore((s) => s.splitFocusedSide);
   const focusSplitPane = useWorkspaceStore((s) => s.focusSplitPane);
+  const canvasSurface = useDisplayStore((s) => s.canvasSurface);
+  // Immersive mode: which edge the mouse has revealed the chrome from, if any.
+  const [revealed, setRevealed] = useState<'left' | 'right' | null>(null);
 
-  const canvasArea = (
-    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-      {hasReference ? <PaneStage /> : <EmptyState error={importError} />}
-    </div>
-  );
+  const canvasArea = <div className="workspace__canvas">{hasReference ? <PaneStage /> : <EmptyState error={importError} />}</div>;
 
   // Split view (Wide only): the focused pane is the live session and takes
   // every tool and panel; the parked pane draws its snapshot and focuses on
@@ -41,7 +46,7 @@ export function WorkspaceShell() {
   // keeps its own pan/zoom.
   const splitActive = breakpoint === 'wide' && splitParked !== null && hasReference;
   const splitCanvasArea = (
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 2 }}>
+    <div className="workspace__canvas" style={{ display: 'flex', gap: 2 }}>
       {(['left', 'right'] as const).map((side) => {
         const isFocused = side === splitFocusedSide;
         return (
@@ -65,48 +70,61 @@ export function WorkspaceShell() {
     </div>
   );
 
-  // Presentation mode is a display toggle over the same tree, not a fork:
-  // the same canvasArea renders, just without the toolbar/rail/dock/sheet.
+  // Presentation (immersive) mode is a display toggle over the same tree, not a
+  // fork: the same canvas renders with the chrome hidden, so the view fits the
+  // whole viewport. A tappable exit pill and the current-tool chip stay; a mouse
+  // at either 4px edge hint reveals the rail / dock again (docs/design.md §7).
   if (presentationMode && hasReference) {
+    const railRevealed = revealed === 'left';
+    const dockRevealed = revealed === 'right' && toolMode !== 'idle';
     return (
-      <div style={{ position: 'relative', display: 'flex', height: '100dvh', background: '#000000' }}>
+      <div className="workspace surface" data-surface={canvasSurface}>
         {canvasArea}
-        <PanelButton
-          onClick={() => setPresentationMode(false)}
-          style={{ position: 'absolute', top: 'var(--space-md)', right: 'var(--space-md)', opacity: 0.85 }}
-        >
-          Exit presentation
-        </PanelButton>
+        {toolMode !== 'idle' ? <span className="panel pill tool-chip">{PANEL_TITLES[toolMode]}</span> : null}
+        <div className="panel pill present-exit">
+          <PanelButton variant="ghost" onClick={() => setPresentationMode(false)}>
+            Exit presentation
+          </PanelButton>
+        </div>
+        <div className="edge-hint" data-edge="left" onPointerEnter={() => setRevealed('left')} />
+        {toolMode !== 'idle' ? <div className="edge-hint" data-edge="right" onPointerEnter={() => setRevealed('right')} /> : null}
+        {railRevealed || dockRevealed ? (
+          <div className="chrome-layer">
+            {railRevealed ? <SideRail onPointerLeave={() => setRevealed(null)} /> : null}
+            <div className="chrome-center" />
+            {dockRevealed ? <SideDock onPointerLeave={() => setRevealed(null)} /> : null}
+          </div>
+        ) : null}
       </div>
     );
   }
 
-  if (breakpoint === 'wide') {
+  if (breakpoint !== 'compact') {
     return (
-      <div style={{ display: 'flex', height: '100dvh', background: 'var(--color-surface)' }}>
-        <SideRail />
-        {/* Tabs are Wide-only: mobile stays single-reference. */}
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-          {hasReference ? <TabStrip /> : null}
-          {splitActive ? splitCanvasArea : canvasArea}
+      <div className="workspace surface" data-surface={canvasSurface}>
+        {splitActive ? splitCanvasArea : canvasArea}
+        <div className="chrome-layer">
+          <SideRail />
+          {/* Tabs are Wide-only: mobile stays single-reference. */}
+          <div className="chrome-center">{breakpoint === 'wide' && hasReference ? <TabStrip /> : null}</div>
+          <SideDock />
         </div>
-        <SideDock />
         <CalibrationDialog />
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-surface)' }}>
+    <div className="workspace surface" data-surface={canvasSurface}>
       {canvasArea}
-
-      {toolMode !== 'idle' && hasReference ? (
-        <BottomSheet title={PANEL_TITLES[toolMode]}>
-          <ToolPanel mode={toolMode} />
-        </BottomSheet>
-      ) : null}
-
-      <Toolbar />
+      <div className="compact-stack">
+        {toolMode !== 'idle' && hasReference ? (
+          <BottomSheet title={PANEL_TITLES[toolMode]}>
+            <ToolPanel mode={toolMode} />
+          </BottomSheet>
+        ) : null}
+        <Toolbar />
+      </div>
       <CalibrationDialog />
     </div>
   );
@@ -114,40 +132,12 @@ export function WorkspaceShell() {
 
 function EmptyState({ error }: { error: string | null }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        gap: 'var(--space-sm)',
-        padding: 'var(--space-lg)',
-        textAlign: 'center',
-      }}
-    >
-      <h1
-        style={{
-          fontFamily: 'var(--font-family-base)',
-          fontSize: 'var(--font-heading-size)',
-          fontWeight: 'var(--font-heading-weight)',
-          margin: 0,
-        }}
-      >
-        Artiso
-      </h1>
-      <span
-        style={{ fontFamily: 'var(--font-family-base)', fontSize: 'var(--font-body-size)', color: 'var(--color-ink-muted)' }}
-      >
+    <div className="empty">
+      <h1>Artiso</h1>
+      <span style={{ fontSize: 'var(--font-body-size)', color: 'var(--color-ink-muted)' }}>
         Import a reference photo to get started.
       </span>
-      {error ? (
-        <span
-          style={{ fontFamily: 'var(--font-family-base)', fontSize: 'var(--font-label-size)', color: 'var(--color-danger)' }}
-        >
-          {error}
-        </span>
-      ) : null}
+      {error ? <span style={{ fontSize: 'var(--font-label-size)', color: 'var(--color-danger)' }}>{error}</span> : null}
     </div>
   );
 }

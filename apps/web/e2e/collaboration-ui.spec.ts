@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { visibleCentre } from './visible-region';
 
 const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'reference.png');
 
@@ -129,11 +130,10 @@ test('a project shared with you shows who it is from and can be left, not edited
 test('deleting an annotation is remembered so a merge cannot bring it back', async ({ page }) => {
   await importFixture(page);
   await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  const box = await page.locator('canvas').first().boundingBox();
-  if (!box) throw new Error('canvas has no bounding box');
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const { x: cx, y: cy } = await visibleCentre(page);
+  await page.mouse.move(cx, cy);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 5 });
+  await page.mouse.move(cx + 60, cy + 40, { steps: 5 });
   await page.mouse.up();
   await page.getByRole('button', { name: 'Undo last' }).click();
   await page.waitForTimeout(800);

@@ -9,16 +9,6 @@ export function ViewOnlyBadge() {
   const role = useWorkspaceStore((s) => s.role);
   if (role !== 'viewer') return null;
   return (
-    <span
-      style={{
-        fontFamily: 'var(--font-family-base)',
-        fontSize: 'var(--font-label-size)',
-        color: 'var(--color-ink-muted)',
-        alignSelf: 'center',
-        padding: '0 var(--space-xs)',
-      }}
-    >
-      View only
-    </span>
+    <span className="status-text">View only</span>
   );
 }

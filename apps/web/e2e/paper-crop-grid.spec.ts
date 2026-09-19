@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { visibleCentre } from './visible-region';
 
 const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'reference.png'); // 640 x 480
 
@@ -215,12 +216,12 @@ test.describe('Paper & crop', () => {
     // Portrait paper on a landscape photo leaves horizontal room to pan.
     await page.getByRole('button', { name: 'Portrait' }).click();
     await page.waitForTimeout(400);
-    const before = await page.locator('canvas').first().boundingBox();
-    if (!before) throw new Error('canvas has no bounding box');
+    // Drag from the middle of what is actually visible, not of the full-bleed canvas.
+    const { x: cx, y: cy } = await visibleCentre(page);
 
-    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+    await page.mouse.move(cx, cy);
     await page.mouse.down();
-    await page.mouse.move(before.x + before.width / 2 - 80, before.y + before.height / 2, { steps: 8 });
+    await page.mouse.move(cx - 80, cy, { steps: 8 });
     await page.mouse.up();
     await page.getByRole('button', { name: 'Done' }).click();
     await settled(page);

@@ -32,15 +32,7 @@ export function SyncStatusBadge() {
   if (!projectId) return null;
 
   return (
-    <span
-      style={{
-        fontFamily: 'var(--font-family-base)',
-        fontSize: 'var(--font-label-size)',
-        color: COLORS[status],
-        alignSelf: 'center',
-        padding: '0 var(--space-xs)',
-      }}
-    >
+    <span role="status" className="status-text" style={{ color: COLORS[status] }}>
       {LABELS[status]}
     </span>
   );
