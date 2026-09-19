@@ -80,10 +80,11 @@ both draw at the same moment and, after refresh, both sides hold both
 annotations; the guest deletes theirs and it is gone for the owner and not
 resurrected; the owner downgrades the guest to viewer and the guest becomes
 read-only; the owner removes the guest and the project disappears for them.
-It found one real bug, now fixed and covered by :
+It found one real bug, now fixed and covered by
+`sync-reference.test.ts`:
 when two people reached the same next version, the loser read back an equal
 version and wrongly believed its write had landed. Stale detection now also
-compares the stored .
+compares the stored `updated_at`.
 
 ## Known limitations
 
