@@ -15,6 +15,16 @@ export const DRAFTING_BOARD_CANVAS = {
   textureSize: '14px 14px',
 } as const;
 
+// Neutral surround (docs/design.md §6): flat, no glow, no texture. A warm
+// surround can bias how the photo's colours read, so colour-critical work can
+// opt into this instead of the Drafting Board. Per-device preference.
+export const NEUTRAL_CANVAS = {
+  background: '#1B1B1C',
+} as const;
+
+export type CanvasSurface = 'draftingBoard' | 'neutral';
+export const DEFAULT_CANVAS_SURFACE: CanvasSurface = 'draftingBoard';
+
 // Defaults for the artist's own configurable grid overlay, as tuned in the
 // confirmed mockup's Tweaks panel. All three are user-adjustable at
 // runtime (sliders for thickness/opacity, per the control-mapping table in

@@ -4,10 +4,15 @@
 // "light default, dark as an override" pattern the retired palette used.
 //
 // Two accents, one rule: `accent` (cyan) is the general interactive accent
-// (selection, slider fill, focus, links). `accentSecondary` (amber) is
+// (selection, slider fill, focus, links). `accentTool` (amber) is
 // reserved ONLY for the active-tool glow — it must never be reused
-// elsewhere. Introducing a third accent is out of scope without a design
-// review.
+// elsewhere (renamed from `accentSecondary`, whose name invited reuse).
+// Introducing a third accent is out of scope without a design review.
+//
+// `border` is a hairline for a panel's own edge — decoration only, ~1.2:1.
+// `borderStrong` is the boundary of anything operable (inputs, slider
+// tracks, swatches, segmented buttons, switch tracks) and clears 3:1 against
+// the panel in the worst case (WCAG 1.4.11). Never use `border` for that.
 //
 // These are solid, opaque hex values only (tests enforce 6-digit hex and
 // matching key sets between themes). The actual chrome renders these
@@ -28,8 +33,9 @@ export const DARK_COLORS = {
   ink: '#EDEDEA',
   inkMuted: '#8B8883',
   border: '#26272A',
+  borderStrong: '#6A6B71',
   accent: '#34E2E2',
-  accentSecondary: '#FFB454',
+  accentTool: '#FFB454',
   accentContrast: '#052227',
   danger: '#E5484D',
 } as const;
@@ -40,8 +46,9 @@ export const LIGHT_COLORS = {
   ink: '#221F1B',
   inkMuted: '#6B675F',
   border: '#E2DCCF',
+  borderStrong: '#8F897B',
   accent: '#0E7A7A',
-  accentSecondary: '#B4650A',
+  accentTool: '#B4650A',
   accentContrast: '#FFFFFF',
   danger: '#C23B3B',
 } as const;
@@ -49,6 +56,7 @@ export const LIGHT_COLORS = {
 export type ColorToken = keyof typeof DARK_COLORS;
 export type ColorTheme = 'light' | 'dark';
 
-// The app's default theme. Components that read a theme without an
-// explicit user/system preference should resolve to this, not 'light'.
+// The app's default theme, and — until the light theme has been verified as
+// an artboard — its only automatic one: the OS colour-scheme preference is
+// deliberately NOT followed (docs/design.md §2).
 export const DEFAULT_COLOR_THEME: ColorTheme = 'dark';
