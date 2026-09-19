@@ -1,6 +1,7 @@
 import { applyGeometryOps, decodeBlobToWorkingBitmap } from '@artiso/core-engine';
-import { downloadAndCacheAsset, getAssetBlob } from '@artiso/api-client';
+import { downloadAndCacheAsset, getAssetBlob, syncReferenceNow } from '@artiso/api-client';
 import type { Project, Reference } from '@artiso/shared-types';
+import { useAuthStore } from '@/state/auth-store';
 import { useWorkspaceStore, type PaneSession } from '@/state/workspace-store';
 
 // Shared by resume-session.ts (auto-resume on boot) and open-project.ts
@@ -37,9 +38,15 @@ export async function buildSession(project: Project, reference: Reference): Prom
     gridConfig: reference.gridConfig,
     secondaryGridConfig: reference.secondaryGridConfig,
     annotations: reference.annotations,
+    removedAnnotationIds: reference.removedAnnotationIds,
+    role: project.role,
   };
 }
 
 export async function loadReferenceIntoWorkspace(project: Project, reference: Reference): Promise<void> {
   useWorkspaceStore.getState().loadReference(await buildSession(project, reference));
+  // Refresh on open (docs/phases/phase-8-collaboration-split-view.md): pull
+  // in whatever a collaborator changed since this device last synced. Runs in
+  // the background -- the reference is already showing from its local copy.
+  if (useAuthStore.getState().user) void syncReferenceNow(project.id, reference.id);
 }

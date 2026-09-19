@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { applyGeometryOps } from '@artiso/core-engine';
-import type { Annotation, ExportSettings, FilterId, GridConfig, Operation } from '@artiso/shared-types';
+import type { Annotation, ExportSettings, FilterId, GridConfig, Operation, ProjectRole } from '@artiso/shared-types';
 import { scheduleReferenceSync, updateReference } from '@artiso/api-client';
 import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
@@ -26,7 +26,17 @@ export interface PaneSession {
   gridConfig: GridConfig;
   secondaryGridConfig: GridConfig | null;
   annotations: Annotation[];
+  removedAnnotationIds: string[];
+  // The current user's access to this reference's project. 'viewer' makes
+  // the whole session read-only (see canEdit below).
+  role: ProjectRole;
 }
+
+// The fields a sync merge can change without touching the working bitmap.
+export type SyncedFields = Pick<
+  PaneSession,
+  'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations' | 'removedAnnotationIds'
+>;
 
 interface WorkspaceState {
   toolMode: ToolMode;
@@ -57,6 +67,7 @@ interface WorkspaceState {
 
   projectId: string | null;
   projectName: string | null;
+  role: ProjectRole;
   referenceId: string | null;
   assetId: string | null;
   workingBitmap: ImageBitmap | null;
@@ -73,6 +84,15 @@ interface WorkspaceState {
   // on top of the image/grid, never affecting the EditStack pipeline or grid
   // geometry -- an independent overlay, same as the grid.
   annotations: Annotation[];
+  // Tombstones for deleted annotations, so a collaborative merge can't
+  // resurrect them (docs/phases/phase-8-collaboration-split-view.md).
+  removedAnnotationIds: string[];
+
+  // Applies changes a sync merge brought in (a collaborator's edits) to the
+  // open session without scheduling a persist -- they're already saved.
+  adoptSyncedFields: (fields: SyncedFields) => void;
+  // Replaces the split view's parked snapshot, keeping which side is focused.
+  replaceParked: (session: PaneSession) => void;
 
   // Transient, per-session drawing settings for the *next* annotation to be
   // created -- not persisted on the Reference itself (only committed
@@ -131,15 +151,30 @@ let pendingPersist: (() => void) | null = null;
 function schedulePersist(
   state: Pick<
     WorkspaceState,
-    'projectId' | 'referenceId' | 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations'
+    | 'projectId'
+    | 'referenceId'
+    | 'editStack'
+    | 'gridConfig'
+    | 'secondaryGridConfig'
+    | 'annotations'
+    | 'removedAnnotationIds'
+    | 'role'
   >,
 ): void {
   if (!state.referenceId || !state.projectId) return;
-  const { referenceId, projectId, editStack, gridConfig, secondaryGridConfig, annotations } = state;
+  // A viewer never writes -- server RLS would reject it anyway.
+  if (state.role === 'viewer') return;
+  const { referenceId, projectId, editStack, gridConfig, secondaryGridConfig, annotations, removedAnnotationIds } = state;
   clearTimeout(persistTimer);
   pendingPersist = () => {
     pendingPersist = null;
-    void updateReference(referenceId, { editStack, gridConfig, secondaryGridConfig, annotations }).then(() => {
+    void updateReference(referenceId, {
+      editStack,
+      gridConfig,
+      secondaryGridConfig,
+      annotations,
+      removedAnnotationIds,
+    }).then(() => {
       if (useAuthStore.getState().user) scheduleReferenceSync(projectId, referenceId);
     });
   };
@@ -155,6 +190,12 @@ export function flushPersist(): void {
   pendingPersist?.();
 }
 
+// True while an edit is waiting out the persist debounce. A sync merge must
+// not overwrite the in-memory session then, or it would discard that edit.
+export function hasPendingPersist(): boolean {
+  return pendingPersist !== null;
+}
+
 function sessionToState(session: PaneSession) {
   return {
     projectId: session.projectId,
@@ -168,6 +209,8 @@ function sessionToState(session: PaneSession) {
     gridConfig: session.gridConfig,
     secondaryGridConfig: session.secondaryGridConfig,
     annotations: session.annotations,
+    removedAnnotationIds: session.removedAnnotationIds,
+    role: session.role,
   };
 }
 
@@ -185,12 +228,25 @@ function activeSession(state: WorkspaceState): PaneSession | null {
     gridConfig: state.gridConfig,
     secondaryGridConfig: state.secondaryGridConfig,
     annotations: state.annotations,
+    removedAnnotationIds: state.removedAnnotationIds,
+    role: state.role,
   };
+}
+
+// Every mutating action checks this: a viewer's session is read-only. The
+// tool buttons are disabled too, but this is what actually guarantees nothing
+// changes -- e.g. via a stale panel or a preset apply.
+function canEdit(state: WorkspaceState): boolean {
+  return state.role !== 'viewer';
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   toolMode: 'idle',
-  setToolMode: (mode) => set({ toolMode: mode }),
+  // A viewer can look and export, but not open any editing tool.
+  setToolMode: (mode) => {
+    if (get().role === 'viewer' && mode !== 'idle' && mode !== 'export') return;
+    set({ toolMode: mode });
+  },
 
   presentationMode: false,
   // Entering also closes any open tool panel so nothing lingers behind the
@@ -225,6 +281,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   projectId: null,
   projectName: null,
+  role: 'owner',
   referenceId: null,
   assetId: null,
   workingBitmap: null,
@@ -234,6 +291,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   gridConfig: DEFAULT_GRID_CONFIG,
   secondaryGridConfig: null,
   annotations: [],
+  removedAnnotationIds: [],
+
+  adoptSyncedFields: (fields) => set(fields),
+  replaceParked: (session) => set({ splitParked: session }),
 
   annotationTool: 'arrow',
   annotationColor: '#ff3b30',
@@ -270,6 +331,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // live in the Crop panel's own local state and only call this on Apply.
   appendGeometryOp: async (op) => {
     const state = get();
+    if (!canEdit(state)) return;
     if (!state.workingBitmap || !state.referenceId || !state.projectId) return;
     const result = await applyGeometryOps(state.workingBitmap, [op]);
     const editStack = [...state.editStack, op];
@@ -286,6 +348,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // entry rather than compounding (matches core-engine's deriveAdjustments).
   setAdjustment: (type, value) => {
     const state = get();
+    if (!canEdit(state)) return;
     const editStack = [...state.editStack.filter((op) => op.type !== type), { type, value } as Operation];
     set({ editStack });
     schedulePersist({ ...state, editStack });
@@ -296,6 +359,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // core-engine's deriveAdjustments last-wins rule.
   setFilter: (filterId, params) => {
     const state = get();
+    if (!canEdit(state)) return;
     const withoutFilter = state.editStack.filter((op) => op.type !== 'filter');
     const editStack: Operation[] = filterId ? [...withoutFilter, { type: 'filter', id: filterId, params }] : withoutFilter;
     set({ editStack });
@@ -309,6 +373,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // replaces the config wholesale instead of patching it.
   setGridConfig: (patch) => {
     const state = get();
+    if (!canEdit(state)) return;
     const gridConfig = { ...state.gridConfig, ...patch } as GridConfig;
     set({ gridConfig });
     schedulePersist({ ...state, gridConfig });
@@ -319,6 +384,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // only the shared style fields (color/opacity/thickness/visible).
   setGridType: (type) => {
     const state = get();
+    if (!canEdit(state)) return;
     const { color, opacity, thickness, visible } = state.gridConfig;
     const gridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
     set({ gridConfig });
@@ -330,7 +396,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // since GridPanel only shows these controls once one exists.
   setSecondaryGridConfig: (patch) => {
     const state = get();
-    if (!state.secondaryGridConfig) return;
+    if (!canEdit(state) || !state.secondaryGridConfig) return;
     const secondaryGridConfig = { ...state.secondaryGridConfig, ...patch } as GridConfig;
     set({ secondaryGridConfig });
     schedulePersist({ ...state, secondaryGridConfig });
@@ -340,6 +406,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // GridPanel's "Add layer" button calls this directly with a starting type.
   setSecondaryGridType: (type) => {
     const state = get();
+    if (!canEdit(state)) return;
     const base = state.secondaryGridConfig ?? state.gridConfig;
     const { color, opacity, thickness, visible } = base;
     const secondaryGridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
@@ -349,6 +416,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   removeSecondaryGrid: () => {
     const state = get();
+    if (!canEdit(state)) return;
     set({ secondaryGridConfig: null });
     schedulePersist({ ...state, secondaryGridConfig: null });
   },
@@ -358,6 +426,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // one of these on commit).
   addAnnotation: (annotation) => {
     const state = get();
+    if (!canEdit(state)) return;
     const annotations = [...state.annotations, annotation];
     set({ annotations });
     schedulePersist({ ...state, annotations });
@@ -369,15 +438,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // useful.
   removeLastAnnotation: () => {
     const state = get();
+    if (!canEdit(state)) return;
+    const last = state.annotations[state.annotations.length - 1];
+    if (!last) return;
     const annotations = state.annotations.slice(0, -1);
-    set({ annotations });
-    schedulePersist({ ...state, annotations });
+    const removedAnnotationIds = [...state.removedAnnotationIds, last.id];
+    set({ annotations, removedAnnotationIds });
+    schedulePersist({ ...state, annotations, removedAnnotationIds });
   },
 
   clearAnnotations: () => {
     const state = get();
-    set({ annotations: [] });
-    schedulePersist({ ...state, annotations: [] });
+    if (!canEdit(state)) return;
+    const removedAnnotationIds = [...state.removedAnnotationIds, ...state.annotations.map((a) => a.id)];
+    set({ annotations: [], removedAnnotationIds });
+    schedulePersist({ ...state, annotations: [], removedAnnotationIds });
   },
 
   // Grid + filter stack from a saved Preset, layered on top of whatever
@@ -387,6 +462,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // fields), so applying one only ever touches the primary gridConfig.
   applyPreset: (input) => {
     const state = get();
+    if (!canEdit(state)) return;
     const geometryOps = state.editStack.filter(
       (op) => op.type === 'crop' || op.type === 'rotate' || op.type === 'flip',
     );
@@ -412,6 +488,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       gridConfig: DEFAULT_GRID_CONFIG,
       secondaryGridConfig: null,
       annotations: [],
+      removedAnnotationIds: [],
+      role: 'owner',
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       importError: null,
     }),

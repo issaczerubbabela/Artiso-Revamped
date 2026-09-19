@@ -69,20 +69,47 @@ edit, export, save all work locally. Sync is strictly additive, per the
 prompt — no account wall on first launch, preserving the "fast setup" need
 called out for the Beginner/Student personas in the source spec.
 
-## Conflict resolution: last-write-wins (explicit simplifying assumption)
+## Conflict resolution and sharing
 
-Each `Reference` row carries `updatedAt` and a monotonic `version` integer.
-On upsert, if the server's `version` is newer than the client's locally-known
-version, the client's write is rejected and the client re-fetches, applies
-its local diff on top if possible, and re-submits. In practice, given this
-is a **single-user, multi-device** app (not multi-user collaboration),
-true concurrent edits to the same Reference from two devices at once are
-rare — this is a deliberate trade-off against CRDT/OT complexity that would
-be overkill for the target use case.
+**Originally** this was whole-reference last-write-wins, on the assumption
+of a single user across several devices. Shared Projects
+([phase 8](../phases/phase-8-collaboration-split-view.md)) made that
+unsafe -- two people annotating at once would silently overwrite each other --
+so it was revisited, as this section used to flag it would need to be.
 
-**Flagged for reviewer sign-off:** if "family/studio shared projects"
-ever becomes a real requirement, this conflict model needs revisiting before
-that feature ships.
+**Concurrency control.** Each `Reference` row carries a monotonic `version`.
+The `references_version_guard` trigger drops any write whose version is not
+strictly above what is stored, so a stale writer can never overwrite a newer
+copy. The losing client sees the mismatch (it reads back the stored version),
+pulls the server copy, **merges**, and pushes the merge at a higher version.
+
+**Merge** (`packages/api-client/src/sync/merge-reference.ts`, pure and
+unit-tested) compares the local copy, the server copy, and the last copy this
+device synced (the *base*, kept in the `syncBases` IndexedDB store):
+
+- **Annotations** are unioned by id, so both people's additions survive.
+  Deletions are recorded in `removedAnnotationIds` (tombstones) so a union
+  cannot resurrect them.
+- **Every other field group** (geometry ops, adjustments/filters, primary
+  grid, layered grid, notes) is three-way: if only one side changed a group,
+  that change wins; only if both changed the *same* group does the more
+  recently updated side win. That is last-write-wins, but scoped to one group
+  instead of the whole reference.
+
+The merged result is written locally with a compare-and-swap on the local
+version, so an edit made while a merge was running is never overwritten (the
+merge is redone from the newer copy).
+
+**Sharing.** A Project is shared with existing accounts as `editor` (may
+change its references) or `viewer` (read-only) via `project_members`. Row
+Level Security is the security boundary: members can read the project, its
+references, and the assets/Storage objects behind them; owner and editors can
+write references; only the owner can rename, delete, or change membership
+(through `SECURITY DEFINER` functions). The client's role checks only hide UI.
+
+**Freshness** is by refresh, not push: on open, on window focus, and on a
+30-second timer, the open reference is synced (which also pushes any unsynced
+edit). Supabase Realtime was deliberately not adopted.
 
 ## Data flow diagram
 

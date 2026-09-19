@@ -47,7 +47,28 @@ export function syncReferenceNow(projectId: string, referenceId: string): Promis
   return runReferenceSync(projectId, referenceId);
 }
 
+const running = new Set<string>();
+const rerunRequested = new Set<string>();
+
+// One sync per Reference at a time: the debounce timer, a focus refresh and
+// the periodic refresh can all fire together, and two overlapping
+// push-merge cycles would just fight each other. A request that arrives
+// mid-run is remembered and run once afterwards.
 async function runReferenceSync(projectId: string, referenceId: string): Promise<void> {
+  if (running.has(referenceId)) {
+    rerunRequested.add(referenceId);
+    return;
+  }
+  running.add(referenceId);
+  try {
+    await runReferenceSyncOnce(projectId, referenceId);
+  } finally {
+    running.delete(referenceId);
+  }
+  if (rerunRequested.delete(referenceId)) await runReferenceSync(projectId, referenceId);
+}
+
+async function runReferenceSyncOnce(projectId: string, referenceId: string): Promise<void> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     setSyncStatus(projectId, 'offline');
     return;

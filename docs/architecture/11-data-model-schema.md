@@ -99,10 +99,15 @@ type ExportSettings = {
 `presets`, `assets` (`content_hash` unique), `export_history`.
 
 Every table has an `owner_id` (or reachable via `project_id → owner_id`)
-column with a Row Level Security policy: `owner_id = auth.uid()`. No table
-is readable/writable across accounts in Phases 0–5 (no sharing/collaboration
-feature exists yet — see [08](08-project-sync-backend.md)'s open question on
-this).
+column with a Row Level Security policy scoped to the owner. In Phases 0–5
+nothing was readable or writable across accounts. Since
+[phase 8](../phases/phase-8-collaboration-split-view.md), a Project can be
+shared: `project_members(project_id, user_id, role)` (role `editor` or
+`viewer`) extends read access to projects, references, and the assets behind
+them, and write access to references for editors. Membership itself changes
+only through `SECURITY DEFINER` functions (see [08](08-project-sync-backend.md)).
+`references` also gained `secondary_grid_config`, `annotations`, and
+`removed_annotation_ids` (annotation tombstones for collaborative merge).
 
 ## Versioning
 

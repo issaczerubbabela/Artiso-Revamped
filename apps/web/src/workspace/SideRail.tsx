@@ -2,6 +2,7 @@
 
 import { PanelButton } from './PanelButton';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import { ViewOnlyBadge } from './ViewOnlyBadge';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
 import { importReference } from '@/session/import-reference';
 import { closeWorkspace } from '@/session/close-workspace';
@@ -40,6 +41,7 @@ export function SideRail() {
   const setToolMode = useWorkspaceStore((s) => s.setToolMode);
   const hasReference = useWorkspaceStore((s) => s.workingBitmap !== null);
   const isImporting = useWorkspaceStore((s) => s.isImporting);
+  const isViewer = useWorkspaceStore((s) => s.role === 'viewer');
   const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
 
   return (
@@ -68,7 +70,7 @@ export function SideRail() {
         <PanelButton
           key={mode.id}
           active={toolMode === mode.id}
-          disabled={!hasReference}
+          disabled={!hasReference || (isViewer && mode.id !== 'export')}
           onClick={() => setToolMode(toolMode === mode.id ? 'idle' : mode.id)}
           style={RAIL_BUTTON_STYLE}
         >
@@ -79,6 +81,7 @@ export function SideRail() {
         Present
       </PanelButton>
       <div style={{ flex: 1 }} />
+      <ViewOnlyBadge />
       <SyncStatusBadge />
     </nav>
   );

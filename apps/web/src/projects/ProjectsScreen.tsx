@@ -7,7 +7,10 @@ import { AuthPanel } from '@/auth/AuthPanel';
 import { PanelButton } from '@/workspace/PanelButton';
 import { importReference } from '@/session/import-reference';
 import { openProject } from '@/session/open-project';
-import { deleteProjectAction, renameProjectAction } from '@/session/project-actions';
+import { deleteProjectAction, leaveProjectAction, renameProjectAction } from '@/session/project-actions';
+import { refreshProjectsFromServer } from '@/session/auth-bootstrap';
+import { useAuthStore } from '@/state/auth-store';
+import { ShareDialog } from './ShareDialog';
 
 // Phase 2's Home/Projects screen (docs/phases/phase-2-cloud-projects-sync.md):
 // list, create, rename, delete, thumbnail. Multi-reference-per-project
@@ -17,9 +20,12 @@ export function ProjectsScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<Project | null>(null);
+  const isSignedIn = useAuthStore((s) => s.user !== null);
 
-  async function refresh() {
-    setIsLoading(true);
+  // `silent` skips the loading flash for background refreshes (focus/timer).
+  async function refresh(silent = false) {
+    if (!silent) setIsLoading(true);
     try {
       const all = await listProjects();
       setProjects(all.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)));
@@ -30,6 +36,22 @@ export function ProjectsScreen() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  // Projects shared with the user appear (and lose access) without a
+  // reload: pull on focus and on a timer, same cadence as the workspace.
+  useEffect(() => {
+    const pull = () => {
+      if (document.visibilityState === 'hidden') return;
+      void refreshProjectsFromServer().then(() => refresh(true));
+    };
+    pull();
+    const interval = setInterval(pull, 30_000);
+    window.addEventListener('focus', pull);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', pull);
+    };
   }, []);
 
   async function handleOpen(project: Project) {
@@ -45,6 +67,17 @@ export function ProjectsScreen() {
     const name = window.prompt('Rename reference', project.name);
     if (!name || name === project.name) return;
     await renameProjectAction(project.id, name);
+    void refresh();
+  }
+
+  async function handleLeave(project: Project) {
+    if (!window.confirm(`Leave "${project.name}"? You'll lose access until the owner shares it again.`)) return;
+    setError(null);
+    try {
+      await leaveProjectAction(project);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not leave this project.');
+    }
     void refresh();
   }
 
@@ -119,11 +152,14 @@ export function ProjectsScreen() {
                 onOpen={() => void handleOpen(project)}
                 onRename={() => void handleRename(project)}
                 onDelete={() => void handleDelete(project)}
+                onLeave={() => void handleLeave(project)}
+                onShare={isSignedIn ? () => setSharing(project) : undefined}
               />
             ))}
           </div>
         )}
       </div>
+      {sharing ? <ShareDialog project={sharing} onClose={() => setSharing(null)} /> : null}
     </div>
   );
 }
@@ -133,12 +169,18 @@ function ProjectCard({
   onOpen,
   onRename,
   onDelete,
+  onLeave,
+  onShare,
 }: {
   project: Project;
   onOpen: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onLeave: () => void;
+  // Undefined when signed out: sharing needs an account.
+  onShare?: () => void;
 }) {
+  const isOwner = project.role === 'owner';
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -219,9 +261,24 @@ function ProjectCard({
         >
           {project.name}
         </span>
-        <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-          <PanelButton onClick={onRename}>Rename</PanelButton>
-          <PanelButton onClick={onDelete}>Delete</PanelButton>
+        {isOwner ? null : (
+          <span
+            data-testid="project-role"
+            style={{ fontFamily: 'var(--font-family-base)', fontSize: 'var(--font-label-size)', color: 'var(--color-ink-muted)' }}
+          >
+            Shared with you · {project.role === 'editor' ? 'can edit' : 'view only'}
+          </span>
+        )}
+        <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+          {isOwner ? (
+            <>
+              <PanelButton onClick={onRename}>Rename</PanelButton>
+              {onShare ? <PanelButton onClick={onShare}>Share</PanelButton> : null}
+              <PanelButton onClick={onDelete}>Delete</PanelButton>
+            </>
+          ) : (
+            <PanelButton onClick={onLeave}>Leave</PanelButton>
+          )}
         </div>
       </div>
     </div>

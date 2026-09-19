@@ -6,6 +6,7 @@ import { ProjectsScreen } from '@/projects/ProjectsScreen';
 import { WorkspaceShell } from '@/workspace/WorkspaceShell';
 import { bootstrapAuth } from '@/session/auth-bootstrap';
 import { resumeSession } from '@/session/resume-session';
+import { startLiveRefresh } from '@/session/live-refresh';
 
 // Bootstraps exactly once at the app root -- resumeSession in particular
 // must not live inside WorkspaceShell's own mount effect, since the user
@@ -18,6 +19,7 @@ export function AppRoot() {
   useEffect(() => {
     void bootstrapAuth();
     void resumeSession();
+    return startLiveRefresh();
   }, []);
 
   return view === 'workspace' ? <WorkspaceShell /> : <ProjectsScreen />;

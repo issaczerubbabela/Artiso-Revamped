@@ -60,6 +60,8 @@ export async function importReference(): Promise<void> {
       gridConfig: reference.gridConfig,
       secondaryGridConfig: reference.secondaryGridConfig,
       annotations: reference.annotations,
+      removedAnnotationIds: reference.removedAnnotationIds,
+      role: 'owner',
     });
     useAppViewStore.getState().showWorkspace(project.id);
   } catch (error) {

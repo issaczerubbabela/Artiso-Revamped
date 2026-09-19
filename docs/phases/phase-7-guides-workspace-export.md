@@ -86,7 +86,8 @@ task; see [Deferred](#deferred).
 - **iOS shell** -- no Mac/Xcode available in this environment; same
   practical constraint that's holding back Android in Phase 4/5, which this
   phase doesn't depend on or touch.
-- **Collaborative/shared Projects** -- needs the last-write-wins conflict
+- **Collaborative/shared Projects** -- *now delivered in
+  [Phase 8](phase-8-collaboration-split-view.md).* Needed the last-write-wins conflict
   model in
   [08-project-sync-backend.md](../architecture/08-project-sync-backend.md#conflict-resolution-last-write-wins-explicit-simplifying-assumption)
   revisited first; that's a design conversation, not something to implement
