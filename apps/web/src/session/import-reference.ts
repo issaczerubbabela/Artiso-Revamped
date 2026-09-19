@@ -50,6 +50,7 @@ export async function importReference(): Promise<void> {
 
     store.loadReference({
       projectId: project.id,
+      projectName: project.name,
       referenceId: reference.id,
       assetId: asset.id,
       workingBitmap: imported.workingBitmap,

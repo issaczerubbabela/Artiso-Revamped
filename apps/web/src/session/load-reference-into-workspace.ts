@@ -27,6 +27,7 @@ export async function loadReferenceIntoWorkspace(project: Project, reference: Re
 
   useWorkspaceStore.getState().loadReference({
     projectId: project.id,
+    projectName: project.name,
     referenceId: reference.id,
     assetId: reference.originalAssetId,
     workingBitmap: replayed.bitmap,

@@ -65,11 +65,21 @@ task; see [Deferred](#deferred).
       `InputController` gesture-locked, grid drawn at full opacity/thick
       lines with 2x label size (draw-time override; stored GridConfig is
       untouched)
-- [ ] Multi-reference workspace (split-view, tabs) -- desktop-first per the
-      original reviewer decision; mobile stays single-reference
+- [x] Multi-reference workspace (split-view, tabs) -- desktop-first per the
+      original reviewer decision; mobile stays single-reference. Scoped by
+      user decision to **tabs only** (split-view deferred), with references
+      from any Project. The workspace store still holds one active
+      reference (only one canvas is visible); a session-only `tabs-store`
+      lists open references and switching loads the chosen one into the
+      store, with `flushPersist()` writing the outgoing reference's pending
+      edit first. Per-tab pan/zoom and tool state are not remembered.
 
 ## Deferred
 
+- **Split-view** -- showing two references side by side. The multi-reference
+  workspace shipped as tabs only by user decision; split-view needs every
+  canvas and panel to target a specific reference rather than the single
+  active session.
 - **AI-assist** -- explicitly excluded by direct user instruction for this
   pass, not just left for later opportunistically.
 - **iOS shell** -- no Mac/Xcode available in this environment; same
@@ -107,6 +117,8 @@ task; see [Deferred](#deferred).
       component tree (CLAUDE.md: "adaptive, not two apps") -- verified at
       Compact and Wide by `apps/web/e2e/presentation-mode.spec.ts`, which
       also proves the gesture lock with an unlocked control
-- [ ] Multi-reference workspace only changes desktop/Wide-breakpoint chrome;
+- [x] Multi-reference workspace only changes desktop/Wide-breakpoint chrome;
       Compact/mobile stays single-reference, matching the reviewer's original
-      split-view deferral rationale
+      split-view deferral rationale -- verified by
+      `apps/web/e2e/multi-reference-tabs.spec.ts` (Wide: open/switch/close
+      tabs with independent per-reference state; Compact: no tab strip)

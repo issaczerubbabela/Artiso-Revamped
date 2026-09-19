@@ -6,12 +6,15 @@ import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
 import { DEFAULT_EXPORT_SETTINGS } from './default-export-settings';
 import { buildGridConfigForType } from './build-grid-config-for-type';
+import { useTabsStore } from './tabs-store';
 
 export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'export' | 'presets';
 export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand';
 
 interface LoadedReference {
   projectId: string;
+  // Labels this reference's tab in the multi-reference workspace.
+  projectName: string;
   referenceId: string;
   assetId: string;
   workingBitmap: ImageBitmap;
@@ -100,6 +103,7 @@ interface WorkspaceState {
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingPersist: (() => void) | null = null;
 
 // Debounced so a slider drag or a rapid grid-config change doesn't write to
 // IndexedDB on every intermediate tick. The (signed-in only) network push is
@@ -119,11 +123,22 @@ function schedulePersist(
   if (!state.referenceId || !state.projectId) return;
   const { referenceId, projectId, editStack, gridConfig, secondaryGridConfig, annotations } = state;
   clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
+  pendingPersist = () => {
+    pendingPersist = null;
     void updateReference(referenceId, { editStack, gridConfig, secondaryGridConfig, annotations }).then(() => {
       if (useAuthStore.getState().user) scheduleReferenceSync(projectId, referenceId);
     });
-  }, 400);
+  };
+  persistTimer = setTimeout(() => pendingPersist?.(), 400);
+}
+
+// Writes any debounced edit immediately. The persist timer is a single
+// global one, so switching to another reference's tab without flushing
+// first would let that reference's next edit clear this one's pending
+// write and silently drop it.
+export function flushPersist(): void {
+  clearTimeout(persistTimer);
+  pendingPersist?.();
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -163,7 +178,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   viewportResetSignal: 0,
   requestViewportReset: () => set((state) => ({ viewportResetSignal: state.viewportResetSignal + 1 })),
 
-  loadReference: (input) =>
+  loadReference: (input) => {
+    // Any reference being swapped out gets its debounced edit written first
+    // (see flushPersist) -- covers import, open-project, and tab switching.
+    flushPersist();
+    useTabsStore.getState().openTab({ projectId: input.projectId, referenceId: input.referenceId, title: input.projectName });
     set({
       projectId: input.projectId,
       referenceId: input.referenceId,
@@ -178,7 +197,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       toolMode: 'idle',
       importError: null,
-    }),
+    });
+  },
 
   // The one commit path for crop/rotate/flip: re-runs the new op against the
   // current working bitmap (not the whole stack from scratch) and appends it

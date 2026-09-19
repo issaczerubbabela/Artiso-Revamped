@@ -9,6 +9,7 @@ import { Toolbar } from './Toolbar';
 import { BottomSheet } from './BottomSheet';
 import { SideRail } from './SideRail';
 import { SideDock } from './SideDock';
+import { TabStrip } from './TabStrip';
 import { CropOverlay, type NormalizedRect } from './panels/CropOverlay';
 import { CropPanel } from './panels/CropPanel';
 import { RotateFlipPanel } from './panels/RotateFlipPanel';
@@ -88,7 +89,11 @@ export function WorkspaceShell() {
     return (
       <div style={{ display: 'flex', height: '100dvh', background: 'var(--color-surface)' }}>
         <SideRail />
-        {canvasArea}
+        {/* Tabs are Wide-only: mobile stays single-reference. */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+          {hasReference ? <TabStrip /> : null}
+          {canvasArea}
+        </div>
         <SideDock cropRect={cropRect} onResetCropRect={() => setCropRect(FULL_FRAME)} />
       </div>
     );
