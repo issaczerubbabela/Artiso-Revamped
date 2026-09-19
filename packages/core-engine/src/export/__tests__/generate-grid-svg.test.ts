@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GridSettings } from '@artiso/shared-types';
 import { MM_PER_CSS_PX, generateDrawingGridSvg, generateGridSvg } from '../generate-grid-svg';
-import { generateRectangularGrid } from '../../grid/generate-rectangular-grid';
 import { getDiagonals } from '../../grid/diagonals';
 import { getRadialRays } from '../../grid/radial-rays';
 import { getLines } from '../../grid/square-grid';
@@ -9,15 +8,26 @@ import type { GridGeometry } from '../../grid/types';
 
 const STYLE = { color: '#ff00aa', opacity: 80, thickness: 'medium' as const, visible: true };
 
+// An n x n grid of evenly spaced interior lines, as the retired rectangular
+// generator used to produce -- just a convenient piece of geometry to render.
+function evenGrid(width: number, height: number, n: number): GridGeometry {
+  const lines: GridGeometry['lines'] = [];
+  for (let k = 1; k < n; k++) {
+    lines.push({ x1: (width * k) / n, y1: 0, x2: (width * k) / n, y2: height });
+    lines.push({ x1: 0, y1: (height * k) / n, x2: width, y2: (height * k) / n });
+  }
+  return { lines, labels: [] };
+}
+
 describe('generateGridSvg', () => {
   it('wraps the geometry in a viewBox-scoped svg element', () => {
-    const geometry = generateRectangularGrid(100, 200, { rows: 2, cols: 2, numberingMode: 'off' });
+    const geometry = evenGrid(100, 200, 2);
     const svg = generateGridSvg(100, 200, [{ geometry, config: STYLE }]);
     expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="200" viewBox="0 0 100 200">');
   });
 
   it('emits one <line> per geometry line, styled from config', () => {
-    const geometry = generateRectangularGrid(100, 100, { rows: 2, cols: 2, numberingMode: 'off' });
+    const geometry = evenGrid(100, 100, 2);
     const svg = generateGridSvg(100, 100, [{ geometry, config: STYLE }]);
     const lineCount = (svg.match(/<line /g) ?? []).length;
     expect(lineCount).toBe(geometry.lines.length);
@@ -33,14 +43,14 @@ describe('generateGridSvg', () => {
   });
 
   it('omits a layer entirely when its config is not visible', () => {
-    const geometry = generateRectangularGrid(100, 100, { rows: 2, cols: 2, numberingMode: 'off' });
+    const geometry = evenGrid(100, 100, 2);
     const svg = generateGridSvg(100, 100, [{ geometry, config: { ...STYLE, visible: false } }]);
     expect(svg).not.toContain('<line');
   });
 
   it('composes multiple layers (layered guides) into one document', () => {
-    const primary = generateRectangularGrid(100, 100, { rows: 2, cols: 2, numberingMode: 'off' });
-    const secondary = generateRectangularGrid(100, 100, { rows: 3, cols: 3, numberingMode: 'off' });
+    const primary = evenGrid(100, 100, 2);
+    const secondary = evenGrid(100, 100, 3);
     const svg = generateGridSvg(100, 100, [
       { geometry: primary, config: STYLE },
       { geometry: secondary, config: { ...STYLE, color: '#000000' } },
