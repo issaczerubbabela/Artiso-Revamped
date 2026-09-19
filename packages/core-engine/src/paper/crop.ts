@@ -12,6 +12,13 @@ export function initialCrop(imageWidth: number, imageHeight: number, aspect: num
   return { x: (imageWidth - w) / 2, y: (imageHeight - h) / 2, w, h };
 }
 
+/** The largest rectangle of the given aspect that fits inside `rect`, sharing its centre. */
+export function trimToAspect(rect: PixelRect, aspect: number): PixelRect {
+  const w = Math.min(rect.w, rect.h * aspect);
+  const h = w / aspect;
+  return { x: rect.x + (rect.w - w) / 2, y: rect.y + (rect.h - h) / 2, w, h };
+}
+
 /** Shrinks (keeping aspect) if the crop is bigger than the image, then slides it fully inside. */
 export function clampCrop(crop: PixelRect, imageWidth: number, imageHeight: number): PixelRect {
   const aspect = crop.w / crop.h;
