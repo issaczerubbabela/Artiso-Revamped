@@ -5,6 +5,7 @@ import { useTabsStore } from '@/state/tabs-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
 import { closeWorkspace } from '@/session/close-workspace';
 import { closeTabAndSwitch, switchToTab } from '@/session/switch-tab';
+import { openInSplit } from '@/session/split-view';
 
 // Multi-reference workspace tabs (docs/phases/phase-7-guides-workspace-
 // export.md). Wide breakpoint only -- mobile stays single-reference, so
@@ -13,6 +14,8 @@ import { closeTabAndSwitch, switchToTab } from '@/session/switch-tab';
 export function TabStrip() {
   const tabs = useTabsStore((s) => s.tabs);
   const activeReferenceId = useWorkspaceStore((s) => s.referenceId);
+  const parkedReferenceId = useWorkspaceStore((s) => s.splitParked?.referenceId ?? null);
+  const closeSplit = useWorkspaceStore((s) => s.closeSplit);
 
   return (
     <div
@@ -31,6 +34,7 @@ export function TabStrip() {
     >
       {tabs.map((tab) => {
         const isActive = tab.referenceId === activeReferenceId;
+        const isParked = tab.referenceId === parkedReferenceId;
         return (
           <div key={tab.referenceId} style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             <PanelButton
@@ -38,16 +42,30 @@ export function TabStrip() {
               aria-selected={isActive}
               active={isActive}
               onClick={() => void switchToTab(tab)}
-              style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              style={{
+                maxWidth: 200,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                // The other pane's tab, in split view -- outlined rather than
+                // filled so the focused pane stays the one accent-marked tab.
+                borderColor: isParked ? 'var(--color-accent)' : undefined,
+              }}
             >
               {tab.title}
             </PanelButton>
+            {!isActive && !isParked ? (
+              <PanelButton aria-label={`Open ${tab.title} beside`} onClick={() => void openInSplit(tab)}>
+                Split
+              </PanelButton>
+            ) : null}
             <PanelButton aria-label={`Close ${tab.title}`} onClick={() => void closeTabAndSwitch(tab.referenceId)}>
               ×
             </PanelButton>
           </div>
         );
       })}
+      {parkedReferenceId ? <PanelButton onClick={closeSplit}>Close split</PanelButton> : null}
       <PanelButton onClick={closeWorkspace}>Add reference</PanelButton>
     </div>
   );

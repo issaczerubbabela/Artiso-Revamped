@@ -47,6 +47,9 @@ export function WorkspaceShell() {
   const requestViewportReset = useWorkspaceStore((s) => s.requestViewportReset);
   const presentationMode = useWorkspaceStore((s) => s.presentationMode);
   const setPresentationMode = useWorkspaceStore((s) => s.setPresentationMode);
+  const splitParked = useWorkspaceStore((s) => s.splitParked);
+  const splitFocusedSide = useWorkspaceStore((s) => s.splitFocusedSide);
+  const focusSplitPane = useWorkspaceStore((s) => s.focusSplitPane);
   const [cropRect, setCropRect] = useState<NormalizedRect>(FULL_FRAME);
 
   useEffect(() => {
@@ -66,6 +69,38 @@ export function WorkspaceShell() {
       ) : (
         <EmptyState error={importError} />
       )}
+    </div>
+  );
+
+  // Split view (Wide only): the focused pane is the live session and takes
+  // every tool and panel; the parked pane draws its snapshot and focuses on
+  // click. Panes are keyed by physical side so a focus swap changes only
+  // which one is the live session -- neither CanvasStage remounts, so each
+  // keeps its own pan/zoom.
+  const splitActive = breakpoint === 'wide' && splitParked !== null && hasReference;
+  const splitCanvasArea = (
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 2 }}>
+      {(['left', 'right'] as const).map((side) => {
+        const isFocused = side === splitFocusedSide;
+        return (
+          <div
+            key={side}
+            data-testid={`split-pane-${side}`}
+            data-focused={isFocused}
+            onPointerDownCapture={isFocused ? undefined : focusSplitPane}
+            style={{
+              position: 'relative',
+              flex: 1,
+              minWidth: 0,
+              outline: isFocused ? '2px solid var(--color-accent)' : '2px solid transparent',
+              outlineOffset: -2,
+            }}
+          >
+            <CanvasStage session={isFocused ? undefined : (splitParked ?? undefined)} />
+            {isFocused && toolMode === 'crop' ? <CropOverlay rect={cropRect} onChange={setCropRect} /> : null}
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -92,7 +127,7 @@ export function WorkspaceShell() {
         {/* Tabs are Wide-only: mobile stays single-reference. */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
           {hasReference ? <TabStrip /> : null}
-          {canvasArea}
+          {splitActive ? splitCanvasArea : canvasArea}
         </div>
         <SideDock cropRect={cropRect} onResetCropRect={() => setCropRect(FULL_FRAME)} />
       </div>

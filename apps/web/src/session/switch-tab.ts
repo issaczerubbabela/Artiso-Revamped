@@ -8,7 +8,13 @@ import { loadReferenceIntoWorkspace } from './load-reference-into-workspace';
 // switching a tab loads that reference into the single active workspace
 // session. loadReference flushes the outgoing reference's pending edit first.
 export async function switchToTab(tab: ReferenceTab): Promise<void> {
-  if (useWorkspaceStore.getState().referenceId === tab.referenceId) return;
+  const store = useWorkspaceStore.getState();
+  if (store.referenceId === tab.referenceId) return;
+  // Clicking the tab of the parked pane just focuses that pane.
+  if (store.splitParked?.referenceId === tab.referenceId) {
+    store.focusSplitPane();
+    return;
+  }
   const [project, reference] = await Promise.all([getProject(tab.projectId), getReference(tab.referenceId)]);
   if (!project || !reference) {
     // The project/reference was deleted since this tab opened -- drop the
@@ -25,8 +31,24 @@ export async function closeTabAndSwitch(referenceId: string): Promise<void> {
   const { tabs, closeTab } = useTabsStore.getState();
   const index = tabs.findIndex((t) => t.referenceId === referenceId);
   if (index === -1) return;
-  const wasActive = useWorkspaceStore.getState().referenceId === referenceId;
+  const store = useWorkspaceStore.getState();
+  const wasActive = store.referenceId === referenceId;
   closeTab(referenceId);
+
+  // In split view, closing either pane's tab collapses back to one pane:
+  // closing the parked one just ends the split; closing the focused one
+  // hands focus to the parked pane first.
+  if (store.splitParked) {
+    if (store.splitParked.referenceId === referenceId) {
+      store.closeSplit();
+      return;
+    }
+    if (wasActive) {
+      store.focusSplitPane();
+      useWorkspaceStore.getState().closeSplit();
+      return;
+    }
+  }
   if (!wasActive) return;
 
   const remaining = useTabsStore.getState().tabs;

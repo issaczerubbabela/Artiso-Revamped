@@ -11,7 +11,9 @@ import { useTabsStore } from './tabs-store';
 export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'export' | 'presets';
 export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand';
 
-interface LoadedReference {
+// Everything that defines one open reference: what loadReference takes, and
+// what a split view's non-focused pane keeps parked as a snapshot.
+export interface PaneSession {
   projectId: string;
   // Labels this reference's tab in the multi-reference workspace.
   projectName: string;
@@ -42,7 +44,19 @@ interface WorkspaceState {
   setImporting: (isImporting: boolean) => void;
   setImportError: (message: string | null) => void;
 
+  // Split view (docs/phases/phase-8-collaboration-split-view.md): this store
+  // stays the live session of the *focused* pane, so every panel and action
+  // works unchanged. The other pane's session is parked here as a snapshot
+  // and rendered read-through; focusing it swaps the two. splitFocusedSide is
+  // which physical side the focused pane occupies.
+  splitParked: PaneSession | null;
+  splitFocusedSide: 'left' | 'right';
+  openSplit: (session: PaneSession) => void;
+  focusSplitPane: () => void;
+  closeSplit: () => void;
+
   projectId: string | null;
+  projectName: string | null;
   referenceId: string | null;
   assetId: string | null;
   workingBitmap: ImageBitmap | null;
@@ -86,7 +100,7 @@ interface WorkspaceState {
   viewportResetSignal: number;
   requestViewportReset: () => void;
 
-  loadReference: (input: LoadedReference) => void;
+  loadReference: (input: PaneSession) => void;
   appendGeometryOp: (op: Operation) => Promise<void>;
   setAdjustment: (type: 'brightness' | 'contrast' | 'saturation', value: number) => void;
   setFilter: (filterId: FilterId | null, params?: Record<string, number>) => void;
@@ -141,6 +155,39 @@ export function flushPersist(): void {
   pendingPersist?.();
 }
 
+function sessionToState(session: PaneSession) {
+  return {
+    projectId: session.projectId,
+    projectName: session.projectName,
+    referenceId: session.referenceId,
+    assetId: session.assetId,
+    workingBitmap: session.workingBitmap,
+    workingWidth: session.workingWidth,
+    workingHeight: session.workingHeight,
+    editStack: session.editStack,
+    gridConfig: session.gridConfig,
+    secondaryGridConfig: session.secondaryGridConfig,
+    annotations: session.annotations,
+  };
+}
+
+function activeSession(state: WorkspaceState): PaneSession | null {
+  if (!state.projectId || !state.referenceId || !state.assetId || !state.workingBitmap) return null;
+  return {
+    projectId: state.projectId,
+    projectName: state.projectName ?? '',
+    referenceId: state.referenceId,
+    assetId: state.assetId,
+    workingBitmap: state.workingBitmap,
+    workingWidth: state.workingWidth,
+    workingHeight: state.workingHeight,
+    editStack: state.editStack,
+    gridConfig: state.gridConfig,
+    secondaryGridConfig: state.secondaryGridConfig,
+    annotations: state.annotations,
+  };
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   toolMode: 'idle',
   setToolMode: (mode) => set({ toolMode: mode }),
@@ -155,7 +202,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setImporting: (isImporting) => set({ isImporting }),
   setImportError: (message) => set({ importError: message }),
 
+  splitParked: null,
+  splitFocusedSide: 'left',
+  openSplit: (session) => set({ splitParked: session, splitFocusedSide: 'left' }),
+  // Swaps the focused and parked sessions. The outgoing session's pending
+  // edit is flushed first (persist is one global timer, see flushPersist), and
+  // a crop in progress is dropped since its overlay belongs to one pane.
+  focusSplitPane: () => {
+    const state = get();
+    const parked = state.splitParked;
+    const current = activeSession(state);
+    if (!parked || !current) return;
+    flushPersist();
+    set({
+      ...sessionToState(parked),
+      splitParked: current,
+      splitFocusedSide: state.splitFocusedSide === 'left' ? 'right' : 'left',
+      toolMode: state.toolMode === 'crop' ? 'idle' : state.toolMode,
+    });
+  },
+  closeSplit: () => set({ splitParked: null, splitFocusedSide: 'left' }),
+
   projectId: null,
+  projectName: null,
   referenceId: null,
   assetId: null,
   workingBitmap: null,
@@ -183,21 +252,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     // (see flushPersist) -- covers import, open-project, and tab switching.
     flushPersist();
     useTabsStore.getState().openTab({ projectId: input.projectId, referenceId: input.referenceId, title: input.projectName });
-    set({
-      projectId: input.projectId,
-      referenceId: input.referenceId,
-      assetId: input.assetId,
-      workingBitmap: input.workingBitmap,
-      workingWidth: input.workingWidth,
-      workingHeight: input.workingHeight,
-      editStack: input.editStack,
-      gridConfig: input.gridConfig,
-      secondaryGridConfig: input.secondaryGridConfig,
-      annotations: input.annotations,
+    set((state) => ({
+      ...sessionToState(input),
+      // The same reference can't be open in both panes (their edits would
+      // diverge), so loading the parked one into the focused pane ends the split.
+      ...(state.splitParked?.referenceId === input.referenceId ? { splitParked: null, splitFocusedSide: 'left' as const } : {}),
       exportSettings: DEFAULT_EXPORT_SETTINGS,
-      toolMode: 'idle',
+      toolMode: 'idle' as const,
       importError: null,
-    });
+    }));
   },
 
   // The one commit path for crop/rotate/flip: re-runs the new op against the
@@ -336,7 +399,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({
       toolMode: 'idle',
       presentationMode: false,
+      splitParked: null,
+      splitFocusedSide: 'left',
       projectId: null,
+      projectName: null,
       referenceId: null,
       assetId: null,
       workingBitmap: null,

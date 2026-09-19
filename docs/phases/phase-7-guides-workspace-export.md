@@ -76,7 +76,8 @@ task; see [Deferred](#deferred).
 
 ## Deferred
 
-- **Split-view** -- showing two references side by side. The multi-reference
+- **Split-view** -- *now delivered in [Phase 8](phase-8-collaboration-split-view.md).*
+  Showing two references side by side. The multi-reference
   workspace shipped as tabs only by user decision; split-view needs every
   canvas and panel to target a specific reference rather than the single
   active session.

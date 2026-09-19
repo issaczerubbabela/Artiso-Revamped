@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { deriveAdjustments, generateGridGeometry, resolveAnnotationGeometry, type GridGeometry, type ResolvedAnnotation } from '@artiso/core-engine';
 import { AnnotationLayer, GridLayer, ImageLayer, InputController, Viewport, type GridDrawLayer } from '@artiso/renderer';
 import type { Annotation, GridConfig } from '@artiso/shared-types';
-import { useWorkspaceStore } from '@/state/workspace-store';
+import { useWorkspaceStore, type PaneSession } from '@/state/workspace-store';
 
 interface Engine {
   viewport: Viewport;
@@ -29,11 +29,46 @@ interface NotePrompt {
   normY: number;
 }
 
+interface ViewData {
+  workingBitmap: ImageBitmap | null;
+  workingWidth: number;
+  workingHeight: number;
+  editStack: PaneSession['editStack'];
+  gridConfig: GridConfig;
+  secondaryGridConfig: GridConfig | null;
+  annotations: Annotation[];
+  presentationMode: boolean;
+}
+
+// What this pane draws: a parked split-view session if one was passed in,
+// otherwise the workspace store's live (focused) session. Presentation mode
+// is workspace-wide either way.
+function readView(session: PaneSession | undefined): ViewData {
+  const store = useWorkspaceStore.getState();
+  const source = session ?? store;
+  return {
+    workingBitmap: source.workingBitmap,
+    workingWidth: source.workingWidth,
+    workingHeight: source.workingHeight,
+    editStack: source.editStack,
+    gridConfig: source.gridConfig,
+    secondaryGridConfig: source.secondaryGridConfig,
+    annotations: source.annotations,
+    presentationMode: store.presentationMode,
+  };
+}
+
 // The canvas mount point (docs/architecture/05-canvas-renderer.md): three
 // stacked canvases (WebGL image layer, Canvas2D grid layer, Canvas2D
 // annotation layer) plus a requestAnimationFrame dirty-flag loop so pan/zoom
 // repaints happen without forcing a React re-render on every pointer move.
-export function CanvasStage() {
+//
+// `session` is set for a split view's parked (non-focused) pane, which draws
+// that snapshot with its own independent pan/zoom and takes no tool input;
+// the focused pane omits it and reads the live workspace store.
+export function CanvasStage({ session }: { session?: PaneSession } = {}) {
+  const sessionRef = useRef(session);
+  const isParked = session !== undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const imageCanvasRef = useRef<HTMLCanvasElement>(null);
   const gridCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -45,6 +80,10 @@ export function CanvasStage() {
   const [notePrompt, setNotePrompt] = useState<NotePrompt | null>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   // Mounted exactly once: Viewport (and therefore the user's current pan/zoom)
   // survives every later adjustment, grid-config, or geometry-op change --
   // only this component unmounting (switching away from the reference
@@ -54,7 +93,7 @@ export function CanvasStage() {
     const imageCanvas = imageCanvasRef.current;
     const gridCanvas = gridCanvasRef.current;
     const annotationCanvas = annotationCanvasRef.current;
-    const initial = useWorkspaceStore.getState();
+    const initial = readView(sessionRef.current);
     if (!container || !imageCanvas || !gridCanvas || !annotationCanvas || !initial.workingBitmap) return;
 
     const dpr = window.devicePixelRatio || 1;
@@ -88,7 +127,7 @@ export function CanvasStage() {
     };
 
     function redraw() {
-      const state = useWorkspaceStore.getState();
+      const state = readView(sessionRef.current);
       if (!state.workingBitmap) return;
       const adjustments = deriveAdjustments(state.editStack);
       engine.imageLayer.draw(engine.viewport.getState(), engine.pixelWidth, engine.pixelHeight, adjustments);
@@ -127,9 +166,11 @@ export function CanvasStage() {
       // Gesture Lock suppresses it, rather than fighting over the same drag.
       // Presentation mode locks gestures too, so a classroom display can't
       // be nudged out of framing by an accidental touch.
+      // Only the focused pane takes tool input, so a parked pane keeps its
+      // own free pan/zoom while the other one is annotated.
       isGestureLocked: () => {
         const state = useWorkspaceStore.getState();
-        return state.toolMode === 'annotate' || state.presentationMode;
+        return state.presentationMode || (!sessionRef.current && state.toolMode === 'annotate');
       },
     });
     engineRef.current = engine;
@@ -175,13 +216,20 @@ export function CanvasStage() {
     };
   }, []);
 
-  const workingBitmap = useWorkspaceStore((s) => s.workingBitmap);
-  const workingWidth = useWorkspaceStore((s) => s.workingWidth);
-  const workingHeight = useWorkspaceStore((s) => s.workingHeight);
-  const editStack = useWorkspaceStore((s) => s.editStack);
-  const gridConfig = useWorkspaceStore((s) => s.gridConfig);
-  const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
-  const annotations = useWorkspaceStore((s) => s.annotations);
+  const storeBitmap = useWorkspaceStore((s) => s.workingBitmap);
+  const storeWidth = useWorkspaceStore((s) => s.workingWidth);
+  const storeHeight = useWorkspaceStore((s) => s.workingHeight);
+  const storeEditStack = useWorkspaceStore((s) => s.editStack);
+  const storeGridConfig = useWorkspaceStore((s) => s.gridConfig);
+  const storeSecondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
+  const storeAnnotations = useWorkspaceStore((s) => s.annotations);
+  const workingBitmap = session ? session.workingBitmap : storeBitmap;
+  const workingWidth = session ? session.workingWidth : storeWidth;
+  const workingHeight = session ? session.workingHeight : storeHeight;
+  const editStack = session ? session.editStack : storeEditStack;
+  const gridConfig = session ? session.gridConfig : storeGridConfig;
+  const secondaryGridConfig = session ? session.secondaryGridConfig : storeSecondaryGridConfig;
+  const annotations = session ? session.annotations : storeAnnotations;
   const toolMode = useWorkspaceStore((s) => s.toolMode);
   const presentationMode = useWorkspaceStore((s) => s.presentationMode);
   const viewportResetSignal = useWorkspaceStore((s) => s.viewportResetSignal);
@@ -202,7 +250,7 @@ export function CanvasStage() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.dirty = true;
-  }, [editStack, gridConfig, secondaryGridConfig, annotations]);
+  }, [editStack, gridConfig, secondaryGridConfig, annotations, isParked]);
 
   // Entering presentation mode re-fits the view, since gestures are locked
   // and the viewer couldn't otherwise recover a good framing.
@@ -215,10 +263,10 @@ export function CanvasStage() {
 
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || viewportResetSignal === 0) return;
+    if (!engine || viewportResetSignal === 0 || isParked) return;
     engine.viewport.reset();
     engine.dirty = true;
-  }, [viewportResetSignal]);
+  }, [viewportResetSignal, isParked]);
 
   // Wires pointer capture for the Annotate tool onto its own (top) canvas --
   // only active in that tool mode, so every other mode's pan/zoom and DOM
@@ -229,7 +277,7 @@ export function CanvasStage() {
     const container = containerRef.current;
     if (!engine || !canvas || !container) return;
 
-    if (toolMode !== 'annotate') {
+    if (toolMode !== 'annotate' || isParked) {
       canvas.style.pointerEvents = 'none';
       return;
     }
@@ -321,7 +369,7 @@ export function CanvasStage() {
       canvas.removeEventListener('pointercancel', handlePointerUp);
       canvas.style.pointerEvents = 'none';
     };
-  }, [toolMode, workingWidth, workingHeight]);
+  }, [toolMode, workingWidth, workingHeight, isParked]);
 
   // Deferred a tick (rather than autoFocus) so focus lands after the
   // pointerdown/pointerup sequence that opened the prompt has fully finished.
