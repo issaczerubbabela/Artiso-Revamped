@@ -148,7 +148,8 @@ Per [phase-9](../phases/phase-9-drawing-grid-overhaul.md) and
   synced entity.
 - Sync merge groups: `paper` + `crop` merge together as one **framing** group
   (crop's aspect depends on paper); `gridSettings` is its own group.
-- Supabase migration `0002`: nullable `jsonb` columns
-  `references.paper|crop|grid_settings`, `presets.grid_settings`,
-  `profiles.default_grid_settings`. No backfill: legacy references are migrated
-  lazily on load.
+- Supabase: nullable `jsonb` columns `references.paper|crop|grid_settings` and
+  `presets.grid_settings`, added as idempotent `add column if not exists`
+  statements in `0001_phase2_schema.sql` (the Phase 7/8 convention: re-run that
+  one file). No backfill: legacy references are migrated lazily on load. No
+  `profiles` column yet — nothing reads `User.defaultGridSettings` client-side.

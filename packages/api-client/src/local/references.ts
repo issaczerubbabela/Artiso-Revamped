@@ -60,7 +60,20 @@ export async function listReferencesByProject(projectId: string): Promise<Refere
 // consumes it yet in Phase 1.
 export async function updateReference(
   id: string,
-  patch: Partial<Pick<Reference, 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations' | 'removedAnnotationIds' | 'notes'>>,
+  patch: Partial<
+    Pick<
+      Reference,
+      | 'editStack'
+      | 'gridConfig'
+      | 'secondaryGridConfig'
+      | 'paper'
+      | 'crop'
+      | 'gridSettings'
+      | 'annotations'
+      | 'removedAnnotationIds'
+      | 'notes'
+    >
+  >,
 ): Promise<Reference> {
   const db = await getDb();
   const rawExisting = await db.get('references', id);

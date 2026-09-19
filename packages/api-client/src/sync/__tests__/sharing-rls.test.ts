@@ -172,6 +172,55 @@ describe('sharing: who can write', () => {
     expect(rows[0]?.notes).toBe('editor was here');
   });
 
+  it('lets an editor write the paper, crop and grid settings columns, and reads legacy rows as null', async () => {
+    // The reference was inserted before these columns held anything: null.
+    let { rows } = await db.query<{ paper: unknown; crop: unknown; grid_settings: unknown }>(
+      `select paper, crop, grid_settings from public."references" where id = '${REFERENCE}'`,
+    );
+    expect(rows[0]).toEqual({ paper: null, crop: null, grid_settings: null });
+
+    // A higher version than the write above, so the version guard accepts it.
+    await as(EDITOR, async () => {
+      const written = await db.query(
+        `update public."references"
+           set paper = '{"preset":"A4"}'::jsonb, crop = '{"x":0,"y":0,"w":10,"h":14}'::jsonb,
+               grid_settings = '{"cellMm":25}'::jsonb, version = 20
+         where id = '${REFERENCE}' returning id`,
+      );
+      expect(written.rows).toHaveLength(1);
+    });
+    ({ rows } = await db.query<{ paper: unknown; crop: unknown; grid_settings: unknown }>(
+      `select paper, crop, grid_settings from public."references" where id = '${REFERENCE}'`,
+    ));
+    expect(rows[0]).toEqual({
+      paper: { preset: 'A4' },
+      crop: { x: 0, y: 0, w: 10, h: 14 },
+      grid_settings: { cellMm: 25 },
+    });
+    // Put the fixture back (the guard refuses to lower a version, so bypass it
+    // as the superuser) -- the optimistic-concurrency test below expects the
+    // reference at version 2 with these columns still null.
+    await db.exec(
+      `alter table public."references" disable trigger references_version_guard;
+       update public."references" set paper = null, crop = null, grid_settings = null, version = 2 where id = '${REFERENCE}';
+       alter table public."references" enable trigger references_version_guard;`,
+    );
+  });
+
+  it('rejects a viewer or outsider writing the paper, crop and grid settings columns', async () => {
+    for (const user of [VIEWER, OUTSIDER]) {
+      await as(user, async () => {
+        const updated = await db.query(
+          `update public."references" set paper = '{"preset":"A3"}'::jsonb, grid_settings = '{"cellMm":1}'::jsonb, version = 50
+           where id = '${REFERENCE}' returning id`,
+        );
+        expect(updated.rows).toHaveLength(0);
+      });
+    }
+    const { rows } = await db.query(`select paper, grid_settings from public."references" where id = '${REFERENCE}'`);
+    expect(rows[0]).toEqual({ paper: null, grid_settings: null });
+  });
+
   it('silently rejects a viewer\'s update and any insert', async () => {
     await as(VIEWER, async () => {
       const updated = await db.query(`update public."references" set notes = 'viewer edit', version = 9 where id = '${REFERENCE}' returning id`);

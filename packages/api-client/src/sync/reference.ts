@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { AnnotationSchema, GridConfigSchema, OperationSchema, type Reference } from '@artiso/shared-types';
+import {
+  AnnotationSchema,
+  CropSchema,
+  GridConfigSchema,
+  GridSettingsSchema,
+  OperationSchema,
+  PaperSchema,
+  type Reference,
+} from '@artiso/shared-types';
 import { getSupabaseClient } from '../supabase-client';
 import type { ReferenceRow } from './row-types';
 
@@ -25,6 +33,9 @@ export async function syncReference(reference: Reference): Promise<SyncReference
     edit_stack: reference.editStack,
     grid_config: reference.gridConfig,
     secondary_grid_config: reference.secondaryGridConfig,
+    paper: reference.paper,
+    crop: reference.crop,
+    grid_settings: reference.gridSettings,
     annotations: reference.annotations,
     removed_annotation_ids: reference.removedAnnotationIds,
     notes: reference.notes,
@@ -73,11 +84,12 @@ function rowToReference(row: ReferenceRow): Reference {
     editStack: EditStackSchema.parse(row.edit_stack),
     gridConfig: GridConfigSchema.parse(row.grid_config),
     secondaryGridConfig: row.secondary_grid_config ? GridConfigSchema.parse(row.secondary_grid_config) : null,
-    // No server columns yet -- these are still local-only until the paper/crop
-    // migration lands, so a pulled row always starts unmigrated.
-    paper: null,
-    crop: null,
-    gridSettings: null,
+    // Null means "saved before the drawing-grid overhaul": the workspace
+    // migrates it on first open. A database that hasn't had the columns added
+    // yet returns them undefined, which reads the same way.
+    paper: row.paper ? PaperSchema.parse(row.paper) : null,
+    crop: row.crop ? CropSchema.parse(row.crop) : null,
+    gridSettings: row.grid_settings ? GridSettingsSchema.parse(row.grid_settings) : null,
     annotations: AnnotationsSchema.parse(row.annotations ?? []),
     removedAnnotationIds: RemovedIdsSchema.parse(row.removed_annotation_ids ?? []),
     notes: row.notes,

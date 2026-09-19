@@ -30,6 +30,11 @@ export interface ReferenceRow {
   edit_stack: unknown;
   grid_config: unknown;
   secondary_grid_config: unknown | null;
+  // Drawing-grid model (phase 9). Null for rows saved before the overhaul; a
+  // database that hasn't had the columns added yet returns them undefined.
+  paper?: unknown | null;
+  crop?: unknown | null;
+  grid_settings?: unknown | null;
   annotations: unknown;
   removed_annotation_ids: unknown;
   notes: string;

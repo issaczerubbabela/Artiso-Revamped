@@ -64,17 +64,21 @@ does not apply as written (its "renderer needs zero changes" and
 
 ## Checklist
 
-- [ ] Docs activation: this file, architecture addenda (`00`, `02`, `04`, `05`,
+- [x] Docs activation: this file, architecture addenda (`00`, `02`, `04`, `05`,
       `06`, `11`), KI revision, workflow notes, README/CLAUDE.md staleness.
 - [ ] Prerequisite: restore the design-token aliases the token rewrite dropped
-      (`--font-family-base`, `--shadow-dock`).
-- [ ] `shared-types`: `Unit`, `Paper`, `Crop`, `GridSettings`, `Display`;
+      (`--font-family-base`, `--shadow-dock`). *Aliases added to `tokens.css`
+      in the working tree; committing them is left to the token rewrite's
+      author, since that file carries their uncommitted changes.*
+- [x] `shared-types`: `Unit`, `Paper`, `Crop`, `GridSettings`, `Display`;
       `Reference`/`Preset`/`User` additions.
-- [ ] `core-engine` pure functions: units, paper presets, crop clamp/recenter,
+- [x] `core-engine` pure functions: units, paper presets, crop clamp/recenter,
       real-size math, square grid, diagonals, radial rays, label scheme, label
       layout (pinning + density), legacy migration.
-- [ ] `api-client` + Supabase migration `0002`: persistence, row mappers,
-      `framing` and `gridSettings` merge groups.
+- [x] `api-client` + Supabase columns (idempotent additions to
+      `0001_phase2_schema.sql`, per the Phase 7/8 convention; **re-run it in the
+      SQL editor**): persistence, row mappers, `framing` (paper + crop) and
+      `gridSettings` merge groups.
 - [ ] `renderer`: CSS-px viewport with mm scale, min zoom = fit paper, Real
       size, DPR-consistent input; `DrawingGridLayer`.
 - [ ] `apps/web`: store/session/import plumbing, crop-aware bitmap, per-pane

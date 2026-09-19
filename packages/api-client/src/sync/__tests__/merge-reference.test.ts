@@ -96,6 +96,75 @@ describe('mergeReferences', () => {
     expect(mergeReferences(base, local, remote).annotations.map((a) => a.id)).toEqual([ann(1).id]);
   });
 
+  describe('paper, crop and grid settings', () => {
+    const A4_PORTRAIT = { preset: 'A4', orientation: 'portrait', widthMm: 210, heightMm: 297 } as const;
+    const A4_LANDSCAPE = { preset: 'A4', orientation: 'landscape', widthMm: 297, heightMm: 210 } as const;
+    const PORTRAIT_CROP = { x: 0, y: 0, w: 2100, h: 2970 };
+    const LANDSCAPE_CROP = { x: 0, y: 0, w: 2970, h: 2100 };
+    const settings = (cellMm: number): NonNullable<Reference['gridSettings']> => ({
+      cellMm,
+      showSquares: true,
+      showDiagonals: false,
+      showRadial: false,
+      radialStepDeg: 15,
+      labels: { enabled: true, columns: 'letters', rows: 'numbers' },
+      style: { color: '#ffffff', widthPx: 1, opacity: 0.7 },
+      marginMm: 0,
+    });
+    const framed = reference({ paper: A4_PORTRAIT, crop: PORTRAIT_CROP, gridSettings: settings(25) });
+
+    it('keeps a framing change only one side made', () => {
+      const local = reference({ ...framed, crop: { ...PORTRAIT_CROP, x: 40 }, updatedAt: OLDER });
+      const remote = reference({ ...framed, updatedAt: NEWER });
+      const merged = mergeReferences(framed, local, remote);
+      expect(merged.crop).toEqual({ ...PORTRAIT_CROP, x: 40 });
+      expect(merged.paper).toEqual(A4_PORTRAIT);
+    });
+
+    it('never pairs one side\'s paper with the other side\'s crop', () => {
+      // Local turns the paper landscape (and re-crops to match); remote only
+      // nudges the portrait crop. Taken field by field that would pair a
+      // landscape paper with a portrait crop.
+      const local = reference({ ...framed, paper: A4_LANDSCAPE, crop: LANDSCAPE_CROP });
+      const remote = reference({ ...framed, crop: { ...PORTRAIT_CROP, y: 30 } });
+
+      const localNewer = mergeReferences(framed, { ...local, updatedAt: NEWER }, { ...remote, updatedAt: OLDER });
+      expect(localNewer.paper).toEqual(A4_LANDSCAPE);
+      expect(localNewer.crop).toEqual(LANDSCAPE_CROP);
+
+      const remoteNewer = mergeReferences(framed, { ...local, updatedAt: OLDER }, { ...remote, updatedAt: NEWER });
+      expect(remoteNewer.paper).toEqual(A4_PORTRAIT);
+      expect(remoteNewer.crop).toEqual({ ...PORTRAIT_CROP, y: 30 });
+    });
+
+    it('merges grid settings independently of the framing', () => {
+      const local = reference({ ...framed, gridSettings: settings(40), updatedAt: OLDER });
+      const remote = reference({ ...framed, crop: { ...PORTRAIT_CROP, x: 12 }, updatedAt: NEWER });
+      const merged = mergeReferences(framed, local, remote);
+      expect(merged.gridSettings?.cellMm).toBe(40);
+      expect(merged.crop).toEqual({ ...PORTRAIT_CROP, x: 12 });
+    });
+
+    it('keeps a legacy reference\'s migration when the other side has not migrated it yet', () => {
+      // Both started from an unmigrated copy; only this device opened it.
+      const base = reference();
+      const local = reference({ paper: A4_PORTRAIT, crop: PORTRAIT_CROP, gridSettings: settings(25), updatedAt: OLDER });
+      const remote = reference({ notes: 'edited elsewhere', updatedAt: NEWER });
+      const merged = mergeReferences(base, local, remote);
+      expect(merged.paper).toEqual(A4_PORTRAIT);
+      expect(merged.crop).toEqual(PORTRAIT_CROP);
+      expect(merged.gridSettings).toEqual(settings(25));
+      expect(merged.notes).toBe('edited elsewhere');
+    });
+
+    it('stays null when neither side has migrated', () => {
+      const merged = mergeReferences(reference(), reference(), reference());
+      expect(merged.paper).toBeNull();
+      expect(merged.crop).toBeNull();
+      expect(merged.gridSettings).toBeNull();
+    });
+  });
+
   it('produces a version above both inputs so the server accepts it', () => {
     const merged = mergeReferences(null, reference({ version: 7 }), reference({ version: 4 }));
     expect(merged.version).toBe(8);

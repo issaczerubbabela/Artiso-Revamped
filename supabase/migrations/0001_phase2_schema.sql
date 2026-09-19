@@ -93,6 +93,18 @@ alter table public."references" add column if not exists annotations jsonb not n
 -- doesn't resurrect them. Matches shared-types' ReferenceSchema default.
 alter table public."references" add column if not exists removed_annotation_ids jsonb not null default '[]'::jsonb;
 
+-- Drawing-grid overhaul (docs/phases/phase-9-drawing-grid-overhaul.md): the
+-- paper size, the crop (a rectangle in pixels of the rotated/flipped original)
+-- and the mm-based grid settings. All nullable and additive, so this is safe
+-- to run against a database that already has rows -- they get null, which the
+-- client reads as "saved before the overhaul" and migrates on first open
+-- (shared-types' ReferenceSchema defaults these fields to null too). No
+-- backfill here: the migration needs the image's pixel size, which the client
+-- has and the database can't derive.
+alter table public."references" add column if not exists paper jsonb;
+alter table public."references" add column if not exists crop jsonb;
+alter table public."references" add column if not exists grid_settings jsonb;
+
 create index if not exists references_project_id_idx on public."references" (project_id);
 
 create table if not exists public.presets (
@@ -104,6 +116,10 @@ create table if not exists public.presets (
   export_settings jsonb not null,
   created_at timestamptz not null default now()
 );
+
+-- Drawing-grid settings a preset can apply (phase 9). Nullable: presets saved
+-- before the overhaul only carry the legacy grid_config.
+alter table public.presets add column if not exists grid_settings jsonb;
 
 -- Row Level Security: profiles, assets and presets are scoped to
 -- owner_id = auth.uid(). projects and "references" start owner-scoped here

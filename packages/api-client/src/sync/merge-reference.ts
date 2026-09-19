@@ -11,7 +11,8 @@ import type { Annotation, Operation, Reference } from '@artiso/shared-types';
 //     minus anything either side deleted (removedAnnotationIds tombstones --
 //     without them a union would resurrect a deletion from the other side).
 //   - every other group (geometry ops, adjustments/filters, primary grid,
-//     layered grid, notes): three-way against base. If only one side changed
+//     layered grid, framing = paper + crop together, grid settings, notes):
+//     three-way against base. If only one side changed
 //     a group, that side's change wins; if both changed it, the more
 //     recently updated side wins (last-write-wins, scoped to that group
 //     instead of the whole reference).
@@ -43,6 +44,15 @@ export function mergeReferences(base: Reference | null, local: Reference, remote
     ...pick(baseTonal, localTonal, remoteTonal),
   ];
 
+  // paper and crop are one group: a crop is only valid for the paper aspect it
+  // was made against, so merging them separately could pair one person's
+  // portrait paper with the other's landscape crop.
+  const framing = pick(
+    base ? { paper: base.paper, crop: base.crop } : undefined,
+    { paper: local.paper, crop: local.crop },
+    { paper: remote.paper, crop: remote.crop },
+  );
+
   const removedAnnotationIds = [...new Set([...remote.removedAnnotationIds, ...local.removedAnnotationIds])];
 
   return {
@@ -52,10 +62,8 @@ export function mergeReferences(base: Reference | null, local: Reference, remote
     editStack,
     gridConfig: pick(base?.gridConfig, local.gridConfig, remote.gridConfig),
     secondaryGridConfig: pick(base?.secondaryGridConfig, local.secondaryGridConfig, remote.secondaryGridConfig),
-    // Placeholder per-field merge so nothing is dropped; paper + crop become one
-    // joint "framing" group when they gain a persisted column.
-    paper: pick(base?.paper, local.paper, remote.paper),
-    crop: pick(base?.crop, local.crop, remote.crop),
+    paper: framing.paper,
+    crop: framing.crop,
     gridSettings: pick(base?.gridSettings, local.gridSettings, remote.gridSettings),
     annotations: mergeAnnotations(local.annotations, remote.annotations, new Set(removedAnnotationIds)),
     removedAnnotationIds,
