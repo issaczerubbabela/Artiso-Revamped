@@ -72,3 +72,26 @@ Grid Configuration panel UI in `apps/web`.
 
 [`ki-grid-image-independence`](../knowledge/ki-grid-image-independence.md)
 — this workflow exists specifically to implement that principle correctly.
+
+## Phase 9 note — superseded for the primary grid
+
+The primary grid is rebuilt per
+[`Grid-Feature-Spec.md`](../../docs/architecture/Grid-Feature-Spec.md) and
+[phase-9](../../docs/phases/phase-9-drawing-grid-overhaul.md). For the primary
+grid, where this workflow disagrees, the spec and the Phase 9 addenda in
+`docs/architecture/04-grid-engine.md` / `05-canvas-renderer.md` win:
+
+- Geometry is in **paper mm** (not image space), from pure functions of
+  `(paper, settings, visibleRect)`; the renderer maps mm to screen through the
+  view transform and draws in screen space with constant `widthPx`.
+- Labels are a separate pure layout function of the view (sticky, constant
+  size, density-thinned) — "never bake screen coordinates into geometry" still
+  holds for *line* geometry; labels are the deliberate carve-out.
+- Triggers: paper or grid-settings change recomputes lines; pan/zoom does not;
+  filters do not. There is no `snapToImage` and no max-cell-count cap (use
+  viewport culling instead).
+- The testing checklist's "odd width/height not divisible by rows/cols" case
+  becomes "paper not a multiple of `cellMm` → partial last column/row".
+
+Everything above still applies to the **Guides layer** (perspective, thirds,
+golden ratio, layered guide).

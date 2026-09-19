@@ -56,3 +56,11 @@ Run through the full testing checklist in
       type (proves the abstraction held).
 - [ ] Confirm layered/composed guides (if applicable) render in the correct
       stacking order and don't regress the single-grid case.
+
+## Phase 9 note
+
+The drawing-grid overhaul
+([phase-9](../../docs/phases/phase-9-drawing-grid-overhaul.md)) redefines the
+primary grid model in mm and is *not* an instance of this recipe. This recipe
+still describes how to add a **guide** type to the Guides layer; note that
+guide generators now receive the paper rectangle in mm as their width/height.

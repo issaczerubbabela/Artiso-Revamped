@@ -128,3 +128,27 @@ server-side to avoid a mapping layer.
 This module has no dependencies — every other module depends on it. Changes
 here are the highest-blast-radius change in the system and should be
 reviewed accordingly.
+
+## Phase 9 addendum — paper, crop, grid settings
+
+Per [phase-9](../phases/phase-9-drawing-grid-overhaul.md) and
+[`Grid-Feature-Spec.md`](Grid-Feature-Spec.md) §3:
+
+- `Reference` gains `paper`, `crop`, `gridSettings` (each nullable, default
+  `null`, so rows saved earlier keep parsing). `Paper` is preset + orientation
+  + `widthMm/heightMm`; `Crop` is `{x, y, w, h}` in pixels of the oriented
+  original (aspect always `widthMm / heightMm`); `GridSettings` is per the spec
+  (`cellMm`, overlay toggles, `radialStepDeg`, per-axis label scheme, one shared
+  `style {color, widthPx, opacity 0–1}`, `marginMm: 0`).
+- `Preset` gains optional `gridSettings`; `User` gains optional
+  `defaultGridSettings`. The legacy `gridConfig` / `defaultGridConfig` fields
+  remain for back-compat; `Reference.gridConfig` is ignored by new clients once
+  `paper` is set. `secondaryGridConfig` continues to hold the layered guide.
+- `Display {dpi, screen}` is **device-local** (`localStorage`), not part of any
+  synced entity.
+- Sync merge groups: `paper` + `crop` merge together as one **framing** group
+  (crop's aspect depends on paper); `gridSettings` is its own group.
+- Supabase migration `0002`: nullable `jsonb` columns
+  `references.paper|crop|grid_settings`, `presets.grid_settings`,
+  `profiles.default_grid_settings`. No backfill: legacy references are migrated
+  lazily on load.

@@ -69,3 +69,34 @@ Recompute working-bitmap dimensions
 
 - [ ] Freeform (arbitrary angle) rotate/straighten — confirm this stays in
   Phase 6, not pulled forward.
+
+## Phase 9 addendum — crop becomes "image under a paper frame"
+
+Per [`Grid-Feature-Spec.md`](Grid-Feature-Spec.md) §5 and
+[phase-9](../phases/phase-9-drawing-grid-overhaul.md), the free-form,
+baked-in crop described above is replaced:
+
+- The user picks a **paper size** (preset or custom, mm/cm/in/px, portrait or
+  landscape). The crop frame is **locked to the paper's aspect ratio** and
+  never resizes; the user pans and zooms the image underneath it. The frame
+  must always be fully covered by the image (pan clamped; minimum zoom = image
+  just covers the frame).
+- Stored as `Reference.paper` + `Reference.crop`. `Crop` is `{x, y, w, h}` in
+  pixels of the **oriented original** (after rotate/flip), so export replays
+  it exactly at full resolution. Crop is **never baked** into the EditStack.
+- **Rotate/flip stay EditStack operations** and apply *before* the crop
+  rectangle. Pipeline order is unchanged: rotate/flip → crop region →
+  adjustments → filters → grid.
+- Toggling portrait/landscape swaps width/height, keeps the crop centred and
+  re-clamps it.
+- On crop commit the working bitmap is rebuilt from the crop region (long edge
+  ≤ 2048) so small crops of large photos stay sharp; the full oriented image
+  is used only while the crop tool is open.
+- **Legacy references:** `crop` ops in an existing EditStack are folded into
+  the initial `crop` (tracking the rect through later rotate/flip ops) on
+  first load; paper defaults to A4. The stored EditStack is left intact for
+  older clients and its crop ops are ignored once `paper` is set.
+- The normalized 0–1 crop rect, DOM handle overlay, free aspect presets and
+  arrow-key nudge described above are retired. The grid's recalculation
+  trigger for crop changes no longer applies: the grid depends on paper size,
+  not on the crop rectangle.

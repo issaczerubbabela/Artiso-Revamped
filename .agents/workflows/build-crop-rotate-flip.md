@@ -65,3 +65,21 @@ Implementing the geometric edit tools — the first stage of the pipeline.
 
 [`ki-non-destructive-editing`](../knowledge/ki-non-destructive-editing.md),
 [`ki-grid-image-independence`](../knowledge/ki-grid-image-independence.md).
+
+## Phase 9 note — crop is now "image under a paper frame"
+
+Crop is redefined by
+[`Grid-Feature-Spec.md`](../../docs/architecture/Grid-Feature-Spec.md) §5 and
+[phase-9](../../docs/phases/phase-9-drawing-grid-overhaul.md). Rotate and flip
+are unchanged (EditStack operations, applied first). For **crop**, ignore the
+normalized-rect / DOM-handle / arrow-nudge steps above:
+
+- Crop is `Reference.crop` (pixels of the oriented original, aspect locked to
+  the paper), never an EditStack operation and never baked into the bitmap.
+- The frame is fixed; the user pans and zooms the image under it. The frame
+  must always be fully covered (clamp pan; minimum zoom = cover).
+- Orientation swap re-centres and re-clamps the crop.
+- Legacy `crop` ops are folded into the initial crop on first load and then
+  ignored once `paper` is set.
+- Testing: cover/clamp unit tests, orientation-swap re-centre, and legacy
+  fold tests for every rotate × flip combination against `applyGeometryOps`.

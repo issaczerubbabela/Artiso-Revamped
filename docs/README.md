@@ -4,7 +4,10 @@ This folder contains the Lead-Architect-level design artifacts for rebuilding
 **Drawing Grid for the Artist** as a cross-platform application, derived from
 [`Drawing Grid for the Artist_ Reverse-Engineered Product Specification.md`](./Drawing%20Grid%20for%20the%20Artist_%20Reverse-Engineered%20Product%20Specification.md).
 
-**Status: PROPOSAL — awaiting approval. No implementation has started.**
+**Status: implementation in progress.** Phases 0–8 are built (see the phase
+index). Phase 9 (drawing-grid overhaul) is active and supersedes the primary
+grid model described in `architecture/04-grid-engine.md` — the requirements
+live in [`architecture/Grid-Feature-Spec.md`](architecture/Grid-Feature-Spec.md).
 
 ## Scope decision (from the brief)
 
@@ -45,6 +48,7 @@ This folder contains the Lead-Architect-level design artifacts for rebuilding
 | [09-settings-preferences.md](architecture/09-settings-preferences.md) | Settings & Preferences |
 | [10-mobile-android-shell.md](architecture/10-mobile-android-shell.md) | Android (Capacitor) Shell |
 | [11-data-model-schema.md](architecture/11-data-model-schema.md) | Shared data model / schemas |
+| [Grid-Feature-Spec.md](architecture/Grid-Feature-Spec.md) | Drawing-grid spec (paper in mm, crop, squares/diagonals/radial, sticky labels, real-size zoom) — wins over `04` where they conflict |
 
 ## Phase index
 
@@ -57,6 +61,9 @@ This folder contains the Lead-Architect-level design artifacts for rebuilding
 | [phase-4-android-shell-launch.md](phases/phase-4-android-shell-launch.md) | Capacitor Android shell, Play Store launch |
 | [phase-5-android-parity-hardening.md](phases/phase-5-android-parity-hardening.md) | Android-specific polish, offline mode, performance |
 | [phase-6-advanced-guides-ai-stretch.md](phases/phase-6-advanced-guides-ai-stretch.md) | Perspective guides, annotation, AI-assist (stretch, post-approval-gated) |
+| [phase-7-guides-workspace-export.md](phases/phase-7-guides-workspace-export.md) | Guide types, multi-reference workspace, annotation, SVG/PDF export (pulled forward from phase 6) |
+| [phase-8-collaboration-split-view.md](phases/phase-8-collaboration-split-view.md) | Split view, collaborative projects (sharing, merge, viewer/editor roles) |
+| [phase-9-drawing-grid-overhaul.md](phases/phase-9-drawing-grid-overhaul.md) | Drawing-grid overhaul per `Grid-Feature-Spec.md` |
 
 ## Approval checklist
 

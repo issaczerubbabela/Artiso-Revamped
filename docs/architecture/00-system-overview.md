@@ -64,7 +64,7 @@ shell project).
 │  └───────────────────────────────────────────────────────┘  │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │            packages/renderer (Canvas2D + WebGL)          │  │
-│  │  Compositor: background → image → grid lines → labels    │ │
+│  │  Compositor: image → guides → grid → diagonals → radial → labels │
 │  └───────────────────────────────────────────────────────┘  │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │             packages/core-engine (pure TS)                │ │
@@ -142,9 +142,13 @@ feature:
 1. **Non-destructive**: the original imported bitmap is never mutated. All
    edits are entries in an ordered `EditStack` (data, not pixels) replayed to
    produce a render. See [`ki-non-destructive-editing`](../../.agents/knowledge/ki-non-destructive-editing.md).
-2. **Grid/image independence**: the Grid Engine consumes only image
-   *dimensions*, never pixel data. Adjusting brightness must not trigger grid
-   recalculation; only geometry changes (crop/rotate/resize) do.
+2. **Grid/image independence**: the Grid Engine consumes only paper geometry
+   (mm) and its own settings, never pixel data. Adjusting brightness must not
+   trigger grid recalculation; only paper or grid-settings changes do. Pan/zoom
+   never regenerates line geometry — it may only *reposition* the viewport-
+   pinned edge labels (see
+   [Grid Feature Spec](Grid-Feature-Spec.md) §7 and
+   [`ki-grid-image-independence`](../../.agents/knowledge/ki-grid-image-independence.md)).
 3. **Canvas-first**: UI chrome is transient (sheets/dialogs over the canvas),
    never a navigation stack that leaves the canvas.
 4. **Immediate feedback**: every slider/toggle must reflect in the canvas

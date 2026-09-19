@@ -111,3 +111,33 @@ the breakpoint boundary defined in [06](06-workspace-interaction.md).
 - [ ] WebGL2 baseline vs. WebGL1 fallback — confirm minimum Android WebView
   version we support still ships WebGL2 (Chromium WebView has since Android
   8/API 26; source app's own min-SDK is unknown from the APK analysis alone).
+
+## Phase 9 addendum — mm viewport, CSS-px space, drawing-grid pass
+
+Per [phase-9](../phases/phase-9-drawing-grid-overhaul.md) and
+[`Grid-Feature-Spec.md`](Grid-Feature-Spec.md) §9–§11:
+
+- **Viewport units:** content is the *paper* in mm; `scale` = **CSS px per
+  mm**; minimum zoom = fit paper; `setRealSize(pxPerMmCss)` gives 1 mm on paper
+  = 1 mm on the physical screen (calibrated via screen diagonal + native
+  resolution, stored device-locally). Fit and Real size act per pane.
+- **DPR:** pointer coordinates, viewport state and layout are all in CSS px;
+  each canvas is sized `css × devicePixelRatio` and draws under
+  `setTransform(dpr, …)`. (Previously the input layer used CSS px while the
+  viewport/canvases used device px.)
+- **Grid pass:** a new `DrawingGridLayer` draws in *screen space* so line width
+  is constant at any zoom; one batched path per overlay in the order
+  guides → squares → diagonals → radial → labels, clipped to the paper, culled
+  to the visible index range, 1px lines snapped to half device pixels. Labels
+  are the last pass, `pointer-events: none`.
+- **Image pass:** draws the crop-aware working bitmap mapped to the paper
+  rectangle; while the crop tool is open it draws the full oriented image under
+  a fixed frame.
+- **Per-frame work:** "the grid is never recomputed on pan/zoom" now means
+  *line geometry*. Sticky label positions are recomputed each frame from the
+  view (a pure, culled, thinned function).
+- **Stability:** the frame callback catches draw errors so one failure cannot
+  stop the loop.
+- **Export:** the same layer runs with `mode: 'export'` (no viewport pinning,
+  `scale = exportPxPerMm`); SVG export is generated in mm from the same pure
+  segment functions.

@@ -130,3 +130,23 @@ Idle/Home. Implemented in [10-mobile-android-shell.md](10-mobile-android-shell.m
   [04](04-grid-engine.md)) — mode panels dispatch into their state.
 - [Settings](09-settings-preferences.md) — Gesture Lock, Performance Mode,
   toolbar density.
+
+## Phase 9 addendum — paper & crop mode, Fit / Real size
+
+Per [phase-9](../phases/phase-9-drawing-grid-overhaul.md):
+
+- **Tool modes:** `Crop` becomes **Paper & crop** (paper controls in the panel,
+  an aspect-locked frame on the canvas, one *Done* to commit). Grid controls
+  are enabled once a paper and crop exist (import applies defaults).
+- **View controls:** each pane has a floating zoom pill — **Fit**, **Real
+  size**, zoom % (monospace) and a **1:1** badge while active. Real size with
+  no calibration first opens a modal calibration dialog (screen diagonal +
+  native resolution, prefilled from `screen.width/height × devicePixelRatio`,
+  optional 100 mm ruler check); values persist in `localStorage` on that device
+  only.
+- **Pan/zoom** anchor on the pointer or pinch centre; pan is clamped per axis
+  ("cover or centre" with a small slack). Minimum zoom = fit paper.
+- **Grid keyboard shortcuts** that assumed row/column counts (`[` / `]`
+  density) change meaning to cell size; revisit when the Grid panel lands.
+- **No live readouts:** the app never shows a "square under cursor" readout
+  (spec §7); avoid it in any future coordinates/readout feature.

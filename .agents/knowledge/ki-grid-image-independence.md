@@ -55,6 +55,26 @@ Two concrete payoffs, one product-level and one engineering-level:
   they are two independent passes composited by the renderer, not one
   pipeline (see [05-canvas-renderer.md](../../docs/architecture/05-canvas-renderer.md#two-canvas-architecture)).
 
+## Phase 9 revision — paper geometry, sticky labels
+
+The drawing-grid overhaul ([Grid Feature Spec](../../docs/architecture/Grid-Feature-Spec.md),
+[phase-9](../../docs/phases/phase-9-drawing-grid-overhaul.md)) changes what
+the Grid Engine's inputs are, not the principle:
+
+- The engine's input is **paper geometry in mm plus `GridSettings`** — still
+  never a bitmap or pixel value. The crop (which maps image pixels onto the
+  paper) lives upstream of the engine.
+- Line geometry (`getLines`, diagonals, radial rays) is a pure function of
+  `(paper, settings, visibleRectMm)`. Pan/zoom must never regenerate or
+  alter it.
+- **Carve-out:** edge labels are pinned to the viewport and keep a constant
+  on-screen size, so their *positions* depend on the view. They come from a
+  separate pure function (`layoutLabels`) that takes the view transform and
+  viewport size. This is a reposition, not a recompute of grid geometry, and
+  it still reads no pixel data and does not touch the filter pipeline.
+- The two-trigger test still holds: a filter/adjustment change must not
+  regenerate the grid; a paper or grid-settings change must.
+
 ## Evaluating a new feature against this KI
 
 Ask: *"Does this feature require the Grid Engine to know anything about

@@ -72,3 +72,21 @@ drives it — touch, mouse, wheel, or keyboard.
 
 [`ki-canvas-first-design`](../knowledge/ki-canvas-first-design.md),
 [`ki-immediate-feedback`](../knowledge/ki-immediate-feedback.md).
+
+## Phase 9 note — mm scale, Real size, CSS-px input
+
+Extends this workflow per
+[phase-9](../../docs/phases/phase-9-drawing-grid-overhaul.md) and
+[`Grid-Feature-Spec.md`](../../docs/architecture/Grid-Feature-Spec.md) §10:
+
+- `scale` is **CSS px per mm** on the paper; minimum zoom = fit paper. Pointer
+  coordinates, viewport state and layout are all CSS px (the DPR pitfall above
+  is resolved by construction; canvases draw under `setTransform(dpr, …)`).
+- Add **Fit** and **Real size (1:1)** per pane, plus a "1:1" badge. Real size
+  uses the device-local calibration (`physicalPpi`, `pxPerMmCss`) and keeps the
+  viewport centre fixed; if uncalibrated, open the calibration dialog first.
+- "Gestures never call the GridEngine" stays true for line geometry.
+  Repositioning sticky labels on every pan/zoom frame is expected and is not a
+  geometry recompute.
+- Testing: `setRealSize` keeps the centre, min-zoom clamp = fit paper, and
+  pan/zoom anchoring at `deviceScaleFactor: 2`.
