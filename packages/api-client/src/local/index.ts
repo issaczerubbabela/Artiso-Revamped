@@ -4,3 +4,4 @@ export * from './projects';
 export * from './assets';
 export * from './references';
 export * from './presets';
+export * from './sync-bases';

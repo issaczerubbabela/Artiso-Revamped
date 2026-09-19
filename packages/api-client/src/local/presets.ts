@@ -1,4 +1,4 @@
-import type { ExportSettings, GridConfig, Operation, Preset } from '@artiso/shared-types';
+import { PresetSchema, type ExportSettings, type GridConfig, type Operation, type Preset } from '@artiso/shared-types';
 import { getDb } from './db';
 
 export interface CreatePresetInput {
@@ -24,14 +24,23 @@ export async function createPreset(input: CreatePresetInput): Promise<Preset> {
   return preset;
 }
 
+// Same read-side normalization as references.ts: a preset saved before
+// gridConfig gained its `type` discriminator has no `type` in IndexedDB, and
+// the schema's default only applies when parsing.
+function normalizePreset(raw: Preset): Preset {
+  const parsed = PresetSchema.safeParse(raw);
+  return parsed.success ? parsed.data : raw;
+}
+
 export async function listPresets(): Promise<Preset[]> {
   const db = await getDb();
-  return db.getAll('presets');
+  return (await db.getAll('presets')).map(normalizePreset);
 }
 
 export async function getPreset(id: string): Promise<Preset | undefined> {
   const db = await getDb();
-  return db.get('presets', id);
+  const raw = await db.get('presets', id);
+  return raw && normalizePreset(raw);
 }
 
 export async function updatePreset(id: string, patch: Partial<Pick<Preset, 'name'>>): Promise<Preset> {

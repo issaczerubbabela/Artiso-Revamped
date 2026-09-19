@@ -21,6 +21,11 @@ export const ReferenceSchema = z.object({
   // extended to a second overlay type). Defaulted so References saved before
   // this field existed keep parsing without a data migration.
   annotations: z.array(AnnotationSchema).default([]),
+  // Ids of annotations someone deleted. Collaborative merge unions two
+  // people's annotation lists by id, which alone would resurrect a deleted
+  // annotation from the other side; this tombstone list is what lets a
+  // deletion survive a merge (docs/phases/phase-8-collaboration-split-view.md).
+  removedAnnotationIds: z.array(IdSchema).default([]),
   notes: z.string(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,

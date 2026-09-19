@@ -10,6 +10,7 @@ export async function createProject(name: string, ownerId: string = LOCAL_OWNER_
     name,
     tags: [],
     thumbnailAssetId: null,
+    role: 'owner',
     createdAt: now,
     updatedAt: now,
   };
@@ -18,14 +19,20 @@ export async function createProject(name: string, ownerId: string = LOCAL_OWNER_
   return project;
 }
 
+// Projects saved before sharing existed have no `role`; they're the user's own.
+function normalizeProject(raw: Project): Project {
+  return raw.role ? raw : { ...raw, role: 'owner' };
+}
+
 export async function getProject(id: string): Promise<Project | undefined> {
   const db = await getDb();
-  return db.get('projects', id);
+  const raw = await db.get('projects', id);
+  return raw && normalizeProject(raw);
 }
 
 export async function listProjects(): Promise<Project[]> {
   const db = await getDb();
-  return db.getAll('projects');
+  return (await db.getAll('projects')).map(normalizeProject);
 }
 
 export async function updateProject(
@@ -33,8 +40,9 @@ export async function updateProject(
   patch: Partial<Pick<Project, 'name' | 'tags' | 'thumbnailAssetId'>>,
 ): Promise<Project> {
   const db = await getDb();
-  const existing = await db.get('projects', id);
-  if (!existing) throw new Error(`Project ${id} not found`);
+  const rawExisting = await db.get('projects', id);
+  if (!rawExisting) throw new Error(`Project ${id} not found`);
+  const existing = normalizeProject(rawExisting);
   const updated: Project = { ...existing, ...patch, updatedAt: new Date().toISOString() };
   await db.put('projects', updated);
   return updated;

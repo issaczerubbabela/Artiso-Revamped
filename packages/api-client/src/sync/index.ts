@@ -4,3 +4,6 @@ export * from './asset';
 export * from './project';
 export * from './reference';
 export * from './preset';
+export * from './members';
+export * from './events';
+export * from './merge-reference';

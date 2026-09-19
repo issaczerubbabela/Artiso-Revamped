@@ -1,4 +1,4 @@
-import type { GridConfig, Reference } from '@artiso/shared-types';
+import { ReferenceSchema, type GridConfig, type Reference } from '@artiso/shared-types';
 import { getDb } from './db';
 
 export interface CreateReferenceInput {
@@ -17,6 +17,7 @@ export async function createReference(input: CreateReferenceInput): Promise<Refe
     gridConfig: input.gridConfig,
     secondaryGridConfig: null,
     annotations: [],
+    removedAnnotationIds: [],
     notes: '',
     createdAt: now,
     updatedAt: now,
@@ -27,14 +28,26 @@ export async function createReference(input: CreateReferenceInput): Promise<Refe
   return reference;
 }
 
+// Rows written before a field existed come back from IndexedDB raw -- the
+// Zod defaults (gridConfig.type, annotations, ...) only apply when parsing,
+// and nothing parses on a local read. Without this, a reference saved before
+// the guide types or annotation layer shipped would load with undefined
+// fields. Falls back to the raw row if it doesn't validate, so an oddly
+// shaped row degrades rather than making the reference unopenable.
+export function normalizeReference(raw: Reference): Reference {
+  const parsed = ReferenceSchema.safeParse(raw);
+  return parsed.success ? parsed.data : raw;
+}
+
 export async function getReference(id: string): Promise<Reference | undefined> {
   const db = await getDb();
-  return db.get('references', id);
+  const raw = await db.get('references', id);
+  return raw && normalizeReference(raw);
 }
 
 export async function listReferencesByProject(projectId: string): Promise<Reference[]> {
   const db = await getDb();
-  return db.getAllFromIndex('references', 'byProject', projectId);
+  return (await db.getAllFromIndex('references', 'byProject', projectId)).map(normalizeReference);
 }
 
 // The only mutation path for a Reference -- always bumps updatedAt/version
@@ -43,11 +56,12 @@ export async function listReferencesByProject(projectId: string): Promise<Refere
 // consumes it yet in Phase 1.
 export async function updateReference(
   id: string,
-  patch: Partial<Pick<Reference, 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations' | 'notes'>>,
+  patch: Partial<Pick<Reference, 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations' | 'removedAnnotationIds' | 'notes'>>,
 ): Promise<Reference> {
   const db = await getDb();
-  const existing = await db.get('references', id);
-  if (!existing) throw new Error(`Reference ${id} not found`);
+  const rawExisting = await db.get('references', id);
+  if (!rawExisting) throw new Error(`Reference ${id} not found`);
+  const existing = normalizeReference(rawExisting);
   const updated: Reference = {
     ...existing,
     ...patch,
@@ -67,4 +81,21 @@ export async function updateReference(
 export async function applyRemoteReference(reference: Reference): Promise<void> {
   const db = await getDb();
   await db.put('references', reference);
+}
+
+// Writes a merged Reference only if the local row is still at the version the
+// merge started from. Sync merges asynchronously, and a plain overwrite would
+// silently discard an edit the user made in the meantime; on a mismatch the
+// caller re-reads and re-merges instead.
+export async function applyMergedReference(expectedLocalVersion: number, merged: Reference): Promise<boolean> {
+  const db = await getDb();
+  const tx = db.transaction('references', 'readwrite');
+  const current = await tx.store.get(merged.id);
+  if (!current || current.version !== expectedLocalVersion) {
+    await tx.done;
+    return false;
+  }
+  await tx.store.put(merged);
+  await tx.done;
+  return true;
 }

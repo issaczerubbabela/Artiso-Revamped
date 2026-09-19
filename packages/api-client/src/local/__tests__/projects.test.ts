@@ -53,11 +53,27 @@ describe('projects', () => {
       name: 'From another device',
       tags: [],
       thumbnailAssetId: null,
+      role: 'editor' as const,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };
     await applyRemoteProject(remote);
     expect(await getProject('remote-1')).toEqual(remote);
+  });
+
+  it('treats a project saved before sharing existed (no role) as owned by the user', async () => {
+    const db = await getDb();
+    await db.put('projects', {
+      id: 'legacy-1',
+      ownerId: 'user-123',
+      name: 'Old project',
+      tags: [],
+      thumbnailAssetId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } as never);
+    expect((await getProject('legacy-1'))?.role).toBe('owner');
+    expect((await listProjects()).find((p) => p.id === 'legacy-1')?.role).toBe('owner');
   });
 
   it('deleteProject removes the project and its references', async () => {

@@ -31,6 +31,7 @@ export interface ReferenceRow {
   grid_config: unknown;
   secondary_grid_config: unknown | null;
   annotations: unknown;
+  removed_annotation_ids: unknown;
   notes: string;
   created_at: string;
   updated_at: string;

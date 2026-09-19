@@ -1,4 +1,4 @@
-import type { Project } from '@artiso/shared-types';
+import type { Project, ProjectRole } from '@artiso/shared-types';
 import { getSupabaseClient } from '../supabase-client';
 import type { ProjectRow } from './row-types';
 
@@ -22,19 +22,34 @@ export async function syncDeleteProject(projectId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function pullProjects(ownerId: string): Promise<Project[]> {
-  const { data, error } = await getSupabaseClient().from('projects').select('*').eq('owner_id', ownerId);
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as ProjectRow[]).map(rowToProject);
+// Everything the signed-in user can see: their own projects plus ones shared
+// with them (Postgres RLS decides which rows come back, so there's no owner
+// filter here). Their role on each shared one comes from project_members.
+export async function pullProjects(userId: string): Promise<Project[]> {
+  const supabase = getSupabaseClient();
+  const [projects, memberships] = await Promise.all([
+    supabase.from('projects').select('*'),
+    supabase.from('project_members').select('project_id, role').eq('user_id', userId),
+  ]);
+  if (projects.error) throw new Error(projects.error.message);
+  if (memberships.error) throw new Error(memberships.error.message);
+  const roleByProject = new Map(
+    ((memberships.data ?? []) as { project_id: string; role: ProjectRole }[]).map((m) => [m.project_id, m.role]),
+  );
+  return ((projects.data ?? []) as ProjectRow[]).map((row) =>
+    // Least privilege if a shared row somehow has no membership row.
+    rowToProject(row, row.owner_id === userId ? 'owner' : (roleByProject.get(row.id) ?? 'viewer')),
+  );
 }
 
-function rowToProject(row: ProjectRow): Project {
+function rowToProject(row: ProjectRow, role: ProjectRole): Project {
   return {
     id: row.id,
     ownerId: row.owner_id,
     name: row.name,
     tags: row.tags,
     thumbnailAssetId: row.thumbnail_asset_id,
+    role,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

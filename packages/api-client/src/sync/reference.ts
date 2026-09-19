@@ -5,16 +5,17 @@ import type { ReferenceRow } from './row-types';
 
 const EditStackSchema = z.array(OperationSchema);
 const AnnotationsSchema = z.array(AnnotationSchema);
+const RemovedIdsSchema = z.array(z.string().uuid());
 
 export type SyncReferenceResult = 'synced' | 'stale';
 
-// Upserts, then checks the version Postgres actually stored: the
+// Upserts, then reads back the version Postgres actually stored. The
 // references_version_guard trigger (supabase/migrations/0001_phase2_schema.sql)
-// silently drops a write whose version is behind what's already stored,
-// rather than overwriting it -- last-write-wins by version, enforced
-// server-side so two concurrent writers can't race a client-side
-// read-then-write check. 'stale' tells the caller to pull() and reconcile
-// rather than assume the push succeeded.
+// silently drops a write whose version isn't strictly above what's already
+// stored, so a stale writer can never overwrite a newer copy. A dropped
+// upsert returns no row, so the version is read in a separate query rather
+// than chained onto the upsert. 'stale' tells the caller to pull and merge
+// (see merge-reference.ts) instead of assuming the push succeeded.
 export async function syncReference(reference: Reference): Promise<SyncReferenceResult> {
   const supabase = getSupabaseClient();
   const row: ReferenceRow = {
@@ -25,13 +26,16 @@ export async function syncReference(reference: Reference): Promise<SyncReference
     grid_config: reference.gridConfig,
     secondary_grid_config: reference.secondaryGridConfig,
     annotations: reference.annotations,
+    removed_annotation_ids: reference.removedAnnotationIds,
     notes: reference.notes,
     created_at: reference.createdAt,
     updated_at: reference.updatedAt,
     version: reference.version,
   };
-  const { data, error } = await supabase.from('references').upsert(row).select('version').single();
+  const { error } = await supabase.from('references').upsert(row);
   if (error) throw new Error(error.message);
+  const { data, error: readError } = await supabase.from('references').select('version').eq('id', reference.id).single();
+  if (readError) throw new Error(readError.message);
   return (data as { version: number }).version === reference.version ? 'synced' : 'stale';
 }
 
@@ -59,6 +63,7 @@ function rowToReference(row: ReferenceRow): Reference {
     gridConfig: GridConfigSchema.parse(row.grid_config),
     secondaryGridConfig: row.secondary_grid_config ? GridConfigSchema.parse(row.secondary_grid_config) : null,
     annotations: AnnotationsSchema.parse(row.annotations ?? []),
+    removedAnnotationIds: RemovedIdsSchema.parse(row.removed_annotation_ids ?? []),
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
