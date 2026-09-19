@@ -30,6 +30,7 @@ export interface ReferenceRow {
   edit_stack: unknown;
   grid_config: unknown;
   secondary_grid_config: unknown | null;
+  annotations: unknown;
   notes: string;
   created_at: string;
   updated_at: string;

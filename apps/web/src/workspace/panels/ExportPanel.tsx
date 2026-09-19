@@ -14,6 +14,7 @@ export function ExportPanel() {
   const editStack = useWorkspaceStore((s) => s.editStack);
   const gridConfig = useWorkspaceStore((s) => s.gridConfig);
   const secondaryGridConfig = useWorkspaceStore((s) => s.secondaryGridConfig);
+  const annotations = useWorkspaceStore((s) => s.annotations);
   const exportSettings = useWorkspaceStore((s) => s.exportSettings);
   const setExportSettings = useWorkspaceStore((s) => s.setExportSettings);
 
@@ -25,7 +26,7 @@ export function ExportPanel() {
     setIsExporting(true);
     setError(null);
     try {
-      await exportReference({ assetId, editStack, gridConfig, secondaryGridConfig, ...exportSettings });
+      await exportReference({ assetId, editStack, gridConfig, secondaryGridConfig, annotations, ...exportSettings });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed.');
     } finally {
@@ -109,6 +110,12 @@ export function ExportPanel() {
             onClick={() => setExportSettings({ includeAdjustments: !exportSettings.includeAdjustments, profileId: undefined })}
           >
             Include adjustments
+          </PanelButton>
+          <PanelButton
+            active={exportSettings.includeAnnotations !== false}
+            onClick={() => setExportSettings({ includeAnnotations: exportSettings.includeAnnotations === false, profileId: undefined })}
+          >
+            Include annotations
           </PanelButton>
         </>
       )}

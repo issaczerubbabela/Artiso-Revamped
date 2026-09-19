@@ -48,10 +48,17 @@ task; see [Deferred](#deferred).
       is out of scope for this pass
 
 **Workspace**
-- [ ] Annotation layer (arrows, circles, notes) -- the first real use of
-      stylus/pressure input, which the Canvas Renderer was deliberately left
-      input-source-agnostic to accommodate
-      ([05-canvas-renderer.md](../architecture/05-canvas-renderer.md))
+- [x] Annotation layer (arrows, circles, notes, plus freehand strokes per
+      user decision) -- the first real use of stylus/pressure input, which
+      the Canvas Renderer was deliberately left input-source-agnostic to
+      accommodate ([05-canvas-renderer.md](../architecture/05-canvas-renderer.md)).
+      Stored as `Reference.annotations` (normalized [0,1] coordinates), drawn
+      by a third stacked canvas (`AnnotationLayer`), baked into raster/PDF
+      export via `includeAnnotations`. Simplifying assumptions: pressure is
+      captured per point but not yet used to vary rendered stroke width;
+      annotations are not re-transformed if crop/rotate/flip changes after
+      annotating (the Import -> Prepare -> Grid -> Draw workflow puts
+      geometry edits first); undo is single-step plus clear-all.
 - [ ] Presentation/classroom mode (large labels, high-contrast, locked
       gestures) for the Art Teacher persona
 - [ ] Multi-reference workspace (split-view, tabs) -- desktop-first per the
@@ -86,9 +93,12 @@ task; see [Deferred](#deferred).
       reads the downloaded files back and asserts on their actual structure
       (SVG contains `<line>` elements and no `<image>`; PDF starts with the
       `%PDF-` header and embeds an `/Image` object)
-- [ ] Annotations persist as part of a Reference's non-destructive edit
+- [x] Annotations persist as part of a Reference's non-destructive edit
       state and survive reload/resume, same guarantee as the rest of the
-      EditStack
+      EditStack -- verified by `apps/web/e2e/annotations.spec.ts`, which
+      draws all four types via real pointer gestures, reloads, and confirms
+      they're still there. Note the app-wide 400ms persist debounce: an
+      annotation drawn less than 400ms before a reload/close isn't saved yet.
 - [ ] Presentation mode is a workspace display toggle, not a fork of the
       component tree (CLAUDE.md: "adaptive, not two apps")
 - [ ] Multi-reference workspace only changes desktop/Wide-breakpoint chrome;

@@ -14,6 +14,11 @@ export const ExportSettingsSchema = z.object({
   // export profile (docs/phases/phase-3-filters-presets-export.md), which
   // exports just the grid on a transparent background with no image at all.
   includeImage: z.boolean().optional(),
+  // Optional (defaults to true at call sites), same backward-compat pattern
+  // as includeImage -- added for the annotation layer (docs/phases/phase-7-
+  // guides-workspace-export.md). Only applies to raster/PDF output; svg
+  // export is always grid-only and never includes annotations.
+  includeAnnotations: z.boolean().optional(),
   profileId: z.string().optional(),
 });
 export type ExportSettings = z.infer<typeof ExportSettingsSchema>;

@@ -1,7 +1,14 @@
 import { PDFDocument } from 'pdf-lib';
-import { applyGeometryOps, deriveAdjustments, generateGridGeometry, generateGridSvg, type GridSvgLayer } from '@artiso/core-engine';
-import { GridLayer, ImageLayer, type GridDrawLayer } from '@artiso/renderer';
-import type { ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
+import {
+  applyGeometryOps,
+  deriveAdjustments,
+  generateGridGeometry,
+  generateGridSvg,
+  resolveAnnotationGeometry,
+  type GridSvgLayer,
+} from '@artiso/core-engine';
+import { AnnotationLayer, GridLayer, ImageLayer, type GridDrawLayer } from '@artiso/renderer';
+import type { Annotation, ExportSettings, GridConfig, Operation } from '@artiso/shared-types';
 import { getAssetBlob } from '@artiso/api-client';
 import { getPlatformAdapter } from '@/platform/get-platform-adapter';
 
@@ -10,6 +17,7 @@ export interface ExportOptions extends ExportSettings {
   editStack: Operation[];
   gridConfig: GridConfig;
   secondaryGridConfig: GridConfig | null;
+  annotations: Annotation[];
 }
 
 const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0 };
@@ -95,6 +103,18 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     }
     gridLayer.draw(layers, IDENTITY_VIEWPORT, geometry.width, geometry.height);
     outputCtx.drawImage(gridCanvas, 0, 0);
+  }
+
+  // Annotations bake in the same way -- independent of includeGrid, since an
+  // arrow pointing something out is unrelated to whether the grid overlay is
+  // included, same "independent overlay" relationship the grid has with
+  // adjustments/filters.
+  if (options.includeAnnotations !== false && options.annotations.length > 0) {
+    const annotationCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+    const annotationLayer = new AnnotationLayer(annotationCanvas);
+    const resolved = resolveAnnotationGeometry(geometry.width, geometry.height, options.annotations);
+    annotationLayer.draw(resolved, null, IDENTITY_VIEWPORT, geometry.width, geometry.height);
+    outputCtx.drawImage(annotationCanvas, 0, 0);
   }
 
   // PDF bakes the exact same raster composite PNG does into a single-page

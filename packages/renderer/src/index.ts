@@ -6,3 +6,4 @@ export * from './viewport';
 export * from './input-controller';
 export * from './image-layer';
 export * from './grid-layer';
+export * from './annotation-layer';

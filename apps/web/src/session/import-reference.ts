@@ -58,6 +58,7 @@ export async function importReference(): Promise<void> {
       editStack: [],
       gridConfig: reference.gridConfig,
       secondaryGridConfig: reference.secondaryGridConfig,
+      annotations: reference.annotations,
     });
     useAppViewStore.getState().showWorkspace(project.id);
   } catch (error) {

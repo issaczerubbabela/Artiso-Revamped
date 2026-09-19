@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { applyGeometryOps } from '@artiso/core-engine';
-import type { ExportSettings, FilterId, GridConfig, Operation } from '@artiso/shared-types';
+import type { Annotation, ExportSettings, FilterId, GridConfig, Operation } from '@artiso/shared-types';
 import { scheduleReferenceSync, updateReference } from '@artiso/api-client';
 import { useAuthStore } from './auth-store';
 import { DEFAULT_GRID_CONFIG } from './default-grid-config';
 import { DEFAULT_EXPORT_SETTINGS } from './default-export-settings';
 import { buildGridConfigForType } from './build-grid-config-for-type';
 
-export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'export' | 'presets';
+export type ToolMode = 'idle' | 'crop' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'export' | 'presets';
+export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand';
 
 interface LoadedReference {
   projectId: string;
@@ -19,6 +20,7 @@ interface LoadedReference {
   editStack: Operation[];
   gridConfig: GridConfig;
   secondaryGridConfig: GridConfig | null;
+  annotations: Annotation[];
 }
 
 interface WorkspaceState {
@@ -43,6 +45,20 @@ interface WorkspaceState {
   // -- GridPanel's "Add layer" action is what first populates this via
   // setSecondaryGridType.
   secondaryGridConfig: GridConfig | null;
+  // Annotation layer (docs/phases/phase-7-guides-workspace-export.md): drawn
+  // on top of the image/grid, never affecting the EditStack pipeline or grid
+  // geometry -- an independent overlay, same as the grid.
+  annotations: Annotation[];
+
+  // Transient, per-session drawing settings for the *next* annotation to be
+  // created -- not persisted on the Reference itself (only committed
+  // annotations are), matching how a brush's current color/size in most
+  // drawing tools is app state, not part of any one stroke's saved data.
+  annotationTool: AnnotationTool;
+  annotationColor: string;
+  annotationThickness: 'thin' | 'medium' | 'thick';
+  setAnnotationTool: (tool: AnnotationTool) => void;
+  setAnnotationStyle: (patch: Partial<{ annotationColor: string; annotationThickness: 'thin' | 'medium' | 'thick' }>) => void;
 
   // Transient, per-session UI state -- not part of the persisted Reference
   // (only a saved Preset durably bundles export settings). Shared between
@@ -69,6 +85,9 @@ interface WorkspaceState {
   setSecondaryGridConfig: (patch: Partial<GridConfig>) => void;
   setSecondaryGridType: (type: GridConfig['type']) => void;
   removeSecondaryGrid: () => void;
+  addAnnotation: (annotation: Annotation) => void;
+  removeLastAnnotation: () => void;
+  clearAnnotations: () => void;
   applyPreset: (input: { gridConfig: GridConfig; filterStack: Operation[]; exportSettings: ExportSettings }) => void;
   reset: () => void;
 }
@@ -80,14 +99,21 @@ let persistTimer: ReturnType<typeof setTimeout> | undefined;
 // handed off to api-client's own sync queue, which debounces again on its
 // own longer ~2s window (docs/architecture/08) -- this local persist and the
 // network sync are deliberately two separate debounces, not one.
+//
+// Takes the relevant slice of state itself (rather than each field as its
+// own parameter) so adding a new persisted field only means updating this
+// function once, not every call site.
 function schedulePersist(
-  projectId: string,
-  referenceId: string,
-  patch: { editStack: Operation[]; gridConfig: GridConfig; secondaryGridConfig: GridConfig | null },
+  state: Pick<
+    WorkspaceState,
+    'projectId' | 'referenceId' | 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations'
+  >,
 ): void {
+  if (!state.referenceId || !state.projectId) return;
+  const { referenceId, projectId, editStack, gridConfig, secondaryGridConfig, annotations } = state;
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
-    void updateReference(referenceId, patch).then(() => {
+    void updateReference(referenceId, { editStack, gridConfig, secondaryGridConfig, annotations }).then(() => {
       if (useAuthStore.getState().user) scheduleReferenceSync(projectId, referenceId);
     });
   }, 400);
@@ -111,6 +137,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   editStack: [],
   gridConfig: DEFAULT_GRID_CONFIG,
   secondaryGridConfig: null,
+  annotations: [],
+
+  annotationTool: 'arrow',
+  annotationColor: '#ff3b30',
+  annotationThickness: 'medium',
+  setAnnotationTool: (tool) => set({ annotationTool: tool }),
+  setAnnotationStyle: (patch) => set(patch),
 
   exportSettings: DEFAULT_EXPORT_SETTINGS,
   setExportSettings: (patch) => set((state) => ({ exportSettings: { ...state.exportSettings, ...patch } })),
@@ -129,6 +162,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       editStack: input.editStack,
       gridConfig: input.gridConfig,
       secondaryGridConfig: input.secondaryGridConfig,
+      annotations: input.annotations,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       toolMode: 'idle',
       importError: null,
@@ -150,7 +184,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workingHeight: result.height,
       editStack,
     });
-    schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
+    schedulePersist({ ...state, editStack });
   },
 
   // One slider, one current value -- a later commit replaces the earlier
@@ -159,9 +193,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const editStack = [...state.editStack.filter((op) => op.type !== type), { type, value } as Operation];
     set({ editStack });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
-    }
+    schedulePersist({ ...state, editStack });
   },
 
   // At most one active structural filter at a time -- setting a new one (or
@@ -172,9 +204,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const withoutFilter = state.editStack.filter((op) => op.type !== 'filter');
     const editStack: Operation[] = filterId ? [...withoutFilter, { type: 'filter', id: filterId, params }] : withoutFilter;
     set({ editStack });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: state.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
-    }
+    schedulePersist({ ...state, editStack });
   },
 
   // Callers only ever patch fields that belong to the currently-active
@@ -186,9 +216,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const gridConfig = { ...state.gridConfig, ...patch } as GridConfig;
     set({ gridConfig });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig, secondaryGridConfig: state.secondaryGridConfig });
-    }
+    schedulePersist({ ...state, gridConfig });
   },
 
   // Switching guide type can't be a patch -- rows/cols mean nothing to a
@@ -199,9 +227,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const { color, opacity, thickness, visible } = state.gridConfig;
     const gridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
     set({ gridConfig });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig, secondaryGridConfig: state.secondaryGridConfig });
-    }
+    schedulePersist({ ...state, gridConfig });
   },
 
   // Same patch-merge contract as setGridConfig, but for the optional
@@ -212,9 +238,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (!state.secondaryGridConfig) return;
     const secondaryGridConfig = { ...state.secondaryGridConfig, ...patch } as GridConfig;
     set({ secondaryGridConfig });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig });
-    }
+    schedulePersist({ ...state, secondaryGridConfig });
   },
 
   // Also doubles as "add a layer" when no secondary config exists yet --
@@ -225,24 +249,47 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const { color, opacity, thickness, visible } = base;
     const secondaryGridConfig = buildGridConfigForType(type, { color, opacity, thickness, visible });
     set({ secondaryGridConfig });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig });
-    }
+    schedulePersist({ ...state, secondaryGridConfig });
   },
 
   removeSecondaryGrid: () => {
     const state = get();
     set({ secondaryGridConfig: null });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack: state.editStack, gridConfig: state.gridConfig, secondaryGridConfig: null });
-    }
+    schedulePersist({ ...state, secondaryGridConfig: null });
+  },
+
+  // Appends a fully-formed Annotation (id/geometry/style already resolved by
+  // the caller -- see CanvasStage's pointer handling for how a draft becomes
+  // one of these on commit).
+  addAnnotation: (annotation) => {
+    const state = get();
+    const annotations = [...state.annotations, annotation];
+    set({ annotations });
+    schedulePersist({ ...state, annotations });
+  },
+
+  // Deliberately simple undo -- one step, not a full history stack
+  // (ki-simplicity-first): removing/editing an individual earlier annotation
+  // is a reasonable follow-up refinement, not required for the layer to be
+  // useful.
+  removeLastAnnotation: () => {
+    const state = get();
+    const annotations = state.annotations.slice(0, -1);
+    set({ annotations });
+    schedulePersist({ ...state, annotations });
+  },
+
+  clearAnnotations: () => {
+    const state = get();
+    set({ annotations: [] });
+    schedulePersist({ ...state, annotations: [] });
   },
 
   // Grid + filter stack from a saved Preset, layered on top of whatever
   // geometry (crop/rotate/flip) already happened to this specific photo --
   // a preset is a reusable style, not a framing decision. Presets don't
-  // carry a secondary guide (PresetSchema has no such field yet), so
-  // applying one only ever touches the primary gridConfig.
+  // carry a secondary guide or annotations (PresetSchema has no such
+  // fields), so applying one only ever touches the primary gridConfig.
   applyPreset: (input) => {
     const state = get();
     const geometryOps = state.editStack.filter(
@@ -250,9 +297,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     );
     const editStack = [...geometryOps, ...input.filterStack];
     set({ editStack, gridConfig: input.gridConfig, exportSettings: input.exportSettings });
-    if (state.referenceId && state.projectId) {
-      schedulePersist(state.projectId, state.referenceId, { editStack, gridConfig: input.gridConfig, secondaryGridConfig: state.secondaryGridConfig });
-    }
+    schedulePersist({ ...state, editStack, gridConfig: input.gridConfig });
   },
 
   reset: () =>
@@ -267,6 +312,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       editStack: [],
       gridConfig: DEFAULT_GRID_CONFIG,
       secondaryGridConfig: null,
+      annotations: [],
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       importError: null,
     }),

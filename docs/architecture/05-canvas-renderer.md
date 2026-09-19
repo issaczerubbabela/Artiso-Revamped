@@ -73,9 +73,22 @@ based controller drives it from both touch and mouse, plus:
 | Keyboard `+`/`-` | `setZoom` (desktop only, see [06](06-workspace-interaction.md)) |
 
 Stylus/pressure input is explicitly **not** wired into the viewport
-controller in this phase (no annotation/drawing-on-canvas feature exists
-yet) — the `Viewport` API is intentionally input-source-agnostic so adding a
-pressure-aware input source later doesn't require touching this module.
+controller — the `Viewport` API is intentionally input-source-agnostic so
+adding a pressure-aware input source doesn't require touching this module.
+
+### Annotation layer addendum (Phase 7)
+
+A third stacked Canvas2D canvas (`AnnotationLayer`) now sits above the grid
+layer, drawing arrow/circle/note/freehand annotations reprojected through
+the same `Viewport` transform as the grid. It consumes already-resolved
+image-space pixels (`core-engine`'s `resolveAnnotationGeometry`, the same
+"image-space only" contract as `GridGeometry`) so it never recomputes for
+pan/zoom. The canvas is `pointer-events: none` except in the Annotate tool
+mode, where `CanvasStage` captures pointer events on it directly (reading
+`event.pressure` for freehand points) and `InputController` is gesture-locked
+via its existing `isGestureLocked` option so a stroke never also pans. The
+in-progress stroke is drawn through the same code path as committed
+annotations, so the live preview matches what's saved.
 
 ## Responsiveness
 

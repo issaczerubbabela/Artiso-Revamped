@@ -16,6 +16,7 @@ export async function createReference(input: CreateReferenceInput): Promise<Refe
     editStack: [],
     gridConfig: input.gridConfig,
     secondaryGridConfig: null,
+    annotations: [],
     notes: '',
     createdAt: now,
     updatedAt: now,
@@ -42,7 +43,7 @@ export async function listReferencesByProject(projectId: string): Promise<Refere
 // consumes it yet in Phase 1.
 export async function updateReference(
   id: string,
-  patch: Partial<Pick<Reference, 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'notes'>>,
+  patch: Partial<Pick<Reference, 'editStack' | 'gridConfig' | 'secondaryGridConfig' | 'annotations' | 'notes'>>,
 ): Promise<Reference> {
   const db = await getDb();
   const existing = await db.get('references', id);

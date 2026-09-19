@@ -82,6 +82,12 @@ create table if not exists public."references" (
 -- matching shared-types' ReferenceSchema default.
 alter table public."references" add column if not exists secondary_grid_config jsonb;
 
+-- Annotation layer (docs/phases/phase-7-guides-workspace-export.md):
+-- arrows/circles/notes/freehand strokes drawn on top of the image/grid.
+-- Defaults to an empty array, matching shared-types' ReferenceSchema
+-- default, so existing rows parse as "no annotations yet" rather than null.
+alter table public."references" add column if not exists annotations jsonb not null default '[]'::jsonb;
+
 create index if not exists references_project_id_idx on public."references" (project_id);
 
 create table if not exists public.presets (

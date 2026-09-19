@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { GridConfigSchema, OperationSchema, type Reference } from '@artiso/shared-types';
+import { AnnotationSchema, GridConfigSchema, OperationSchema, type Reference } from '@artiso/shared-types';
 import { getSupabaseClient } from '../supabase-client';
 import type { ReferenceRow } from './row-types';
 
 const EditStackSchema = z.array(OperationSchema);
+const AnnotationsSchema = z.array(AnnotationSchema);
 
 export type SyncReferenceResult = 'synced' | 'stale';
 
@@ -23,6 +24,7 @@ export async function syncReference(reference: Reference): Promise<SyncReference
     edit_stack: reference.editStack,
     grid_config: reference.gridConfig,
     secondary_grid_config: reference.secondaryGridConfig,
+    annotations: reference.annotations,
     notes: reference.notes,
     created_at: reference.createdAt,
     updated_at: reference.updatedAt,
@@ -56,6 +58,7 @@ function rowToReference(row: ReferenceRow): Reference {
     editStack: EditStackSchema.parse(row.edit_stack),
     gridConfig: GridConfigSchema.parse(row.grid_config),
     secondaryGridConfig: row.secondary_grid_config ? GridConfigSchema.parse(row.secondary_grid_config) : null,
+    annotations: AnnotationsSchema.parse(row.annotations ?? []),
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { IdSchema, IsoDateTimeSchema } from './common';
 import { OperationSchema } from './operation';
 import { GridConfigSchema } from './grid-config';
+import { AnnotationSchema } from './annotation';
 
 export const ReferenceSchema = z.object({
   id: IdSchema,
@@ -14,6 +15,12 @@ export const ReferenceSchema = z.object({
   // overlay on a rectangular grid). Nullable + defaulted so References saved
   // before this field existed keep parsing without a data migration.
   secondaryGridConfig: GridConfigSchema.nullable().default(null),
+  // Annotation layer (docs/phases/phase-7-guides-workspace-export.md): drawn
+  // on top of the image/grid, never affecting the EditStack pipeline or grid
+  // geometry (ki-grid-image-independence's "independent overlay" pattern
+  // extended to a second overlay type). Defaulted so References saved before
+  // this field existed keep parsing without a data migration.
+  annotations: z.array(AnnotationSchema).default([]),
   notes: z.string(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,

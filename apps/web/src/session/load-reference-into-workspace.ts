@@ -35,5 +35,6 @@ export async function loadReferenceIntoWorkspace(project: Project, reference: Re
     editStack: reference.editStack,
     gridConfig: reference.gridConfig,
     secondaryGridConfig: reference.secondaryGridConfig,
+    annotations: reference.annotations,
   });
 }

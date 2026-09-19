@@ -7,6 +7,7 @@ import { UserSchema } from '../schemas/user';
 import { ProjectSchema } from '../schemas/project';
 import { ReferenceSchema } from '../schemas/reference';
 import { PresetSchema } from '../schemas/preset';
+import { AnnotationSchema } from '../schemas/annotation';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-01-01T00:00:00.000Z';
@@ -245,6 +246,92 @@ describe('ReferenceSchema', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.secondaryGridConfig?.type).toBe('ruleOfThirds');
+  });
+
+  it('defaults annotations to an empty array for references saved before the annotation layer existed', () => {
+    const result = ReferenceSchema.safeParse({
+      id: ID,
+      projectId: ID,
+      originalAssetId: ID,
+      editStack: [],
+      gridConfig,
+      notes: '',
+      createdAt: NOW,
+      updatedAt: NOW,
+      version: 1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.annotations).toEqual([]);
+  });
+
+  it('accepts a mix of annotation types', () => {
+    const result = ReferenceSchema.safeParse({
+      id: ID,
+      projectId: ID,
+      originalAssetId: ID,
+      editStack: [],
+      gridConfig,
+      annotations: [
+        { type: 'arrow', id: ID, start: { x: 0.1, y: 0.1 }, end: { x: 0.5, y: 0.5 }, color: '#ff0000', thickness: 'medium' },
+        { type: 'freehand', id: ID, points: [{ x: 0, y: 0 }, { x: 1, y: 1, pressure: 0.8 }], color: '#00ff00', thickness: 'thin' },
+      ],
+      notes: '',
+      createdAt: NOW,
+      updatedAt: NOW,
+      version: 1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.annotations).toHaveLength(2);
+  });
+});
+
+describe('AnnotationSchema', () => {
+  it('accepts each annotation type', () => {
+    expect(
+      AnnotationSchema.safeParse({ type: 'arrow', id: ID, start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, color: '#ffffff', thickness: 'thin' })
+        .success,
+    ).toBe(true);
+    expect(
+      AnnotationSchema.safeParse({
+        type: 'circle',
+        id: ID,
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.1,
+        radiusY: 0.2,
+        color: '#ffffff',
+        thickness: 'thick',
+      }).success,
+    ).toBe(true);
+    expect(
+      AnnotationSchema.safeParse({ type: 'note', id: ID, position: { x: 0.2, y: 0.2 }, text: 'Check proportions here', color: '#ffffff', thickness: 'medium' })
+        .success,
+    ).toBe(true);
+    expect(
+      AnnotationSchema.safeParse({
+        type: 'freehand',
+        id: ID,
+        points: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }, { x: 1, y: 1, pressure: 0.4 }],
+        color: '#ffffff',
+        thickness: 'medium',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a point outside the normalized [0,1] range', () => {
+    expect(
+      AnnotationSchema.safeParse({ type: 'arrow', id: ID, start: { x: -0.1, y: 0 }, end: { x: 1, y: 1 }, color: '#ffffff', thickness: 'thin' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a freehand annotation with fewer than 2 points', () => {
+    expect(
+      AnnotationSchema.safeParse({ type: 'freehand', id: ID, points: [{ x: 0, y: 0 }], color: '#ffffff', thickness: 'thin' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown annotation type', () => {
+    expect(AnnotationSchema.safeParse({ type: 'rectangle', id: ID, color: '#ffffff', thickness: 'thin' }).success).toBe(false);
   });
 });
 

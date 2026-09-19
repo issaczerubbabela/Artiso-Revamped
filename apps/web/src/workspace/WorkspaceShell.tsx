@@ -14,6 +14,7 @@ import { RotateFlipPanel } from './panels/RotateFlipPanel';
 import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
 import { FiltersPanel } from './panels/FiltersPanel';
 import { GridPanel } from './panels/GridPanel';
+import { AnnotationPanel } from './panels/AnnotationPanel';
 import { PresetsPanel } from './panels/PresetsPanel';
 import { ExportPanel } from './panels/ExportPanel';
 
@@ -26,6 +27,7 @@ const PANEL_TITLES: Record<ToolMode, string> = {
   adjustments: 'Adjustments',
   filters: 'Filters',
   grid: 'Grid',
+  annotate: 'Draw',
   presets: 'Presets',
   export: 'Export',
 };
@@ -84,6 +86,7 @@ export function WorkspaceShell() {
           {toolMode === 'adjustments' && <AdjustmentsPanel />}
           {toolMode === 'filters' && <FiltersPanel />}
           {toolMode === 'grid' && <GridPanel />}
+          {toolMode === 'annotate' && <AnnotationPanel />}
           {toolMode === 'presets' && <PresetsPanel />}
           {toolMode === 'export' && <ExportPanel />}
         </BottomSheet>

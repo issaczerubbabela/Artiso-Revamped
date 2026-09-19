@@ -12,6 +12,7 @@ const MODES: { id: ToolMode; label: string }[] = [
   { id: 'adjustments', label: 'Adjust' },
   { id: 'filters', label: 'Filters' },
   { id: 'grid', label: 'Grid' },
+  { id: 'annotate', label: 'Draw' },
   { id: 'presets', label: 'Presets' },
   { id: 'export', label: 'Export' },
 ];
