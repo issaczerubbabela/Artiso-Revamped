@@ -7,3 +7,4 @@ export * from './orientation';
 export * from './framing';
 export * from './migrate-legacy';
 export * from './framed-bitmap';
+export * from './resolve-framing';

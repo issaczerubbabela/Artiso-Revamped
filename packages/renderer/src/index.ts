@@ -4,6 +4,7 @@ export const RENDERER_VERSION = '0.0.0';
 
 export * from './viewport';
 export * from './crop-constraint';
+export * from './crop-frame';
 export * from './input-controller';
 export * from './image-layer';
 export * from './grid-layer';

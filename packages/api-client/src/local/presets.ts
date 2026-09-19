@@ -1,10 +1,19 @@
-import { PresetSchema, type ExportSettings, type GridConfig, type Operation, type Preset } from '@artiso/shared-types';
+import {
+  PresetSchema,
+  type ExportSettings,
+  type GridConfig,
+  type GridSettings,
+  type Operation,
+  type Preset,
+} from '@artiso/shared-types';
 import { getDb } from './db';
 
 export interface CreatePresetInput {
   ownerId: string;
   name: string;
   gridConfig: GridConfig;
+  // The drawing-grid settings this preset applies (phase 9).
+  gridSettings?: GridSettings;
   filterStack: Operation[];
   exportSettings: ExportSettings;
 }
@@ -15,6 +24,7 @@ export async function createPreset(input: CreatePresetInput): Promise<Preset> {
     ownerId: input.ownerId,
     name: input.name,
     gridConfig: input.gridConfig,
+    ...(input.gridSettings ? { gridSettings: input.gridSettings } : {}),
     filterStack: input.filterStack,
     exportSettings: input.exportSettings,
     createdAt: new Date().toISOString(),

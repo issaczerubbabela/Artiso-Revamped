@@ -1,10 +1,22 @@
-import { ReferenceSchema, type GridConfig, type Reference } from '@artiso/shared-types';
+import {
+  ReferenceSchema,
+  type Crop,
+  type GridConfig,
+  type GridSettings,
+  type Paper,
+  type Reference,
+} from '@artiso/shared-types';
 import { getDb } from './db';
 
 export interface CreateReferenceInput {
   projectId: string;
   originalAssetId: string;
   gridConfig: GridConfig;
+  // The drawing-grid framing a fresh import starts with. Omitted (null) means
+  // "not framed yet": the workspace migrates the reference when first opened.
+  paper?: Paper | null;
+  crop?: Crop | null;
+  gridSettings?: GridSettings | null;
 }
 
 export async function createReference(input: CreateReferenceInput): Promise<Reference> {
@@ -16,10 +28,9 @@ export async function createReference(input: CreateReferenceInput): Promise<Refe
     editStack: [],
     gridConfig: input.gridConfig,
     secondaryGridConfig: null,
-    // Filled in by the workspace when the reference is first opened.
-    paper: null,
-    crop: null,
-    gridSettings: null,
+    paper: input.paper ?? null,
+    crop: input.crop ?? null,
+    gridSettings: input.gridSettings ?? null,
     annotations: [],
     removedAnnotationIds: [],
     notes: '',
