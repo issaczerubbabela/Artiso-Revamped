@@ -146,7 +146,7 @@ function readView(session: PaneSession | undefined): ViewData {
 const isCropping = (view: ViewData): boolean => view.cropSource !== null && view.framingDraft !== null;
 
 function toViewportState(view: { scale: number; tx: number; ty: number }): ViewportState {
-  return { scale: view.scale, translateX: view.tx, translateY: view.ty };
+  return { scale: view.scale, translateX: view.tx, translateY: view.ty, rotation: 0 };
 }
 
 // The mount point for one pane (docs/architecture/05-canvas-renderer.md): three
@@ -298,7 +298,7 @@ export const CanvasStage = forwardRef<
             {
               paper,
               settings: state.gridSettings,
-              view: { scale: engine.frame.w / paper.widthMm, translateX: engine.frame.x, translateY: engine.frame.y },
+              view: { scale: engine.frame.w / paper.widthMm, translateX: engine.frame.x, translateY: engine.frame.y, rotation: 0 },
               width: w,
               height: h,
             },

@@ -3,18 +3,51 @@ export interface Point {
   y: number;
 }
 
+// screen = translate + scale * R(rotation) * content. `rotation` is the View
+// Rotation in radians (GLOSSARY.md): positive turns the content clockwise on
+// screen, since screen y points down. It is view state only -- never an edit,
+// never exported -- and every layer projects through this one transform, so
+// turning the view never touches the image pipeline or grid generation
+// (ki-grid-image-independence). `translate` is where the content origin lands.
 export interface ViewportState {
   scale: number;
   translateX: number;
   translateY: number;
+  rotation: number;
+}
+
+// The view as a 2D affine matrix in canvas `setTransform`/`transform` order:
+// screen.x = a*x + c*y + e, screen.y = b*x + d*y + f. At 0° it is exactly the
+// scale-and-translate the layers used before rotation existed.
+export interface ViewMatrix {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+export function viewMatrix(state: ViewportState): ViewMatrix {
+  const cos = Math.cos(state.rotation);
+  const sin = Math.sin(state.rotation);
+  return {
+    a: state.scale * cos,
+    b: state.scale * sin,
+    c: -state.scale * sin,
+    d: state.scale * cos,
+    e: state.translateX,
+    f: state.translateY,
+  };
 }
 
 // Limits on zoom and pan. The default is built from ViewportOptions; the crop
 // tool supplies its own (the image must always cover a fixed frame).
 // `clampScale` runs *before* the zoom is anchored, so the point under the
-// cursor stays put; `clampPan` runs after, on the final transform.
+// cursor stays put; `clampPan` runs after, on the final transform. `rotation`
+// is the angle the scale is about to be used at (the fit depends on it).
 export interface ViewportConstraint {
-  clampScale(scale: number): number;
+  clampScale(scale: number, rotation: number): number;
   clampPan(state: ViewportState): ViewportState;
 }
 
@@ -50,10 +83,10 @@ const DEFAULT_MIN_SCALE = 0.05;
 const DEFAULT_MAX_SCALE = 32;
 const REAL_SIZE_TOLERANCE = 0.005;
 
-// A single 2D affine transform {scale, translateX, translateY} that the image,
-// grid and annotation layers all re-project through on every paint. Pan/zoom
-// never recomputes the image pipeline or grid line geometry -- only this
-// transform changes -- which is what makes 60fps pan/zoom possible on
+// A single 2D affine transform {scale, translateX, translateY, rotation} that
+// the image, grid and annotation layers all re-project through on every paint.
+// Pan/zoom/rotate never recomputes the image pipeline or grid line geometry --
+// only this transform changes -- which is what makes 60fps pan/zoom possible on
 // mid-range hardware (docs/architecture/05-canvas-renderer.md).
 //
 // "Content units" are whatever the caller draws in: paper millimetres in the
@@ -62,11 +95,15 @@ const REAL_SIZE_TOLERANCE = 0.005;
 // canvases are backed at devicePixelRatio and draw under a matching transform,
 // so nothing here ever sees device pixels.
 //
+// Fit-to-screen and the pan limits work on the content's *rotated* bounding
+// box, so they hold at any View Rotation. At 0° every formula reduces exactly
+// to the plain scale-and-translate one.
+//
 // Pure math, no DOM/canvas dependency, so it's unit-testable on its own; the
 // renderer wires it to actual pointer/wheel/pinch events and canvas draw
 // calls separately.
 export class Viewport {
-  private state: ViewportState = { scale: 1, translateX: 0, translateY: 0 };
+  private state: ViewportState = { scale: 1, translateX: 0, translateY: 0, rotation: 0 };
   private realScale: number | null = null;
   private custom: ViewportConstraint | null = null;
   private insets: ViewportInsets = { ...NO_INSETS };
@@ -96,34 +133,50 @@ export class Viewport {
   // the input controller's double-tap zoomToFit/previous-zoom toggle. It is
   // still constrained, since the container may have changed since it was saved.
   setState(state: ViewportState): void {
-    this.state = this.constraint().clampPan({ ...state, scale: this.constraint().clampScale(state.scale) });
+    const constraint = this.constraint();
+    this.state = constraint.clampPan({ ...state, scale: constraint.clampScale(state.scale, state.rotation) });
   }
 
   screenToImage(point: Point): Point {
-    return {
-      x: (point.x - this.state.translateX) / this.state.scale,
-      y: (point.y - this.state.translateY) / this.state.scale,
-    };
+    const { scale, translateX, translateY, rotation } = this.state;
+    const dx = (point.x - translateX) / scale;
+    const dy = (point.y - translateY) / scale;
+    if (rotation === 0) return { x: dx, y: dy };
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
   }
 
   imageToScreen(point: Point): Point {
-    return {
-      x: point.x * this.state.scale + this.state.translateX,
-      y: point.y * this.state.scale + this.state.translateY,
-    };
+    const offset = contentOffset(point, this.state.scale, this.state.rotation);
+    return { x: offset.x + this.state.translateX, y: offset.y + this.state.translateY };
   }
 
   // Keeps the content point under `anchor` fixed on screen while changing
   // scale -- anchored at the cursor (wheel) or pinch midpoint (touch), never
   // the canvas center, per .agents/workflows/build-canvas-zoom-pan-gestures.md.
   setZoom(scale: number, anchor: Point = this.containerCenter()): void {
+    this.setScaleAndRotation(scale, this.state.rotation, anchor);
+  }
+
+  // Turns the view to `rotation` radians about `anchor`, keeping the content
+  // point under it fixed. The scale is re-clamped, since the fit floor depends
+  // on the angle.
+  setRotation(rotation: number, anchor: Point = this.containerCenter()): void {
+    this.setScaleAndRotation(this.state.scale, rotation, anchor);
+  }
+
+  // Zoom and rotate in one step about one anchor -- what a two-finger gesture
+  // does. The content point under `anchor` stays under it.
+  setScaleAndRotation(scale: number, rotation: number, anchor: Point = this.containerCenter()): void {
     const constraint = this.constraint();
-    const clamped = constraint.clampScale(scale);
-    const contentPoint = this.screenToImage(anchor);
+    const clamped = constraint.clampScale(scale, rotation);
+    const offset = contentOffset(this.screenToImage(anchor), clamped, rotation);
     this.state = constraint.clampPan({
       scale: clamped,
-      translateX: anchor.x - contentPoint.x * clamped,
-      translateY: anchor.y - contentPoint.y * clamped,
+      translateX: anchor.x - offset.x,
+      translateY: anchor.y - offset.y,
+      rotation,
     });
   }
 
@@ -148,23 +201,30 @@ export class Viewport {
   }
 
   // The scale at which the whole content (plus fitPadding) fits the part of the
-  // container that chrome does not cover.
-  getFitScale(): number {
+  // container that chrome does not cover, turned to `rotation` (the current
+  // angle by default): it is the rotated bounding box that has to fit.
+  getFitScale(rotation: number = this.state.rotation): number {
     const pad = this.options.fitPadding * 2;
     const region = this.visibleRegion();
     const availableW = Math.max(1, region.width - pad);
     const availableH = Math.max(1, region.height - pad);
-    return Math.min(availableW / this.contentWidth, availableH / this.contentHeight);
+    const extent = this.rotatedExtent(rotation);
+    return Math.min(availableW / extent.width, availableH / extent.height);
   }
 
+  // Fits the scale and centres the content in the visible region, keeping the
+  // current angle.
   zoomToFit(): void {
     const constraint = this.constraint();
-    const scale = constraint.clampScale(this.getFitScale());
+    const { rotation } = this.state;
+    const scale = constraint.clampScale(this.getFitScale(rotation), rotation);
     const region = this.visibleRegion();
+    const box = this.rotatedBox(scale, rotation);
     this.state = constraint.clampPan({
       scale,
-      translateX: region.x + (region.width - this.contentWidth * scale) / 2,
-      translateY: region.y + (region.height - this.contentHeight * scale) / 2,
+      translateX: region.x + (region.width - box.width) / 2 - box.minX,
+      translateY: region.y + (region.height - box.height) / 2 - box.minY,
+      rotation,
     });
   }
 
@@ -189,8 +249,7 @@ export class Viewport {
       this.zoomToFit();
       return;
     }
-    const constraint = this.constraint();
-    this.state = constraint.clampPan({ ...this.state, scale: constraint.clampScale(this.state.scale) });
+    this.reclamp();
   }
 
   getInsets(): ViewportInsets {
@@ -207,7 +266,7 @@ export class Viewport {
   // a small sheet on a big screen can still be shown at its true size.
   setRealScale(pxPerUnit: number | null): void {
     this.realScale = pxPerUnit !== null && pxPerUnit > 0 ? pxPerUnit : null;
-    this.state = this.constraint().clampPan({ ...this.state, scale: this.constraint().clampScale(this.state.scale) });
+    this.reclamp();
   }
 
   getRealScale(): number | null {
@@ -215,7 +274,8 @@ export class Viewport {
   }
 
   // Zooms to real size about `anchor` (the container centre by default), so the
-  // viewport centre stays fixed. Returns false when not yet calibrated.
+  // viewport centre stays fixed. Fixes the scale only: the angle is kept.
+  // Returns false when not yet calibrated.
   setRealSize(anchor: Point = this.containerCenter()): boolean {
     if (this.realScale === null) return false;
     this.setZoom(this.realScale, anchor);
@@ -229,7 +289,7 @@ export class Viewport {
   // Replaces the default zoom/pan limits (null restores them).
   setConstraint(constraint: ViewportConstraint | null): void {
     this.custom = constraint;
-    this.state = this.constraint().clampPan({ ...this.state, scale: this.constraint().clampScale(this.state.scale) });
+    this.reclamp();
   }
 
   getContainerSize(): { width: number; height: number } {
@@ -243,7 +303,7 @@ export class Viewport {
   // Preserves the current framing (same content region stays centered) rather
   // than resetting the view -- required across breakpoint transitions and
   // window resizes (see docs/architecture/05-canvas-renderer.md). A view that
-  // was showing the whole content keeps doing so.
+  // was showing the whole content keeps doing so. The angle is always kept.
   resize(containerWidth: number, containerHeight: number): void {
     const wasFit = this.isAtFit();
     const oldCenter = this.screenToImage(this.containerCenter());
@@ -254,13 +314,51 @@ export class Viewport {
       return;
     }
     const constraint = this.constraint();
-    const scale = constraint.clampScale(this.state.scale);
+    const { rotation } = this.state;
+    const scale = constraint.clampScale(this.state.scale, rotation);
     const newCenter = this.containerCenter();
+    const offset = contentOffset(oldCenter, scale, rotation);
     this.state = constraint.clampPan({
       scale,
-      translateX: newCenter.x - oldCenter.x * scale,
-      translateY: newCenter.y - oldCenter.y * scale,
+      translateX: newCenter.x - offset.x,
+      translateY: newCenter.y - offset.y,
+      rotation,
     });
+  }
+
+  private reclamp(): void {
+    const constraint = this.constraint();
+    this.state = constraint.clampPan({ ...this.state, scale: constraint.clampScale(this.state.scale, this.state.rotation) });
+  }
+
+  // The content's on-screen bounding box relative to translate, at `scale` and
+  // `rotation`: where its left/top edge sits (minX/minY) and how big it is.
+  private rotatedBox(scale: number, rotation: number): { minX: number; minY: number; width: number; height: number } {
+    if (rotation === 0) {
+      return { minX: 0, minY: 0, width: this.contentWidth * scale, height: this.contentHeight * scale };
+    }
+    const corners = [
+      { x: 0, y: 0 },
+      { x: this.contentWidth, y: 0 },
+      { x: this.contentWidth, y: this.contentHeight },
+      { x: 0, y: this.contentHeight },
+    ].map((p) => contentOffset(p, scale, rotation));
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return { minX, minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+  }
+
+  // The content's bounding box size, in content units, once turned by `rotation`.
+  private rotatedExtent(rotation: number): { width: number; height: number } {
+    if (rotation === 0) return { width: this.contentWidth, height: this.contentHeight };
+    const cos = Math.abs(Math.cos(rotation));
+    const sin = Math.abs(Math.sin(rotation));
+    return {
+      width: this.contentWidth * cos + this.contentHeight * sin,
+      height: this.contentWidth * sin + this.contentHeight * cos,
+    };
   }
 
   private isAtFit(): boolean {
@@ -290,11 +388,11 @@ export class Viewport {
   }
 
   private readonly defaultConstraint: ViewportConstraint = {
-    clampScale: (scale) => {
+    clampScale: (scale, rotation) => {
       const { minScale, maxScale } = this.options;
       let min: number;
       if (minScale === 'fit') {
-        const fit = this.getFitScale();
+        const fit = this.getFitScale(rotation);
         min = this.realScale === null ? fit : Math.min(fit, this.realScale);
       } else {
         min = minScale;
@@ -304,23 +402,37 @@ export class Viewport {
     clampPan: (state) => {
       const slack = this.options.panSlack;
       if (slack === null) return state;
+      // Clamped by the on-screen bounding box, so the limits hold at any angle.
+      // At 0° the box starts at translate and this is the plain per-axis clamp.
       const region = this.visibleRegion();
+      const box = this.rotatedBox(state.scale, state.rotation);
       return {
         scale: state.scale,
-        translateX: clampAxis(state.translateX, this.contentWidth * state.scale, region.x, region.width, slack),
-        translateY: clampAxis(state.translateY, this.contentHeight * state.scale, region.y, region.height, slack),
+        translateX: clampAxis(state.translateX + box.minX, box.width, region.x, region.width, slack) - box.minX,
+        translateY: clampAxis(state.translateY + box.minY, box.height, region.y, region.height, slack) - box.minY,
+        rotation: state.rotation,
       };
     },
   };
 }
 
+// `point` (content units) scaled and turned, before translation. At 0° this is
+// exactly point * scale.
+function contentOffset(point: Point, scale: number, rotation: number): Point {
+  if (rotation === 0) return { x: point.x * scale, y: point.y * scale };
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return { x: scale * (point.x * cos - point.y * sin), y: scale * (point.x * sin + point.y * cos) };
+}
+
+// `edge` is where the content's leading (left/top) edge sits on this axis.
 // Content smaller than the visible region is centred in it; larger content may
 // be dragged until an edge is `slack` px inside the region. `start`/`size` are
 // the region's offset and length on this axis (0 and the container length when
 // no chrome covers it).
-function clampAxis(translate: number, contentPx: number, start: number, size: number, slack: number): number {
+function clampAxis(edge: number, contentPx: number, start: number, size: number, slack: number): number {
   if (contentPx <= size) return start + (size - contentPx) / 2;
-  return Math.min(Math.max(translate, start + size - contentPx - slack), start + slack);
+  return Math.min(Math.max(edge, start + size - contentPx - slack), start + slack);
 }
 
 function cleanInset(value: number | undefined): number {

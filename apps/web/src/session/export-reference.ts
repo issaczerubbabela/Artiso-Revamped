@@ -26,7 +26,8 @@ export interface ExportOptions extends ExportSettings {
   annotations: Annotation[];
 }
 
-const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0 };
+// Exports are always drawn at 0°: View Rotation is view state, never exported.
+const IDENTITY_VIEWPORT = { scale: 1, translateX: 0, translateY: 0, rotation: 0 };
 const NO_ADJUSTMENTS = { brightness: 0, contrast: 0, saturation: 0, filterId: null, filterParams: {} } as const;
 const POINTS_PER_MM = 72 / 25.4;
 
@@ -93,7 +94,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     // Screen px -> output px at 96 dpi, so a 1px line is as thick relative to the
     // paper as it looked on screen at real size.
     const scaleUp = pxPerMm * MM_PER_CSS_PX;
-    const view = { scale: pxPerMm, translateX: 0, translateY: 0 };
+    const view = { scale: pxPerMm, translateX: 0, translateY: 0, rotation: 0 };
     const gridCanvas = createScratchCanvas(geometry.width, geometry.height);
 
     // Guides first, then the grid over them. Export's includeGrid toggle is its

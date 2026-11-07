@@ -1,5 +1,5 @@
 import type { ResolvedAnnotation } from '@artiso/core-engine';
-import type { ViewportState } from './viewport';
+import { viewMatrix, type ViewportState } from './viewport';
 
 type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -49,8 +49,9 @@ export class AnnotationLayer {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.save();
-    ctx.translate(viewport.translateX, viewport.translateY);
-    ctx.scale(viewport.scale, viewport.scale);
+    // The one view transform (scale, translate and View Rotation).
+    const m = viewMatrix(viewport);
+    ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
 
     for (const annotation of annotations) this.drawOne(annotation, viewport.scale);
     if (draft) this.drawOne(draft, viewport.scale, 0.7);

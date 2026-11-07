@@ -5,13 +5,13 @@
 export const VERTEX_SHADER_SOURCE = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_size;
-uniform vec2 u_scale;
+uniform mat2 u_linear;
 uniform vec2 u_offset;
 out vec2 v_texCoord;
 
 void main() {
   vec2 imagePos = a_position * u_size;
-  vec2 clip = imagePos * u_scale + u_offset;
+  vec2 clip = u_linear * imagePos + u_offset;
   gl_Position = vec4(clip, 0.0, 1.0);
   v_texCoord = a_position;
 }

@@ -18,7 +18,9 @@ export function createCropConstraint(imageWidth: number, imageHeight: number, fr
         imageHeight,
         frame,
       );
-      return { scale: view.scale, translateX: view.tx, translateY: view.ty };
+      // The Paper tool always shows the view at 0°, so the frame maths here is
+      // axis-aligned; the angle is passed through untouched.
+      return { scale: view.scale, translateX: view.tx, translateY: view.ty, rotation: state.rotation };
     },
   };
 }
