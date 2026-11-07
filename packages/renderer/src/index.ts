@@ -9,6 +9,7 @@ export * from './crop-frame';
 export * from './gesture-engine';
 export * from './view-rotation';
 export * from './input-controller';
+export * from './long-press';
 export * from './image-layer';
 export * from './grid-layer';
 export * from './drawing-grid-layer';
