@@ -14,6 +14,7 @@ import { TabStrip } from './TabStrip';
 import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 import { PaneStage } from './PaneStage';
 import { CalibrationDialog } from './CalibrationDialog';
+import { useScreenWakeLock } from '@/platform/wake-lock';
 
 // How long the edge-revealed chrome lingers after the pointer leaves it (ms). A
 // delay, not an animation: the chrome still appears and disappears instantly.
@@ -58,6 +59,8 @@ export function WorkspaceShell() {
     setRevealed(edge);
   };
   useEffect(() => cancelHide, []);
+  // A reference is on screen next to the artist's paper: don't let it sleep.
+  useScreenWakeLock(hasReference);
 
   const canvasArea = <div className="workspace__canvas">{hasReference ? <PaneStage /> : <EmptyState error={importError} />}</div>;
 
