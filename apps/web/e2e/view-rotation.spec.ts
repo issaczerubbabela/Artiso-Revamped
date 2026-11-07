@@ -138,20 +138,29 @@ test.describe('turning the view', () => {
     await twist(page, 50);
     await expect(angle(page)).toHaveText('40°');
     await page.getByRole('button', { name: 'Draw', exact: true }).click();
+    // The Draw panel's dock changes the pane's insets (and so the visible
+    // centre and the view's framing) a moment after the click: wait for it.
+    await expect(page.getByTestId('side-dock')).toHaveAttribute('aria-hidden', 'false');
+    const pane = page.getByTestId('pane').first();
+    await expect
+      .poll(async () => Number(await pane.getAttribute('data-inset-right')))
+      .toBeGreaterThan(0);
     const { x, y } = await visibleCentre(page);
     await page.mouse.move(x - 60, y - 30);
     await page.mouse.down();
     await page.mouse.move(x + 60, y + 30, { steps: 12 });
     await page.mouse.up();
 
-    // The annotation canvas (the top one) is painted along the drag.
+    // The annotation canvas is painted along the whole drag. The canvas only
+    // repaints on animation frames, so a frame drawn mid-drag can still show
+    // part of the stroke: wait until the committed stroke is painted end to
+    // end, then check nothing is painted off the line.
     const sample = () =>
       page.evaluate(
         ({ x, y }) => {
-          const canvases = [
-            ...document.querySelectorAll('[data-view-rotation] canvas'),
-          ] as HTMLCanvasElement[];
-          const canvas = canvases[canvases.length - 1]!;
+          const canvas = document.querySelector(
+            'canvas[data-layer="annotation"]',
+          ) as HTMLCanvasElement;
           const rect = canvas.getBoundingClientRect();
           const ratio = canvas.width / rect.width;
           const ctx = canvas.getContext('2d')!;
@@ -174,7 +183,12 @@ test.describe('turning the view', () => {
         },
         { x, y },
       );
-    await expect.poll(async () => (await sample()).middle).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        const p = await sample();
+        return p.middle > 0 && p.along > 0;
+      })
+      .toBe(true);
     const painted = await sample();
     expect(painted.middle).toBeGreaterThan(0);
     expect(painted.along).toBeGreaterThan(0);

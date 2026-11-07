@@ -689,6 +689,7 @@ export const CanvasStage = forwardRef<
         <canvas ref={gridCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
         <canvas
           ref={annotationCanvasRef}
+          data-layer="annotation"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none' }}
         />
         {notePrompt ? (
