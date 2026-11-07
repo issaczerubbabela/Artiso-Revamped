@@ -7,7 +7,7 @@ import {
   type MmRect,
 } from '@artiso/core-engine';
 import type { GridSettings } from '@artiso/shared-types';
-import type { ViewportState } from './viewport';
+import { viewMatrix, type Point, type ViewportState } from './viewport';
 
 type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -58,6 +58,34 @@ export function crispCoordinate(cssPx: number, lineWidth: number, pixelRatio: nu
   return snapped / pixelRatio;
 }
 
+/**
+ * The paper-mm rectangle that covers a `width` x `height` CSS px viewport seen
+ * through `view`. Turned views cover the bounding box of the screen's four
+ * corners mapped back to mm (a little more than the screen; culling only needs
+ * a superset).
+ */
+export function visibleMmRect(view: ViewportState, width: number, height: number): MmRect {
+  const { scale, translateX, translateY, rotation } = view;
+  if (rotation === 0) return { x: -translateX / scale, y: -translateY / scale, w: width / scale, h: height / scale };
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const corners = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ].map((screen) => {
+    const dx = (screen.x - translateX) / scale;
+    const dy = (screen.y - translateY) / scale;
+    return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+  });
+  const xs = corners.map((p) => p.x);
+  const ys = corners.map((p) => p.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
 // Canvas2D pass that draws the drawing grid (docs/architecture/
 // Grid-Feature-Spec.md §6-§9) in *screen space*: geometry comes from core-engine
 // in millimetres and is mapped through the view, so the line width stays
@@ -94,14 +122,32 @@ export class DrawingGridLayer {
     const cellPx = cellMm * scale;
     const lineWidth = settings.style.widthPx * (options.lineScale ?? 1);
 
+    // Paper mm -> screen CSS px through the one view transform (View Rotation
+    // included). At 0° this is exactly translate + mm * scale.
+    const rotated = view.rotation !== 0;
+    const m = viewMatrix(view);
+    const toScreen = rotated
+      ? (x: number, y: number): Point => ({ x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f })
+      : (x: number, y: number): Point => ({ x: translateX + x * scale, y: translateY + y * scale });
+
     // The part of the paper on screen, in mm -- everything is culled to it.
-    const visible: MmRect = { x: -translateX / scale, y: -translateY / scale, w: width / scale, h: height / scale };
-    const toX = (mm: number) => translateX + mm * scale;
-    const toY = (mm: number) => translateY + mm * scale;
+    const visible = visibleMmRect(view, width, height);
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(translateX, translateY, paper.widthMm * scale, paper.heightMm * scale);
+    if (rotated) {
+      // The paper's outline as a turned quadrilateral.
+      const corners = [
+        toScreen(0, 0),
+        toScreen(paper.widthMm, 0),
+        toScreen(paper.widthMm, paper.heightMm),
+        toScreen(0, paper.heightMm),
+      ];
+      ctx.moveTo(corners[0]!.x, corners[0]!.y);
+      for (const corner of [...corners.slice(1), corners[0]!]) ctx.lineTo(corner.x, corner.y);
+    } else {
+      ctx.rect(translateX, translateY, paper.widthMm * scale, paper.heightMm * scale);
+    }
     ctx.clip();
 
     ctx.globalAlpha = settings.style.opacity;
@@ -111,27 +157,34 @@ export class DrawingGridLayer {
 
     if (settings.showSquares && hasCell && cellPx >= MIN_SQUARE_CELL_PX) {
       const lines = getLines(paper, cellMm, visible);
-      ctx.beginPath();
-      for (const line of lines) {
-        if (line.x1 === line.x2) {
-          const x = crispCoordinate(toX(line.x1), lineWidth, pixelRatio);
-          ctx.moveTo(x, toY(line.y1));
-          ctx.lineTo(x, toY(line.y2));
-        } else {
-          const y = crispCoordinate(toY(line.y1), lineWidth, pixelRatio);
-          ctx.moveTo(toX(line.x1), y);
-          ctx.lineTo(toX(line.x2), y);
+      if (rotated) {
+        // Turned lines are no longer pixel-aligned, so there is nothing to snap.
+        this.strokeSegments(lines, toScreen);
+      } else {
+        const toX = (mm: number) => translateX + mm * scale;
+        const toY = (mm: number) => translateY + mm * scale;
+        ctx.beginPath();
+        for (const line of lines) {
+          if (line.x1 === line.x2) {
+            const x = crispCoordinate(toX(line.x1), lineWidth, pixelRatio);
+            ctx.moveTo(x, toY(line.y1));
+            ctx.lineTo(x, toY(line.y2));
+          } else {
+            const y = crispCoordinate(toY(line.y1), lineWidth, pixelRatio);
+            ctx.moveTo(toX(line.x1), y);
+            ctx.lineTo(toX(line.x2), y);
+          }
         }
+        ctx.stroke();
       }
-      ctx.stroke();
     }
 
     if (settings.showDiagonals && hasCell && cellPx >= MIN_DIAGONAL_CELL_PX) {
-      this.strokeSegments(getDiagonals(paper, cellMm, visible), toX, toY);
+      this.strokeSegments(getDiagonals(paper, cellMm, visible), toScreen);
     }
 
     if (settings.showRadial) {
-      this.strokeSegments(getRadialRays(paper, settings.radialStepDeg), toX, toY);
+      this.strokeSegments(getRadialRays(paper, settings.radialStepDeg), toScreen);
     }
 
     // Unclipped from here: labels sit on the paper edge or pin to the viewport.
@@ -143,16 +196,21 @@ export class DrawingGridLayer {
     }
   }
 
-  private strokeSegments(segments: LineSegment[], toX: (mm: number) => number, toY: (mm: number) => number): void {
+  private strokeSegments(segments: LineSegment[], toScreen: (x: number, y: number) => Point): void {
     const ctx = this.ctx;
     ctx.beginPath();
     for (const s of segments) {
-      ctx.moveTo(toX(s.x1), toY(s.y1));
-      ctx.lineTo(toX(s.x2), toY(s.y2));
+      const from = toScreen(s.x1, s.y1);
+      const to = toScreen(s.x2, s.y2);
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
     }
     ctx.stroke();
   }
 
+  // Laid out for an axis-aligned view. Keeping them upright and anchored at a
+  // non-zero View Rotation is part of the View Rotation feature itself (issue
+  // #5); until then the angle is always 0°.
   private drawLabels(input: DrawingGridInput, labelScale: number): void {
     const { paper, settings, view, width, height } = input;
     const ctx = this.ctx;

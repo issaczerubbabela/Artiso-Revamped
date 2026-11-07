@@ -3,8 +3,10 @@
 export const RENDERER_VERSION = '0.0.0';
 
 export * from './viewport';
+export * from './clip-space';
 export * from './crop-constraint';
 export * from './crop-frame';
+export * from './gesture-engine';
 export * from './input-controller';
 export * from './image-layer';
 export * from './grid-layer';

@@ -34,20 +34,33 @@ what it's best at, matching the source app's own layer separation (§8.10).
 ## Viewport transform
 
 Renderer owns a single 2D affine transform (`{ translateX, translateY,
-scale }`) representing pan/zoom. Both the WebGL image draw and the Canvas2D
-grid draw are re-projected through this matrix on every paint — **neither
-the image pipeline nor the grid geometry is recomputed for pan/zoom**, only
-the transform changes. This is the perf-critical design point that makes
-60fps pan/zoom achievable on mid-range Android hardware.
+scale, rotation }`) representing pan/zoom and View Rotation
+(`screen = translate + scale · R(rotation) · content`, rotation in radians).
+The WebGL image draw, the Canvas2D grid/guides draw and the annotation draw
+are all re-projected through this matrix on every paint (`viewMatrix()` for
+Canvas2D, `clipSpaceTransform()` for WebGL) — **neither the image pipeline
+nor the grid geometry is recomputed for pan/zoom/rotate**, only the transform
+changes. This is the perf-critical design point that makes 60fps pan/zoom
+achievable on mid-range Android hardware. Fit-to-screen and the pan limits
+work on the content's rotated bounding box; Real size fixes the scale only.
+Exports always draw at 0° (View Rotation is view state, never exported).
 
 ```ts
 interface Viewport {
   setZoom(scale: number, anchor?: {x: number; y: number}): void;
+  setRotation(radians: number, anchor?: {x: number; y: number}): void;
+  setScaleAndRotation(scale: number, radians: number, anchor?: {x: number; y: number}): void;
   panBy(dx: number, dy: number): void;
-  zoomToFit(): void;
+  zoomToFit(): void; // keeps the angle
   reset(): void;
 }
 ```
+
+Input is split in two: `InputController` is only the Pointer Events adapter
+(element-local CSS px), and `GestureEngine` decides what a pointer sequence
+does to the view. The engine takes an injectable `GestureClock` and
+`FrameScheduler`, so gestures — and later momentum — are unit-tested on a
+fake clock.
 
 ## Render loop
 
