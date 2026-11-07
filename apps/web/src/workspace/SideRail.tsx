@@ -6,7 +6,7 @@ import { IconButton } from '@/components/chrome/IconButton';
 import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import { ViewOnlyBadge } from './ViewOnlyBadge';
-import { TOOL_GROUPS, useToolbarState } from './tools';
+import { TOOL_GROUPS, panelPresentation, useToolbarState } from './tools';
 import { useDisplayStore } from '@/state/display-store';
 import { importReference } from '@/session/import-reference';
 import { closeWorkspace } from '@/session/close-workspace';
@@ -48,6 +48,9 @@ export function SideRail({
               key={tool.id}
               icon={tool.icon}
               label={tool.label}
+              data-tool={tool.id}
+              // Small panels open as a popover anchored to this button.
+              aria-haspopup={panelPresentation(tool.id, 'wide') === 'popover' ? 'dialog' : undefined}
               active={toolMode === tool.id}
               disabled={isDisabled(tool)}
               onClick={() => toggleTool(tool)}
