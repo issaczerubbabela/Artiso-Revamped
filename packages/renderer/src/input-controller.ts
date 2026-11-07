@@ -29,7 +29,15 @@ export class InputController {
   private previousZoomState: ReturnType<Viewport['getState']> | null = null;
 
   private readonly handlePointerDown = (event: PointerEvent) => {
-    (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
+    // Capture keeps a drag tracking after the finger leaves the element, but it
+    // is an enhancement: setPointerCapture throws (NotFoundError) for a pointer
+    // that is already gone, e.g. a quick tap racing a pointercancel on touch,
+    // and that must not stop the pointer from being tracked for pan/pinch.
+    try {
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Not capturable; gestures still work while the pointer stays over the canvas.
+    }
     this.pointers.set(event.pointerId, this.localPoint(event));
     if (this.pointers.size === 2) {
       const [a, b] = firstTwo(this.pointers);
