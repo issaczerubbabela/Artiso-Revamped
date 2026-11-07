@@ -17,6 +17,7 @@ import {
 } from '@artiso/core-engine';
 import {
   AnnotationLayer,
+  CheckPhotoLayer,
   DrawingGridLayer,
   GridLayer,
   ImageLayer,
@@ -31,6 +32,7 @@ import {
   type ViewportState,
 } from '@artiso/renderer';
 import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/shared-types';
+import { useCheckPhotoStore } from '@/state/check-photo-store';
 import { useDisplayStore } from '@/state/display-store';
 import { useWorkspaceStore, type FramingDraft, type PaneSession } from '@/state/workspace-store';
 
@@ -67,6 +69,8 @@ export interface CanvasStageHandle {
 interface Engine {
   viewport: Viewport;
   imageLayer: ImageLayer;
+  // The Drawing Check's Check Photo, between the reference and the grid.
+  checkPhotoLayer: CheckPhotoLayer;
   gridLayer: GridLayer;
   drawingGridLayer: DrawingGridLayer;
   annotationLayer: AnnotationLayer;
@@ -106,6 +110,7 @@ interface NotePrompt {
 }
 
 interface ViewData {
+  referenceId: string | null;
   workingBitmap: ImageBitmap | null;
   editStack: PaneSession['editStack'];
   secondaryGridConfig: GridConfig | null;
@@ -129,6 +134,7 @@ function readView(session: PaneSession | undefined): ViewData {
   const source = session ?? store;
   const cropping = !session && store.toolMode === 'paper';
   return {
+    referenceId: source.referenceId,
     workingBitmap: source.workingBitmap,
     editStack: source.editStack,
     secondaryGridConfig: source.secondaryGridConfig,
@@ -178,6 +184,7 @@ export const CanvasStage = forwardRef<
     const isParked = session !== undefined;
     const containerRef = useRef<HTMLDivElement>(null);
     const imageCanvasRef = useRef<HTMLCanvasElement>(null);
+    const checkCanvasRef = useRef<HTMLCanvasElement>(null);
     const gridCanvasRef = useRef<HTMLCanvasElement>(null);
     const annotationCanvasRef = useRef<HTMLCanvasElement>(null);
     const engineRef = useRef<Engine | null>(null);
@@ -230,16 +237,17 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const container = containerRef.current;
       const imageCanvas = imageCanvasRef.current;
+      const checkCanvas = checkCanvasRef.current;
       const gridCanvas = gridCanvasRef.current;
       const annotationCanvas = annotationCanvasRef.current;
       const initial = readView(sessionRef.current);
-      if (!container || !imageCanvas || !gridCanvas || !annotationCanvas || !initial.workingBitmap) return;
+      if (!container || !imageCanvas || !checkCanvas || !gridCanvas || !annotationCanvas || !initial.workingBitmap) return;
 
       const dpr = window.devicePixelRatio || 1;
       const rect = container.getBoundingClientRect();
       const cssWidth = Math.max(1, rect.width);
       const cssHeight = Math.max(1, rect.height);
-      for (const canvas of [imageCanvas, gridCanvas, annotationCanvas]) {
+      for (const canvas of [imageCanvas, checkCanvas, gridCanvas, annotationCanvas]) {
         canvas.width = Math.max(1, Math.round(cssWidth * dpr));
         canvas.height = Math.max(1, Math.round(cssHeight * dpr));
       }
@@ -247,6 +255,7 @@ export const CanvasStage = forwardRef<
       const viewport = new Viewport(cssWidth, cssHeight, initial.paper.widthMm, initial.paper.heightMm, DRAW_VIEWPORT);
       viewport.setInsets(insetsRef.current);
       const imageLayer = new ImageLayer(imageCanvas);
+      const checkPhotoLayer = new CheckPhotoLayer(checkCanvas);
       // Two passes share the grid canvas: the guides beneath, then the grid.
       const gridLayer = new GridLayer(gridCanvas);
       const drawingGridLayer = new DrawingGridLayer(gridCanvas);
@@ -255,6 +264,7 @@ export const CanvasStage = forwardRef<
       const engine: Engine = {
         viewport,
         imageLayer,
+        checkPhotoLayer,
         gridLayer,
         drawingGridLayer,
         annotationLayer,
@@ -293,6 +303,7 @@ export const CanvasStage = forwardRef<
           // Crop tool: the image under the fixed frame, with the grid previewed
           // inside it and everything outside dimmed.
           engine.imageLayer.draw(view, w, h, adjustments, ratio);
+          engine.checkPhotoLayer.clear(w, h, ratio);
           const { paper } = state.framingDraft;
           engine.drawingGridLayer.draw(
             {
@@ -315,6 +326,10 @@ export const CanvasStage = forwardRef<
 
         const { paper, presentationMode } = state;
         engine.imageLayer.draw(view, w, h, adjustments, ratio);
+        // The Drawing Check: view state only, never part of the reference.
+        const check = useCheckPhotoStore.getState();
+        const shown = state.referenceId ? check.byReference[state.referenceId] : undefined;
+        engine.checkPhotoLayer.draw(shown?.straightened ?? null, paper, check, view, w, h, ratio);
 
         const labelScale = presentationMode ? PRESENTATION_LABEL_SCALE : 1;
         const hasGuide = state.secondaryGridConfig !== null;
@@ -410,6 +425,9 @@ export const CanvasStage = forwardRef<
         applyRealScale();
         engine.dirty = true;
       });
+      const unsubscribeCheck = useCheckPhotoStore.subscribe(() => {
+        engine.dirty = true;
+      });
 
       const resizeObserver = new ResizeObserver(() => {
         const nextRect = container.getBoundingClientRect();
@@ -417,7 +435,7 @@ export const CanvasStage = forwardRef<
         const nextWidth = Math.max(1, nextRect.width);
         const nextHeight = Math.max(1, nextRect.height);
         if (nextWidth === engine.cssWidth && nextHeight === engine.cssHeight && nextDpr === engine.dpr) return;
-        for (const canvas of [imageCanvas, gridCanvas, annotationCanvas]) {
+        for (const canvas of [imageCanvas, checkCanvas, gridCanvas, annotationCanvas]) {
           canvas.width = Math.max(1, Math.round(nextWidth * nextDpr));
           canvas.height = Math.max(1, Math.round(nextHeight * nextDpr));
         }
@@ -439,6 +457,7 @@ export const CanvasStage = forwardRef<
 
       return () => {
         unsubscribeDisplay();
+        unsubscribeCheck();
         resizeObserver.disconnect();
         cancelAnimationFrame(engine.raf);
         engine.input.dispose();
@@ -621,6 +640,11 @@ export const CanvasStage = forwardRef<
     return (
       <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', touchAction: 'none' }}>
         <canvas ref={imageCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+        <canvas
+          ref={checkCanvasRef}
+          data-testid="check-photo-layer"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        />
         <canvas ref={gridCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
         <canvas
           ref={annotationCanvasRef}

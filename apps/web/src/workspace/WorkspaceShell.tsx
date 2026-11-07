@@ -14,6 +14,8 @@ import { TabStrip } from './TabStrip';
 import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 import { PaneStage } from './PaneStage';
 import { CalibrationDialog } from './CalibrationDialog';
+import { CheckPhotoAligner } from './CheckPhotoAligner';
+import { useCheckPhotoLoader } from '@/session/check-photo';
 import { useScreenWakeLock } from '@/platform/wake-lock';
 
 // How long the edge-revealed chrome lingers after the pointer leaves it (ms). A
@@ -61,6 +63,8 @@ export function WorkspaceShell() {
   useEffect(() => cancelHide, []);
   // A reference is on screen next to the artist's paper: don't let it sleep.
   useScreenWakeLock(hasReference);
+  // The open references' Check Photos (Drawing Check), drawn over the reference.
+  useCheckPhotoLoader();
 
   const canvasArea = <div className="workspace__canvas">{hasReference ? <PaneStage /> : <EmptyState error={importError} />}</div>;
 
@@ -147,6 +151,7 @@ export function WorkspaceShell() {
           <SideDock />
         </div>
         <CalibrationDialog />
+        <CheckPhotoAligner />
       </div>
     );
   }
@@ -163,6 +168,7 @@ export function WorkspaceShell() {
         <Toolbar />
       </div>
       <CalibrationDialog />
+      <CheckPhotoAligner />
     </div>
   );
 }

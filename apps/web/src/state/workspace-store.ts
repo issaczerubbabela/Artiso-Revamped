@@ -29,7 +29,7 @@ import { DEFAULT_EXPORT_SETTINGS } from './default-export-settings';
 import { buildGridConfigForType } from './build-grid-config-for-type';
 import { useTabsStore } from './tabs-store';
 
-export type ToolMode = 'idle' | 'paper' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'export' | 'presets';
+export type ToolMode = 'idle' | 'paper' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'check' | 'export' | 'presets';
 export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand';
 
 // What the drawing view starts from before any reference is loaded; never drawn.
@@ -353,12 +353,13 @@ async function renderCropSource(assetId: string, editStack: readonly Operation[]
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   toolMode: 'idle',
-  // A viewer can look and export, but not open any editing tool. Entering the
+  // A viewer can look, export and run a Drawing Check, but not open any editing tool. Entering the
   // Paper & crop tool loads the oriented image to pan under the frame; leaving
   // it writes whatever was framed back to the reference.
   setToolMode: (mode) => {
     const state = get();
-    if (state.role === 'viewer' && mode !== 'idle' && mode !== 'export') return;
+    // The Drawing Check is the viewer's own (a private Check Photo), so it stays open to them.
+    if (state.role === 'viewer' && mode !== 'idle' && mode !== 'export' && mode !== 'check') return;
     const entering = mode === 'paper' && state.toolMode !== 'paper';
     const leaving = state.toolMode === 'paper' && mode !== 'paper';
     if (entering && (!state.workingBitmap || !state.assetId)) return;

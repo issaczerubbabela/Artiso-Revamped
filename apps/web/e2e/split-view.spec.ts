@@ -32,7 +32,8 @@ test.describe('at the Wide breakpoint', () => {
     await openTwoReferencesSplit(page);
     await expect(page.getByTestId('split-pane-left')).toHaveAttribute('data-focused', 'true');
     await expect(page.getByTestId('split-pane-right')).toHaveAttribute('data-focused', 'false');
-    await expect(page.locator('canvas')).toHaveCount(6);
+    // Four stacked canvases per pane: image, Check Photo, grid, annotations.
+    await expect(page.locator('canvas')).toHaveCount(8);
     // Both references are already shown, so neither offers "Split" again.
     await expect(page.getByRole('button', { name: /beside$/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Close split' })).toBeVisible();
@@ -99,7 +100,7 @@ test.describe('at the Wide breakpoint', () => {
     await page.getByRole('button', { name: /^Close (?!split)/ }).last().click();
     await expect(page.getByTestId('split-pane-left')).toHaveCount(0);
     await expect(page.getByRole('tab')).toHaveCount(1);
-    await expect(page.locator('canvas')).toHaveCount(3);
+    await expect(page.locator('canvas')).toHaveCount(4);
   });
 });
 
