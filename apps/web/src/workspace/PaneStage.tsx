@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { cellAt, cellBounds, type CellRef } from '@artiso/core-engine';
-import { DOUBLE_TAP_INTERVAL_MS, LongPressDetector, NO_INSETS, TapDetector } from '@artiso/renderer';
+import { DOUBLE_TAP_INTERVAL_MS, LongPressDetector, MultiFingerTapDetector, NO_INSETS, TapDetector } from '@artiso/renderer';
 import { CanvasStage, type CanvasStageHandle, type StageViewInfo } from '@/canvas/CanvasStage';
 import { useChromeInsets } from '@/components/chrome/chrome-insets';
 import type { PaneSession } from '@/state/workspace-store';
 import { useDisplayStore } from '@/state/display-store';
+import { isTouchLocked, useInputStore } from '@/state/input-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
-import { ZoomPill } from './ZoomPill';
+import { TOUCH_LOCK_UNLOCK_HINT, ZoomPill } from './ZoomPill';
 import { CanvasMenu, type CanvasMenuItem } from './CanvasMenu';
 import { CellFocusControls } from './CellFocusControls';
 import { gridOf, useCellFocusStore } from '@/state/cell-focus-store';
@@ -51,6 +52,8 @@ export function PaneStage({ session }: { session?: PaneSession }) {
   const calibrationOpen = useDisplayStore((s) => s.calibrationOpen);
   const gridHidden = useDisplayStore((s) => s.gridHidden);
   const setGridHidden = useDisplayStore((s) => s.setGridHidden);
+  const touchLocked = useInputStore((s) => s.touchLocked);
+  const setTouchLocked = useInputStore((s) => s.setTouchLocked);
   // The canvas menu, open at this client point.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const insetsRef = useRef(insets);
@@ -172,13 +175,33 @@ export function PaneStage({ session }: { session?: PaneSession }) {
         setMenuAt(point);
       },
     });
+    // The touch shortcuts: a two-finger tap undoes the last mark (Draw only),
+    // a three-finger tap shows or hides the grid. (Double-tap -- fit and
+    // square up -- belongs to the gesture engine.)
+    const fingerTaps = new MultiFingerTapDetector({
+      onTap: (fingers) => {
+        const state = useWorkspaceStore.getState();
+        if (state.presentationMode || isTouchLocked()) return;
+        const focusedPane = !sessionRef.current;
+        if (focusedPane && state.toolMode === 'paper') return;
+        if (fingers === 2) {
+          if (focusedPane && state.toolMode === 'annotate') state.removeLastAnnotation();
+          return;
+        }
+        const display = useDisplayStore.getState();
+        display.setGridHidden(!display.gridHidden);
+      },
+    });
     const onCanvas = (event: PointerEvent) => !(event.target as Element | null)?.closest(CONTROLS);
     const down = (event: PointerEvent) => {
-      if (!onCanvas(event) || (event.pointerType === 'mouse' && event.button !== 0)) {
+      // Touch Lock: the canvas ignores every press (the chrome still works).
+      if (!onCanvas(event) || isTouchLocked() || (event.pointerType === 'mouse' && event.button !== 0)) {
         detector.cancel();
         tapDetector.cancel();
+        fingerTaps.cancel();
         return;
       }
+      fingerTaps.pointerDown(event.pointerId, { x: event.clientX, y: event.clientY }, event.pointerType);
       const point = { x: event.clientX, y: event.clientY };
       pressFocusesPane = sessionRef.current !== undefined;
       pressStartedAt = performance.now();
@@ -193,15 +216,19 @@ export function PaneStage({ session }: { session?: PaneSession }) {
       const point = { x: event.clientX, y: event.clientY };
       detector.pointerMove(event.pointerId, point);
       tapDetector.pointerMove(event.pointerId, point);
+      fingerTaps.pointerMove(event.pointerId, point);
     };
     const up = (event: PointerEvent) => {
       detector.pointerUp(event.pointerId);
       tapDetector.pointerUp(event.pointerId);
+      fingerTaps.pointerUp(event.pointerId);
     };
     const cancel = (event: PointerEvent) => {
       detector.pointerUp(event.pointerId);
       tapDetector.cancel();
       tapDetector.pointerUp(event.pointerId);
+      fingerTaps.cancel();
+      fingerTaps.pointerUp(event.pointerId);
     };
     el.addEventListener('pointerdown', down, true);
     el.addEventListener('pointermove', move, true);
@@ -215,6 +242,7 @@ export function PaneStage({ session }: { session?: PaneSession }) {
       clearExit();
       detector.dispose();
       tapDetector.dispose();
+      fingerTaps.dispose();
     };
   }, [menuAllowed, cellAtClient, focusedCell]);
 
@@ -260,6 +288,12 @@ export function PaneStage({ session }: { session?: PaneSession }) {
     { label: 'Fit to screen', onSelect: () => stageRef.current?.fit() },
     { label: 'Reset rotation', onSelect: () => stageRef.current?.resetRotation() },
     { label: gridHidden ? 'Show grid' : 'Hide grid', onSelect: () => setGridHidden(!gridHidden) },
+    // Locking is one tap; unlocking takes the 1-second press on the zoom pill,
+    // so it can't happen by accident (a locked canvas only opens this menu by
+    // right-click or the keyboard).
+    touchLocked
+      ? { label: 'Touch Lock', onSelect: () => {}, disabled: true, hint: TOUCH_LOCK_UNLOCK_HINT }
+      : { label: 'Touch Lock', onSelect: () => setTouchLocked(true) },
   ];
   // Focus this cell: the cell the menu was opened on (greyed out, saying why,
   // without squares; left out off the paper).
@@ -327,6 +361,8 @@ export function PaneStage({ session }: { session?: PaneSession }) {
           onFit={() => stageRef.current?.fit()}
           onRealSize={handleRealSize}
           onResetRotation={() => stageRef.current?.resetRotation()}
+          touchLocked={touchLocked}
+          onTouchLock={setTouchLocked}
         />
       ) : null}
       {!presentationMode && !cropping ? (
