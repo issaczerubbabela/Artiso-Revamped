@@ -13,6 +13,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import type { Breakpoint } from './use-breakpoint';
 
 export interface ToolDef {
   id: Exclude<ToolMode, 'idle'>;
@@ -44,6 +45,26 @@ export const TOOL_GROUPS: readonly (readonly ToolDef[])[] = [
     { id: 'export', label: 'Export', short: 'Export', icon: DownloadSimple },
   ],
 ];
+
+// How a tool's panel is presented (docs/design.md §7, iPad patterns):
+//   popover  small panels, anchored to their rail button (Wide and Regular);
+//   column   large panels in the floating side column (Wide);
+//   sheet    the bottom sheet with resting heights (large panels at Regular,
+//            every panel at Compact).
+export type PanelPresentation = 'popover' | 'column' | 'sheet';
+
+// Small enough to sit in a popover beside the rail.
+const POPOVER_TOOLS: ReadonlySet<ToolMode> = new Set<ToolMode>(['adjustments', 'rotateFlip', 'presets', 'annotate']);
+
+// Tools that work on the canvas itself (Draw): a tap on the canvas is the tool
+// at work, not a tap outside its popover, so it leaves the popover open.
+export const CANVAS_TOOLS: ReadonlySet<ToolMode> = new Set<ToolMode>(['annotate']);
+
+export function panelPresentation(mode: ToolMode, breakpoint: Breakpoint): PanelPresentation {
+  if (breakpoint === 'compact') return 'sheet';
+  if (POPOVER_TOOLS.has(mode)) return 'popover';
+  return breakpoint === 'wide' ? 'column' : 'sheet';
+}
 
 // The state both the Wide/Regular rail and the Compact toolbar read, so the
 // enabling rules live in one place. Context-aware: controls are disabled, not

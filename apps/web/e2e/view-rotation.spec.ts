@@ -138,13 +138,9 @@ test.describe('turning the view', () => {
     await twist(page, 50);
     await expect(angle(page)).toHaveText('40°');
     await page.getByRole('button', { name: 'Draw', exact: true }).click();
-    // The Draw panel's dock changes the pane's insets (and so the visible
-    // centre and the view's framing) a moment after the click: wait for it.
-    await expect(page.getByTestId('side-dock')).toHaveAttribute('aria-hidden', 'false');
-    const pane = page.getByTestId('pane').first();
-    await expect
-      .poll(async () => Number(await pane.getAttribute('data-inset-right')))
-      .toBeGreaterThan(0);
+    // The Draw panel is a popover beside the rail: it reserves no inset, so
+    // the view's framing does not change when it opens.
+    await expect(page.getByRole('dialog', { name: 'Draw' })).toBeVisible();
     const { x, y } = await visibleCentre(page);
     await page.mouse.move(x - 60, y - 30);
     await page.mouse.down();

@@ -113,6 +113,17 @@
      as custom properties inside @media, see packages/ui/src/tokens/breakpoints.ts */
 }
 
+/* Apple platforms (iPad, iPhone, Mac): the system's own San Francisco for
+   headings and body and SF Mono for numeric readouts, so the app feels at home
+   there (docs/design.md §3). No Space Grotesk on Apple. The attribute is set
+   before first paint by an inline script in apps/web's layout. Sizes, weights
+   and every colour are unchanged. */
+:root[data-platform='apple'] {
+  --font-family-heading: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-body: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+}
+
 /* Opt-in only. Derived, NOT yet visually verified as an artboard — see
    docs/design.md §8. There is intentionally no prefers-color-scheme rule. */
 :root[data-theme='light'] {

@@ -355,17 +355,26 @@ export const CanvasStage = forwardRef<
 
         const labelScale = presentationMode ? PRESENTATION_LABEL_SCALE : 1;
         const hasGuide = state.secondaryGridConfig !== null;
-        if (state.secondaryGridConfig) {
+        // Show/hide grid (the canvas menu): the guides and the grid both go.
+        if (useDisplayStore.getState().gridHidden) {
+          const ctx = gridCanvas!.getContext('2d');
+          if (ctx) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, gridCanvas!.width, gridCanvas!.height);
+          }
+        } else if (state.secondaryGridConfig) {
           const geometry = getCachedGridGeometry(geometryCacheRef, paper.widthMm, paper.heightMm, state.secondaryGridConfig);
           const layers: GridDrawLayer[] = [
             { geometry, config: presentationStyle(state.secondaryGridConfig, presentationMode) },
           ];
           engine.gridLayer.draw(layers, view, w, h, { labelScale, pixelRatio: ratio });
         }
-        engine.drawingGridLayer.draw(
-          { paper, settings: presentationSettings(state.gridSettings, presentationMode), view, width: w, height: h },
-          { pixelRatio: ratio, labelScale, clear: !hasGuide },
-        );
+        if (!useDisplayStore.getState().gridHidden) {
+          engine.drawingGridLayer.draw(
+            { paper, settings: presentationSettings(state.gridSettings, presentationMode), view, width: w, height: h },
+            { pixelRatio: ratio, labelScale, clear: !hasGuide },
+          );
+        }
 
         const resolved = getCachedAnnotationGeometry(annotationCacheRef, paper.widthMm, paper.heightMm, state.annotations);
         engine.annotationLayer.draw(resolved, engine.draft, view, w, h, ratio);
@@ -686,7 +695,7 @@ export const CanvasStage = forwardRef<
           data-testid="check-photo-layer"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         />
-        <canvas ref={gridCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+        <canvas ref={gridCanvasRef} data-layer="grid" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
         <canvas
           ref={annotationCanvasRef}
           data-layer="annotation"

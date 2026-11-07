@@ -1,6 +1,6 @@
 # Phase 11 — View Rotation, Native-Feel Gestures & iPad Chrome
 
-**Status: in progress (#4 and #5 done; #6 next).** Full spec, user stories and
+**Status: in progress (#4, #5 and #6 done; real-iPad pass owed).** Full spec, user stories and
 testing decisions: [issue #1](https://github.com/issaczerubbabela/Artiso-Revamped/issues/1).
 Terms: [`GLOSSARY.md`](../../GLOSSARY.md). Activated by direct user instruction
 after Phase 10; the user draws beside an iPad Air 11" (M4) + Apple Pencil Pro,
@@ -29,8 +29,8 @@ landscape on a stand.
 
 - [x] ADR: View Rotation is view state; `design.md` amendments. (#5:
       [ADR 0002](../adr/0002-view-rotation-is-view-state.md); the *motion
-      that follows a gesture* exception. The iPad-pattern and Apple-font
-      amendments land with #6.)
+      that follows a gesture* exception. #6: popover, sheet-height and
+      canvas-menu patterns and the Apple font stack in `design.md` §3/§7.)
 - [x] Viewport rotation (pure) + unit tests. (#4: rotation angle in the one
       transform, all layers project through it, rotated fit / pan limits /
       real size; angle held at 0° until #5.)
@@ -43,9 +43,15 @@ landscape on a stand.
 - [x] Device-local angle store, zoom-pill angle, mode rules. (#5: angle per
       reference in localStorage, Lock rotation switch, Paper tool at 0°,
       Presentation and Real size keep the angle; `view-rotation.spec.ts`.)
-- [ ] Popovers, sheet heights, Regular-breakpoint sheet for large panels.
-- [ ] Long-press canvas menu.
-- [ ] Apple font stack, icon weights.
+- [x] Popovers, sheet heights, Regular-breakpoint sheet for large panels.
+      (#6: `PanelPopover`, `BottomSheet` peek/half/full with swipe-to-close,
+      `panelPresentation()`; placement maths unit-tested in `@artiso/ui`.)
+- [x] Long-press canvas menu. (#6: long-press / right-click / context-menu
+      key; Fit to screen, Reset rotation, Show/hide grid; `LongPressDetector`
+      unit-tested with injected timers.)
+- [x] Apple font stack, icon weights. (#6: San Francisco / SF Mono under
+      `html[data-platform="apple"]`; Phosphor regular idle, fill active;
+      `ipad-chrome.spec.ts`.)
 
 ## Exit criteria
 

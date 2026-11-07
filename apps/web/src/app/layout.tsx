@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import './globals.css';
 import './chrome.css';
+import { APPLE_PLATFORM_SCRIPT } from '@/platform/apple-fonts';
 
 // Self-hosted variable, latin-subset fonts (docs/design.md §3) so the offline
 // build never depends on a font CDN. Only Manrope is preloaded: it is the one
@@ -60,7 +61,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${manrope.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    // data-platform is set by the inline script before React hydrates, hence
+    // the suppressed (attribute-only) hydration warning on <html>.
+    <html lang="en" className={`${manrope.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPLE_PLATFORM_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

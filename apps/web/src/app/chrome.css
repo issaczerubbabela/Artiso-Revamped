@@ -73,6 +73,20 @@
 .pane {
   position: absolute;
   inset: 0;
+  /* A long-press opens Artiso's canvas menu, not iOS's callout or selection. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Focusable for the keyboard's canvas menu; the ring sits just inside the edge. */
+.pane:focus {
+  outline: none;
+}
+
+.pane:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 /* ---------- Matte panel (rail, dock, top bar, zoom pill) ---------- */
@@ -428,19 +442,32 @@
 /* ---------- Compact: bottom toolbar and sheet ---------- */
 
 .compact-stack {
-  position: absolute;
   left: var(--inset-left);
+}
+
+/* A bottom sheet's stack spans the usable height (so a sheet can grow to full)
+   but lets every touch through to the canvas except on the sheet itself. */
+.sheet-stack {
+  position: absolute;
+  top: var(--inset-top);
   right: var(--inset-right);
   bottom: var(--inset-bottom);
   z-index: var(--z-chrome);
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: var(--space-sm);
   pointer-events: none;
 }
 
-.compact-stack > * {
+.sheet-stack > * {
   pointer-events: auto;
+  flex-shrink: 0;
+}
+
+/* Regular (iPad portrait): beside the rail, not under it. */
+.sheet-stack--regular {
+  left: calc(var(--inset-left) + 72px + var(--space-md));
 }
 
 .toolbar {
@@ -475,10 +502,146 @@
 .sheet {
   display: flex;
   flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 0;
+  max-height: 100%;
+  padding: 0 var(--space-md) var(--space-md);
+  overflow: hidden;
+}
+
+/* The sheet itself may shrink to fit its stack (the height it rests at is set
+   inline); the toolbar below it may not. */
+.sheet-stack > .sheet {
+  flex-shrink: 1;
+}
+
+/* Grab bar + title: the part of the sheet that drags. */
+.sheet__top {
+  flex-shrink: 0;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A 44px target holding the iPad-style grab bar. */
+.sheet__grabber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  margin: 0 calc(-1 * var(--space-md));
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.sheet__bar {
+  width: 40px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.sheet__grabber:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-offset) - 2px);
+}
+
+.sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-md);
-  max-height: 45dvh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* ---------- Popover (small panels, Wide/Regular) ---------- */
+
+/* A matte panel beside its rail button with an arrow pointing at it. Placed in
+   JS (placePopover); appears and disappears instantly. */
+.popover {
+  position: fixed;
+  z-index: var(--z-chrome);
+  width: 320px;
+  max-width: calc(100vw - 2 * var(--space-md));
+}
+
+.popover:focus {
+  outline: none;
+}
+
+.popover__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
   padding: var(--space-md);
   overflow-y: auto;
+  scrollbar-width: thin;
+  border-radius: inherit;
+}
+
+/* A square turned 45°, half outside the panel, drawn in the panel's own
+   material so it reads as part of it. */
+.popover__arrow {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  pointer-events: none;
+}
+
+.popover[data-side='right'] .popover__arrow {
+  left: -8px;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  transform: rotate(45deg);
+}
+
+.popover[data-side='left'] .popover__arrow {
+  right: -8px;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(45deg);
+}
+
+/* ---------- Canvas menu (long-press / right-click) ---------- */
+
+.canvas-menu {
+  position: fixed;
+  z-index: var(--z-dialog);
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: var(--space-xs);
+}
+
+.canvas-menu__item {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+  font-size: var(--font-body-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-menu__item:hover,
+.canvas-menu__item:focus {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.canvas-menu__item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 /* ---------- Immersive (presentation) mode ---------- */
