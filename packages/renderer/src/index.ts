@@ -22,3 +22,4 @@ export * from './cell-focus-layer';
 export * from './multi-finger-tap';
 export * from './hold';
 export * from './pointer-overlays';
+export * from './shortcuts';
