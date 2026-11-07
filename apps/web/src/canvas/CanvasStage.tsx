@@ -53,7 +53,7 @@ import {
 import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/shared-types';
 import { cellFocusEntry, useCellFocusStore } from '@/state/cell-focus-store';
 import { useCheckPhotoStore } from '@/state/check-photo-store';
-import { useDisplayStore } from '@/state/display-store';
+import { isGridOffCanvas, useDisplayStore } from '@/state/display-store';
 import { isPencilOnly, isTouchLocked, useInputStore } from '@/state/input-store';
 import { useMeasureStore } from '@/state/measure-store';
 import { readOrientationView, writeOrientationView } from '@/state/orientation-view-store';
@@ -435,8 +435,10 @@ export const CanvasStage = forwardRef<
 
         const labelScale = presentationMode ? PRESENTATION_LABEL_SCALE : 1;
         const hasGuide = state.secondaryGridConfig !== null;
-        // Show/hide grid (the canvas menu): the guides and the grid both go.
-        if (useDisplayStore.getState().gridHidden) {
+        // Show/hide grid (the canvas menu, G) or Space held: the guides and
+        // the grid both go.
+        const gridOff = isGridOffCanvas(useDisplayStore.getState());
+        if (gridOff) {
           const ctx = gridCanvas!.getContext('2d');
           if (ctx) {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -449,7 +451,7 @@ export const CanvasStage = forwardRef<
           ];
           engine.gridLayer.draw(layers, view, w, h, { labelScale, pixelRatio: ratio });
         }
-        if (!useDisplayStore.getState().gridHidden) {
+        if (!gridOff) {
           engine.drawingGridLayer.draw(
             { paper, settings: presentationSettings(state.gridSettings, presentationMode), view, width: w, height: h },
             { pixelRatio: ratio, labelScale, clear: !hasGuide },

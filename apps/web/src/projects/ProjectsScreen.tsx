@@ -12,6 +12,7 @@ import { refreshProjectsFromServer } from '@/session/auth-bootstrap';
 import { useAuthStore } from '@/state/auth-store';
 import { useDisplayStore } from '@/state/display-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
+import { GestureHint } from '@/workspace/GestureHint';
 import { ShareDialog } from './ShareDialog';
 
 // Phase 2's Home/Projects screen (docs/phases/phase-2-cloud-projects-sync.md):
@@ -152,9 +153,12 @@ export function ProjectsScreen() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 var(--space-lg) var(--space-lg)' }}>
         {isLoading ? null : projects.length === 0 ? (
-          <p style={{ fontFamily: 'var(--font-family-base)', color: 'var(--color-ink-muted)' }}>
-            No references yet — import a photo to get started.
-          </p>
+          <>
+            <p style={{ fontFamily: 'var(--font-family-base)', color: 'var(--color-ink-muted)' }}>
+              No references yet — import a photo to get started.
+            </p>
+            <GestureHint />
+          </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 'var(--space-md)' }}>
             {projects.map((project) => (

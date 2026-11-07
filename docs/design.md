@@ -266,8 +266,9 @@ by a **long-press** on the canvas (~500ms of a still touch or Pencil; movement o
 **context-menu key / Shift+F10** while the canvas has focus (the canvas is a
 focusable group with a visible focus ring). Items: *Fit to screen*, *Reset
 rotation*, *Show grid / Hide grid* (a view toggle, never an edit or an export
-change); *Touch Lock* and *Focus this cell* join in Phase 12, then *Paste* last
-(opens a copied image as a new reference tab, Phase 13). It opens 10px below
+change); *Touch Lock* and *Focus this cell* join in Phase 12, then *Paste*
+(opens a copied image as a new reference tab, Phase 13) and *Gestures &
+shortcuts* last (opens the card, Phase 13). It opens 10px below
 and right of the press so the finger is never on an item (flipping up/left near an
 edge), at the visible centre when opened from the keyboard. Focus lands on the
 first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
@@ -361,6 +362,33 @@ HEIC in a browser that can't decode it ("convert it to JPEG") -- is reported on 
 or, with a reference open, a small matte **import notice** (role `alert`, label
 size, a 44px *Dismiss* button) under the top bar on Wide/Regular and floating at
 the top on Compact. The next successful import clears it.
+
+**Keyboard shortcuts (Phase 13).** One registry (`SHORTCUTS` in
+`@artiso/renderer`) drives both the keys and the card: **G** show/hide grid,
+**hold Space** hide the grid until let go (never changes the Show/Hide grid
+setting), **F** immersive mode, **0** fit, **R** reset View Rotation, **← →** step
+cells while Cell Focus is on, **⌘Z** undo the last mark (Draw only, like the
+two-finger tap), **⌘V** paste, **?** the card. Ctrl stands in for ⌘ off Apple
+platforms (the same `data-platform="apple"` mark as the fonts). Nothing acts while
+a text or number field has focus, and Space and the arrows are left to a focused
+button, slider, menu or sheet, which already use them (Drawing Check's hold,
+Touch Lock's hold, the canvas menu, the sheet grabber, Check Photo corners). 0 and
+R follow the zoom pill: not under Touch Lock, in Presentation mode or the Paper
+tool.
+
+**Gestures & shortcuts card (Phase 13).** A modal matte card (`dialog`, 680px
+max, two columns that stack when narrow) over a 45% black scrim: *Gestures*
+(a static list) and *Keyboard* (generated from the registry, keys as small
+bordered keycaps, platform-labelled: ⌘Z or Ctrl+Z). Opens from the canvas menu's
+last item *Gestures & shortcuts*, by **?**, or by **holding ⌘ (Ctrl) alone for
+~1s** the way iPad apps show their shortcuts; closes on Esc, **?**, its 44px
+*Close* button or a tap outside, returning focus to where it was. Instant.
+
+**First-run gesture hint (Phase 13).** One matte pill line on the empty canvas
+(the empty Projects list, or the empty workspace) the first time on a device:
+"Pinch to zoom, twist to turn, long-press for the menu." with a cyan
+*Gestures & shortcuts* text button and a 44px *Dismiss hint* ×. Device-local; never
+shown again once dismissed or once any reference has been opened.
 
 **Icons.** Phosphor stays (SF Symbols cannot be licensed for the web): regular
 weight when idle, filled weight when active (§5), the way SF Symbols behave.

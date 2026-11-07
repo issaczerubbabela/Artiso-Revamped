@@ -15,6 +15,7 @@ import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 import { PanelPopover } from './PanelPopover';
 import { panelPresentation } from './tools';
 import { PaneStage } from './PaneStage';
+import { GestureHint } from './GestureHint';
 import { ImportNotice } from './ImportNotice';
 import { CalibrationDialog } from './CalibrationDialog';
 import { CheckPhotoAligner } from './CheckPhotoAligner';
@@ -202,6 +203,7 @@ function EmptyState({ error }: { error: string | null }) {
         Import a reference photo to get started.
       </span>
       {error ? <span style={{ fontSize: 'var(--font-label-size)', color: 'var(--color-danger)' }}>{error}</span> : null}
+      <GestureHint />
     </div>
   );
 }

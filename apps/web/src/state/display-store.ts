@@ -79,6 +79,17 @@ interface DisplayState extends Persisted {
   // export) are untouched, and like any glance it is not remembered.
   gridHidden: boolean;
   setGridHidden: (hidden: boolean) => void;
+
+  // Space-hold (issue #11): the grid is hidden only while Space is held, over
+  // and above `gridHidden`, which it never changes -- letting go puts back
+  // whatever the artist had chosen.
+  gridPeek: boolean;
+  setGridPeek: (peek: boolean) => void;
+}
+
+// Whether the grid is off the canvas right now, for either reason.
+export function isGridOffCanvas(state: Pick<DisplayState, 'gridHidden' | 'gridPeek'>): boolean {
+  return state.gridHidden || state.gridPeek;
 }
 
 export const useDisplayStore = create<DisplayState>((set, get) => {
@@ -101,5 +112,9 @@ export const useDisplayStore = create<DisplayState>((set, get) => {
     closeCalibration: () => set({ calibrationOpen: false }),
     gridHidden: false,
     setGridHidden: (gridHidden) => set({ gridHidden }),
+    gridPeek: false,
+    setGridPeek: (gridPeek) => {
+      if (get().gridPeek !== gridPeek) set({ gridPeek });
+    },
   };
 });
