@@ -5,7 +5,8 @@ import { DEFAULT_CANVAS_SURFACE, type CanvasSurface } from '@artiso/ui';
 // Device-local display preferences (docs/architecture/Grid-Feature-Spec.md §3,
 // §10): which unit lengths are entered in, the DPI that turns px into mm, and
 // the screen calibration behind Real size, and which canvas surround is
-// preferred (docs/design.md §6). These describe *this device* -- a
+// preferred (docs/design.md §6), and whether the Lock rotation switch is on
+// (View Rotation's own per-reference angle lives in view-rotation-store.ts). These describe *this device* -- a
 // phone and a desktop have different physical pixel densities -- so they live
 // in localStorage and are never synced with the Reference.
 
@@ -17,6 +18,8 @@ interface Persisted {
   dpi: number;
   screen: ScreenCalibration | null;
   canvasSurface: CanvasSurface;
+  // Lock rotation: a two-finger twist no longer turns the view (pinch and pan still work).
+  rotationLocked: boolean;
 }
 
 const DEFAULTS: Persisted = {
@@ -24,6 +27,7 @@ const DEFAULTS: Persisted = {
   dpi: DEFAULT_DISPLAY_DPI,
   screen: null,
   canvasSurface: DEFAULT_CANVAS_SURFACE,
+  rotationLocked: false,
 };
 
 // Every storage access is guarded: it throws in some private windows and with
@@ -42,6 +46,7 @@ function read(): Persisted {
       dpi,
       screen: screen.success ? screen.data : null,
       canvasSurface: json.canvasSurface === 'neutral' ? 'neutral' : DEFAULT_CANVAS_SURFACE,
+      rotationLocked: json.rotationLocked === true,
     };
   } catch {
     return DEFAULTS;
@@ -61,6 +66,7 @@ interface DisplayState extends Persisted {
   setDpi: (dpi: number) => void;
   setScreen: (screen: ScreenCalibration | null) => void;
   setCanvasSurface: (surface: CanvasSurface) => void;
+  setRotationLocked: (locked: boolean) => void;
 
   // Whether the calibration dialog is open. Transient UI state, never persisted:
   // Real size and the Paper panel both open it, one dialog serves them all.
@@ -72,8 +78,8 @@ interface DisplayState extends Persisted {
 export const useDisplayStore = create<DisplayState>((set, get) => {
   const persist = (patch: Partial<Persisted>) => {
     set(patch);
-    const { unit, dpi, screen, canvasSurface } = get();
-    write({ unit, dpi, screen, canvasSurface });
+    const { unit, dpi, screen, canvasSurface, rotationLocked } = get();
+    write({ unit, dpi, screen, canvasSurface, rotationLocked });
   };
   return {
     ...read(),
@@ -83,6 +89,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => {
     },
     setScreen: (screen) => persist({ screen }),
     setCanvasSurface: (canvasSurface) => persist({ canvasSurface }),
+    setRotationLocked: (rotationLocked) => persist({ rotationLocked }),
     calibrationOpen: false,
     openCalibration: () => set({ calibrationOpen: true }),
     closeCalibration: () => set({ calibrationOpen: false }),

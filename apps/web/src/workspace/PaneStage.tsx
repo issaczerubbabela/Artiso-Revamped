@@ -77,7 +77,13 @@ export function PaneStage({ session }: { session?: PaneSession }) {
     >
       <CanvasStage ref={stageRef} session={session} insets={insets} onViewChange={setInfo} />
       {info && !presentationMode && !cropping ? (
-        <ZoomPill info={info} position={pillPosition} onFit={() => stageRef.current?.fit()} onRealSize={handleRealSize} />
+        <ZoomPill
+          info={info}
+          position={pillPosition}
+          onFit={() => stageRef.current?.fit()}
+          onRealSize={handleRealSize}
+          onResetRotation={() => stageRef.current?.resetRotation()}
+        />
       ) : null}
     </div>
   );

@@ -75,6 +75,24 @@ pointer sequence does; injectable clock + frame scheduler),
 [`ki-canvas-first-design`](../knowledge/ki-canvas-first-design.md),
 [`ki-immediate-feedback`](../knowledge/ki-immediate-feedback.md).
 
+## Phase 11 note — View Rotation and gesture motion
+
+Per [phase-11](../../docs/phases/phase-11-canvas-rotation-ipad-chrome.md) and
+[ADR 0002](../../docs/adr/0002-view-rotation-is-view-state.md):
+
+- Two pointers are one transform (pinch + pan + twist) via
+  `Viewport.transformAbout`; the twist has a ~10° dead zone and snaps to a
+  right angle within 5° on release. Never call the image pipeline or grid
+  engine from it — rotation is transform-only.
+- Glide and spring-back run on the engine's `FrameScheduler`, read the
+  injected clock, stop on the next pointer down, and are off under
+  `prefers-reduced-motion`. Rotation never has momentum.
+- The angle is view state: the app stores it device-locally per reference
+  (`view-rotation-store.ts`) and never in the EditStack; exports draw at 0°.
+- Testing: dead zone, snap, glide end position after N frames, spring-back to
+  the limit, and reduced motion on a fake clock; e2e in both `chromium` and
+  `webkit` with synthetic touch Pointer Events.
+
 ## Phase 9 note — mm scale, Real size, CSS-px input
 
 Extends this workflow per

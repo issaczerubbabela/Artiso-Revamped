@@ -36,6 +36,20 @@ considered" feeling instead of motion. Because every panel *floats* over the can
 rather than sitting in the page flow, opening or closing one never reflows the
 canvas by itself — that is what makes instant swaps feel stable rather than jumpy.
 
+**Exception — motion that follows a gesture.** The canvas may keep moving for a
+moment *after* the artist's own gesture, as the continuation of that gesture, never
+as a transition of its own:
+
+- a flicked pan **glides** on with decaying speed and settles;
+- a pinch released past a zoom limit **springs back** to the limit.
+
+Both stop the instant a finger touches the canvas, and both are off under
+`prefers-reduced-motion` (iPadOS Reduce Motion): the canvas then stops exactly where
+the gesture left it, and a pinch simply stops at the limit. Rotation never has
+momentum; a release within 5° of a right angle snaps to it instantly. Chrome is not
+covered by this exception: panels, popovers, sheets, hover and focus states all stay
+instant swaps.
+
 ## 2. Color
 
 | Token | Dark (default) | Light (derived — not yet visually verified on the canvas) |
@@ -244,6 +258,11 @@ classroom display is not nudged out of framing.
   UI has been drawn).
 - Android-specific chrome (system insets, back gesture, status-bar colour beyond the
   `theme-color` meta) is out of scope for this pass.
+- **View Rotation in the zoom pill** (Phase 11): while the view is turned, the pill
+  shows the angle in whole degrees (monospace readout, as a ghost button) after the
+  zoom %; tapping it resets to 0°. The **Lock rotation** switch sits under the
+  Rotate (edit) buttons in the Rotate/Flip panel, since both are about which way up
+  the reference is; it is a device-local preference, not an edit.
 
 ## 9. Repo changes made alongside this document
 

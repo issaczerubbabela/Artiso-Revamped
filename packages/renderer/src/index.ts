@@ -7,6 +7,7 @@ export * from './clip-space';
 export * from './crop-constraint';
 export * from './crop-frame';
 export * from './gesture-engine';
+export * from './view-rotation';
 export * from './input-controller';
 export * from './image-layer';
 export * from './grid-layer';

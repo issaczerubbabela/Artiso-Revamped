@@ -1,6 +1,14 @@
 import { GestureEngine, type GestureEngineOptions } from './gesture-engine';
 import type { Point } from './viewport';
 
+// WebKit's GestureEvent (not in the DOM typings): cumulative since gesturestart.
+interface SafariGestureEvent extends UIEvent {
+  clientX: number;
+  clientY: number;
+  scale: number;
+  rotation: number;
+}
+
 export interface InputControllerOptions extends GestureEngineOptions {
   element: HTMLElement;
 }
@@ -29,7 +37,7 @@ export class InputController {
   private readonly handlePointerMove = (event: PointerEvent) => {
     // A hovering mouse is not a gesture; skip measuring the element for it.
     if (!this.engine.isTracking(event.pointerId)) return;
-    this.engine.pointerMove(event.pointerId, this.localPoint(event.clientX, event.clientY));
+    this.engine.pointerMove(event.pointerId, this.localPoint(event.clientX, event.clientY), { shiftKey: event.shiftKey });
   };
 
   private readonly handlePointerUp = (event: PointerEvent) => {
@@ -38,7 +46,30 @@ export class InputController {
 
   private readonly handleWheel = (event: WheelEvent) => {
     event.preventDefault();
-    this.engine.wheel(this.localPoint(event.clientX, event.clientY), event.deltaY);
+    // Line/page deltas (Firefox, some mice) are scaled to roughly pixels.
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+    this.engine.wheel(this.localPoint(event.clientX, event.clientY), event.deltaY * unit, { ctrlKey: event.ctrlKey });
+  };
+
+  // Safari's trackpad pinch/rotate arrives as non-standard gesture events
+  // carrying a cumulative scale and rotation. On iPad the same events also
+  // accompany a two-finger touch; the engine ignores them while it is
+  // tracking pointers, so a touch gesture is never handled twice.
+  private readonly handleGestureStart = (event: Event) => {
+    event.preventDefault();
+    const g = event as SafariGestureEvent;
+    this.engine.trackpadGestureStart(this.localPoint(g.clientX, g.clientY));
+  };
+
+  private readonly handleGestureChange = (event: Event) => {
+    event.preventDefault();
+    const g = event as SafariGestureEvent;
+    this.engine.trackpadGestureChange(this.localPoint(g.clientX, g.clientY), g.scale, g.rotation);
+  };
+
+  private readonly handleGestureEnd = (event: Event) => {
+    event.preventDefault();
+    this.engine.trackpadGestureEnd();
   };
 
   constructor(private readonly options: InputControllerOptions) {
@@ -49,6 +80,9 @@ export class InputController {
     element.addEventListener('pointerup', this.handlePointerUp);
     element.addEventListener('pointercancel', this.handlePointerUp);
     element.addEventListener('wheel', this.handleWheel, { passive: false });
+    element.addEventListener('gesturestart', this.handleGestureStart);
+    element.addEventListener('gesturechange', this.handleGestureChange);
+    element.addEventListener('gestureend', this.handleGestureEnd);
   }
 
   dispose(): void {
@@ -58,6 +92,9 @@ export class InputController {
     element.removeEventListener('pointerup', this.handlePointerUp);
     element.removeEventListener('pointercancel', this.handlePointerUp);
     element.removeEventListener('wheel', this.handleWheel);
+    element.removeEventListener('gesturestart', this.handleGestureStart);
+    element.removeEventListener('gesturechange', this.handleGestureChange);
+    element.removeEventListener('gestureend', this.handleGestureEnd);
     this.engine.dispose();
   }
 
