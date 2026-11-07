@@ -1,6 +1,6 @@
 'use client';
 
-import type { KeyboardEvent } from 'react';
+import { useEffect, type KeyboardEvent } from 'react';
 import { Slider, labelStyle } from '@/components/controls';
 import { PanelButton } from '@/workspace/PanelButton';
 import { useCheckPhotoStore } from '@/state/check-photo-store';
@@ -24,6 +24,9 @@ export function CheckPanel() {
   const busy = useCheckPhotoStore((s) => s.busy);
   const error = useCheckPhotoStore((s) => s.error);
   const alignment = useCheckPhotoStore((s) => s.alignment);
+
+  // Closing the panel mid-hold must not leave the reference hidden.
+  useEffect(() => () => setHolding(false), [setHolding]);
 
   // Press and hold (pointer, or Space/Enter held down) shows only the photo.
   const holdKey = (event: KeyboardEvent<HTMLButtonElement>, down: boolean) => {
