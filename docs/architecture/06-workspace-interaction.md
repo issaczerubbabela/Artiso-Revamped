@@ -17,9 +17,19 @@ breakpoint — not a separate mobile app and desktop app.
 
 | Breakpoint | Width | Chrome |
 | --- | --- | --- |
-| Compact | < 768px | Floating bottom toolbar (icon + label, scrolls with edge fades) + floating bottom sheet for the tool panel — the canvas is full-bleed underneath |
-| Regular (transitional) | 768–1023px | Same floating left rail as Wide; the tool panel is a dismissible overlay drawer instead of a persistent dock |
-| Wide | ≥ 1024px | Floating left icon rail (mode switch) + floating right dock (active tool's config panel) + floating top pill (reference tabs, split) — all inset matte panels over a full-bleed canvas |
+| Compact | < 768px | Floating bottom toolbar (icon + label, scrolls with edge fades) + floating bottom sheet (peek / half / full) for every tool panel — the canvas is full-bleed underneath |
+| Regular | 768–1023px | Same floating left rail as Wide; small panels are popovers on their rail button, large panels a bottom sheet beside the rail (iPad portrait) |
+| Wide | ≥ 1024px | Floating left icon rail (mode switch) + small panels as popovers on their rail button + large panels in the floating right column + floating top pill (reference tabs, split) — all inset matte panels over a full-bleed canvas |
+
+**Panel presentation (Phase 11, issue #6).** Which container shows a panel is a
+per-panel, per-breakpoint choice (`panelPresentation()` in
+`apps/web/src/workspace/tools.ts`): Adjust, Rotate/Flip, Presets and Draw are
+small and open as a `<PanelPopover>` at Wide and Regular; every other panel opens
+in the `<SideDock>` column at Wide and in the `<BottomSheet>` at Regular and
+Compact. Popovers are transient and reserve no inset (the canvas does not re-fit
+around them); a tap outside or Esc puts them away. A long-press, right-click or the
+context-menu key on the canvas opens the **canvas menu** (Fit to screen, Reset
+rotation, Show/hide grid). See [`docs/design.md`](../design.md) §7.
 
 Every panel *floats over* the canvas (see [`docs/design.md`](../design.md) §5–§7);
 none takes layout space from it. The canvas stays full-bleed and instead *fits its
@@ -27,7 +37,7 @@ content to the region the chrome leaves uncovered* — see "Inset-aware view" be
 
 The same `WorkspaceState` (active tool mode, EditStack, viewport) drives
 both chrome modes — only the *container component* rendering the active
-panel differs (`<BottomSheet>` vs. `<SideDock>`), so no logic branches on
+panel differs (`<BottomSheet>`, `<SideDock>` or `<PanelPopover>`), so no logic branches on
 platform, only on `useBreakpoint()`.
 
 This applies **per viewport width, not per OS** — a 10" Android tablet in

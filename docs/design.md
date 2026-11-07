@@ -97,6 +97,16 @@ that can't do the translucent composite (e.g. a plain list row).
 | Body / UI labels / buttons | **Manrope** (400–600) | Clean humanist sans, not Inter/Roboto/Arial |
 | Numeric readouts (thickness, opacity, zoom %, coordinates) | **JetBrains Mono** (500) | Tabular figures for values that change |
 
+**Apple platforms (Phase 11).** On iPad, iPhone and Mac the app uses the system's
+own type instead, so it feels at home there: **San Francisco** (`system-ui`) for
+headings and body and **SF Mono** (`ui-monospace`) for numeric readouts. Space
+Grotesk is not used on Apple platforms — San Francisco carries the headings too.
+Sizes, weights and line-heights are unchanged. An inline script in `<head>` marks
+`<html data-platform="apple">` before first paint (iPadOS reports itself as a Mac,
+so the check covers it), and `tokens.css` swaps the three `--font-family-*`
+variables under that attribute. Everywhere else the self-hosted Manrope and
+JetBrains Mono (and Space Grotesk headings) stay.
+
 Self-host all three for the offline/Android build (`next/font/local`) as **variable,
 latin-subset woff2** files under `apps/web/src/fonts/` (OFL-licensed; licence texts
 kept beside them). `font-display: swap`; preload only Manrope, since it is the one
@@ -209,11 +219,63 @@ restyled:
 | Breakpoint | Width | Chrome |
 |---|---|---|
 | Compact | < 768px | Bottom matte toolbar (icon + label, horizontally scrollable with edge fades) + bottom matte sheet for the active tool's panel |
-| Regular | 768–1023px | Same rail as Wide; the panel is a dismissible matte overlay drawer over the canvas instead of a persistent dock |
-| Wide | ≥ 1024px | Persistent floating left icon rail + floating right dock, both matte panels inset 16px over the canvas |
+| Regular | 768–1023px | Same rail as Wide; small panels as popovers, large panels as a bottom sheet beside the rail |
+| Wide | ≥ 1024px | Persistent floating left icon rail + small panels as popovers + large panels in the floating right column, all matte panels inset 16px over the canvas |
 
 All panels are `position: absolute/fixed` over the full-bleed canvas — none of them
 takes layout space from it.
+
+**Which container a panel uses (Phase 11, iPad patterns).** Small panels —
+*Adjust, Rotate/Flip, Presets, Draw* — open as a **popover** at Wide and Regular.
+Large panels — *Grid, Filters, Export* (and Paper, Drawing Check) — open in the
+**side column** (the right dock, styled like an iPad settings column) at Wide, and
+as a **bottom sheet** at Regular (the 11" iPad in portrait, ~820px) and Compact, so
+a column never covers 40% of a portrait screen. At Compact every panel is a sheet.
+
+**Popover.** A matte panel (§5) 320px wide beside its rail button, with a 14px
+arrow (a square turned 45°, in the panel's own material and hairline border)
+pointing at the button's centre. It opens to the right of the rail, or to the left
+if there is no room, centred on the button and slid to stay 16px inside the
+screen; the arrow keeps pointing at the button whatever the slide, and never sits
+within 20px of a rounded corner. Content taller than the screen scrolls inside it.
+It is transient: it reserves no inset, so the canvas does not re-fit when it opens.
+It closes (and its tool with it) on a tap anywhere outside it, on Esc, or on its
+44px close button; the rail button toggles it. For a tool that works on the canvas
+itself (Draw), taps on the canvas are strokes rather than taps outside, so its
+popover — with Undo — stays open while drawing; any other tap closes it. Semantics: a non-modal
+`dialog` named after the panel; focus moves into it on open, Tab walks its
+controls, Esc returns focus to the rail button (which has `aria-haspopup`).
+
+**Bottom sheet heights.** A sheet has a **grab bar** (40×5px pill in
+`borderStrong`, centred in a 44px-tall strip) and three resting heights:
+**peek** (168px — grab bar, title and about one row of controls; at most 35% of
+the space), **half** (half of the space it may grow into) and **full** (up to the
+top safe-area inset). It opens at half and keeps its height while the tool is
+switched. Dragging the grab bar or title follows the finger directly; on release it
+rests at the nearest height, or one height further in the direction of a flick
+(> 0.5 px/ms). Dragged below half the peek height, or flicked down from around
+peek, it **closes** (swipe down to close). Resting is an instant swap, not an
+animation. The canvas re-fits around a sheet only up to half the screen: a sheet
+pulled to full covers the photo on purpose. Keyboard: the grab bar is a vertical
+`slider` ("Sheet height", value Peek/Half/Full; Arrow keys step, Home/End jump)
+and Esc anywhere in the sheet closes it.
+
+**Canvas menu.** A matte context menu (`menu` role, 220px min, 44px items) opened
+by a **long-press** on the canvas (~500ms of a still touch or Pencil; movement over
+10px, an early lift or a second finger cancel it), by **right-click**, or by the
+**context-menu key / Shift+F10** while the canvas has focus (the canvas is a
+focusable group with a visible focus ring). Items: *Fit to screen*, *Reset
+rotation*, *Show grid / Hide grid* (a view toggle, never an edit or an export
+change); *Touch Lock* and *Focus this cell* join in Phase 12. It opens 10px below
+and right of the press so the finger is never on an item (flipping up/left near an
+edge), at the visible centre when opened from the keyboard. Focus lands on the
+first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
+elsewhere, a resize or leaving the window close it. Not offered in the Paper tool
+or Presentation mode, and a long-press does nothing while Draw is on (that press
+is a stroke).
+
+**Icons.** Phosphor stays (SF Symbols cannot be licensed for the web): regular
+weight when idle, filled weight when active (§5), the way SF Symbols behave.
 
 **Rail contents and grouping.** Eleven items, grouped by dividers, in this order:
 *Session* (Projects, Import) · *Prepare* (Paper, Rotate/Flip, Adjust, Filters) ·
@@ -254,6 +316,8 @@ classroom display is not nudged out of framing.
   contrast-corrected derivation, not something you've seen. It is not applied
   automatically until it has been.
 - Compact/Regular breakpoint mockups don't exist yet, same tokens apply structurally.
+  The Phase 11 iPad patterns (popover, sheet heights, canvas menu) are specified in
+  §7 and verified on a real iPad rather than as artboards.
 - `danger` color is defined but unused in any mockup so far (no destructive-action
   UI has been drawn).
 - Android-specific chrome (system insets, back gesture, status-bar colour beyond the
