@@ -213,6 +213,37 @@ export class Viewport {
     });
   }
 
+  // Cell Focus's auto-pan: pans just far enough that `rect` (content units) is
+  // wholly inside the visible region, `margin` px clear of its edges -- at the
+  // same zoom and angle, in one step (no glide). A rect already wholly on
+  // screen leaves the view alone, even if it sits inside the margin; one too big
+  // to fit is centred on that axis. Returns whether the view moved.
+  revealRect(rect: { x: number; y: number; w: number; h: number }, margin = 0): boolean {
+    const corners = [
+      { x: rect.x, y: rect.y },
+      { x: rect.x + rect.w, y: rect.y },
+      { x: rect.x + rect.w, y: rect.y + rect.h },
+      { x: rect.x, y: rect.y + rect.h },
+    ].map((p) => this.imageToScreen(p));
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const region = this.visibleRegion();
+    const right = region.x + region.width;
+    const bottom = region.y + region.height;
+    const EPS = 1e-6;
+    if (minX >= region.x - EPS && maxX <= right + EPS && minY >= region.y - EPS && maxY <= bottom + EPS) return false;
+    const dx = revealShift(minX, maxX, region.x + margin, right - margin);
+    const dy = revealShift(minY, maxY, region.y + margin, bottom - margin);
+    if (dx === 0 && dy === 0) return false;
+    const before = this.state;
+    this.panBy(dx, dy);
+    return this.state.translateX !== before.translateX || this.state.translateY !== before.translateY;
+  }
+
   // Called when the content itself changes size (e.g. the paper changing),
   // as opposed to resize() which is for the container changing size. Re-fits
   // rather than trying to preserve the prior framing, since what the user was
@@ -456,6 +487,15 @@ function contentOffset(point: Point, scale: number, rotation: number): Point {
 function clampAxis(edge: number, contentPx: number, start: number, size: number, slack: number): number {
   if (contentPx <= size) return start + (size - contentPx) / 2;
   return Math.min(Math.max(edge, start + size - contentPx - slack), start + slack);
+}
+
+// How far to move [min, max] along one axis so it lies within [lo, hi]: the
+// least distance, or onto the centre when it is longer than the span.
+function revealShift(min: number, max: number, lo: number, hi: number): number {
+  if (max - min > hi - lo) return (lo + hi) / 2 - (min + max) / 2;
+  if (min < lo) return lo - min;
+  if (max > hi) return hi - max;
+  return 0;
 }
 
 function cleanInset(value: number | undefined): number {
