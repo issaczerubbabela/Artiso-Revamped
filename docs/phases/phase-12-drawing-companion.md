@@ -21,19 +21,21 @@ Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
 - **Drawing Check**: **Check Photo** from iPad or phone, synced, latest only,
   private to the uploader, 4-corner alignment with loupe, opacity +
   hold-to-swap. New table/storage + RLS — schema change, needs a clean
-  revert-point commit first. (ADR to be written.)
+  revert-point commit first. ADR:
+  [`0001-check-photos-synced-apart-from-the-reference`](../adr/0001-check-photos-synced-apart-from-the-reference.md).
 - Touch shortcuts: double-tap fit/reset, two-finger tap undo (Draw),
   three-finger tap grid.
 
 ## Checklist
 
 - [ ] Core-engine cell queries, distance, invalidation rule, homography + tests.
+      (Homography + tests done with the Drawing Check, #9.)
 - [ ] Cell Focus overlay, controls, Done Cells, persistence.
 - [ ] Touch Lock.
 - [ ] Pencil-only routing, pressure width, hover overlay.
 - [ ] Measure.
-- [ ] ADR + Check Photo schema, Supabase migration, RLS, sync.
-- [ ] Drawing Check capture, alignment, comparison.
+- [x] ADR + Check Photo schema, Supabase migration, RLS, sync.
+- [x] Drawing Check capture, alignment, comparison.
 - [ ] Touch shortcuts; canvas-menu items wired.
 
 ## Exit criteria

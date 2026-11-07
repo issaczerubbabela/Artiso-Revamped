@@ -32,6 +32,11 @@ interface Fit {
 // corner can be put exactly on the paper's edge. Every corner is also a focusable
 // handle that the arrow keys nudge, and "Use photo edges" places all four at
 // once, so nothing here needs touch (story 56).
+//
+// A full-screen takeover is the rare, justified case ki-canvas-first-design
+// allows: it lasts four taps, corner accuracy is what the whole check rests
+// on, and what fills the screen is the artist's own drawing. It never
+// navigates away -- Cancel or Done drops straight back onto the canvas.
 export function CheckPhotoAligner() {
   const alignment = useCheckPhotoStore((s) => s.alignment);
   if (!alignment) return null;
