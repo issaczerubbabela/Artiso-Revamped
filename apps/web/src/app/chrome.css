@@ -644,6 +644,86 @@
   outline-offset: -2px;
 }
 
+/* A greyed-out item says why underneath, in the muted ink. */
+.canvas-menu__item[aria-disabled='true'] {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding-block: var(--space-xs);
+  color: var(--color-ink-muted);
+  cursor: default;
+}
+
+.canvas-menu__hint {
+  font-size: var(--font-label-size);
+  line-height: var(--font-label-line-height, 1.3);
+  color: var(--color-ink-muted);
+}
+
+/* ---------- Cell Focus (Phase 12) ---------- */
+
+/* The band along the bottom of a pane that the Cell Focus bar and the Done
+   Cells notice sit in. Transparent to pointers, like the chrome layer, so the
+   canvas keeps its gestures everywhere but on the controls themselves. */
+.cell-focus-band {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+
+.cell-focus-bar,
+.cell-focus-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.cell-focus-bar__readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-xs);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.cell-focus-bar__label {
+  font-size: var(--font-body-size);
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.cell-focus-bar__count {
+  font-size: var(--font-label-size);
+  line-height: 1.2;
+  color: var(--color-ink-muted);
+}
+
+.cell-focus-notice {
+  padding-left: var(--space-md);
+  font-size: var(--font-body-size);
+  color: var(--color-ink);
+}
+
+.field-hint {
+  margin: 0;
+  font-size: var(--font-label-size);
+  line-height: 1.4;
+  color: var(--color-ink-muted);
+}
+
 /* ---------- Immersive (presentation) mode ---------- */
 
 .present-exit {

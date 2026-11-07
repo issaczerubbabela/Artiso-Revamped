@@ -2,8 +2,12 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import {
+  cellBounds,
+  cellKey,
   cropFromView,
   deriveAdjustments,
+  invalidatesDoneCells,
+  parseCellKey,
   frameInViewport,
   generateGridGeometry,
   paperAspect,
@@ -25,6 +29,7 @@ import {
   NO_INSETS,
   Viewport,
   createCropConstraint,
+  drawCellFocus,
   drawCropFrame,
   viewRotationDegrees,
   type GridDrawLayer,
@@ -33,6 +38,7 @@ import {
   type ViewportState,
 } from '@artiso/renderer';
 import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/shared-types';
+import { cellFocusEntry, useCellFocusStore } from '@/state/cell-focus-store';
 import { useCheckPhotoStore } from '@/state/check-photo-store';
 import { useDisplayStore } from '@/state/display-store';
 import { readViewRotation, writeViewRotation } from '@/state/view-rotation-store';
@@ -70,7 +76,14 @@ export interface CanvasStageHandle {
   realSize: () => boolean;
   // Turns the view back to 0° about the visible centre.
   resetRotation: () => void;
+  // The paper point (mm) under a client point, or null outside the drawing view.
+  contentPointAt: (clientX: number, clientY: number) => { x: number; y: number } | null;
+  // Cell Focus: pans just enough to show this paper rect, if it is off screen.
+  revealContentRect: (rect: { x: number; y: number; w: number; h: number }) => void;
 }
+
+// Space kept between a revealed cell and the edge of the visible region (CSS px).
+const REVEAL_MARGIN = 16;
 
 interface Engine {
   viewport: Viewport;
@@ -108,6 +121,8 @@ interface Engine {
   referenceId: string | null;
   // The angle the canvas was last shown at, in whole degrees (data attribute).
   shownDegrees: number | null;
+  // What Cell Focus last painted (data attribute), '' for nothing.
+  shownFocus: string;
 }
 
 type GeometryCache = { current: { key: string; geometry: GridGeometry } | null };
@@ -246,6 +261,19 @@ export const CanvasStage = forwardRef<
           engine.viewport.setRotation(0);
           engine.dirty = true;
         },
+        contentPointAt: (clientX, clientY) => {
+          const engine = engineRef.current;
+          const container = containerRef.current;
+          if (!engine || !container || engine.mode !== 'draw') return null;
+          const rect = container.getBoundingClientRect();
+          return engine.viewport.screenToImage({ x: clientX - rect.left, y: clientY - rect.top });
+        },
+        revealContentRect: (rect) => {
+          const engine = engineRef.current;
+          if (!engine || engine.mode !== 'draw') return;
+          engine.input.engine.stopMotion();
+          if (engine.viewport.revealRect(rect, REVEAL_MARGIN)) engine.dirty = true;
+        },
       }),
       [],
     );
@@ -304,6 +332,7 @@ export const CanvasStage = forwardRef<
         lastInfo: null,
         referenceId: null,
         shownDegrees: null,
+        shownFocus: '',
       };
 
       function applyRealScale(): void {
@@ -343,6 +372,7 @@ export const CanvasStage = forwardRef<
             drawCropFrame(ctx, w, h, engine.frame);
           }
           engine.annotationLayer.draw([], null, view, w, h, ratio);
+          showFocus('');
           return;
         }
 
@@ -375,9 +405,41 @@ export const CanvasStage = forwardRef<
             { pixelRatio: ratio, labelScale, clear: !hasGuide },
           );
         }
+        showFocus(drawFocus(state, view));
 
         const resolved = getCachedAnnotationGeometry(annotationCacheRef, paper.widthMm, paper.heightMm, state.annotations);
         engine.annotationLayer.draw(resolved, engine.draft, view, w, h, ratio);
+      }
+
+      // Cell Focus (device-local view state): the dim, the focused cell's
+      // outline and the Done Cell ticks, over the grid. Only with squares on.
+      // Returns what was drawn ('' for nothing): the focused cell's key, the
+      // number of Done Cells and the darkening.
+      function drawFocus(state: ViewData, view: ViewportState): string {
+        const entry = cellFocusEntry(state.referenceId);
+        if (!entry?.active || !entry.cell || !state.gridSettings.showSquares) return '';
+        const grid = { paper: state.paper, cellMm: state.gridSettings.cellMm };
+        // Counted on another grid: the Done Cells guard is about to clear them.
+        const current = { ...(entry.layout ?? { crop: null }), widthMm: state.paper.widthMm, heightMm: state.paper.heightMm, cellMm: grid.cellMm };
+        if (entry.layout !== null && invalidatesDoneCells(entry.layout, current)) return '';
+        const ctx = gridCanvas!.getContext('2d');
+        if (!ctx) return '';
+        const done = entry.done.flatMap((key) => {
+          const cell = parseCellKey(key);
+          return cell ? [cellBounds(grid, cell)] : [];
+        });
+        const { dimPercent } = useCellFocusStore.getState();
+        drawCellFocus(ctx, { focus: cellBounds(grid, entry.cell), dimPercent, done }, view, engine.cssWidth, engine.cssHeight, engine.dpr);
+        return `${cellKey(entry.cell)}:${done.length}:${dimPercent}`;
+      }
+
+      // What Cell Focus has painted, as a data attribute (like the View
+      // Rotation's), so tests can wait for the canvas rather than for time.
+      function showFocus(shown: string): void {
+        if (engine.shownFocus === shown) return;
+        engine.shownFocus = shown;
+        if (shown) container!.dataset.cellFocus = shown;
+        else delete container!.dataset.cellFocus;
       }
 
       // Reports the user's own panning/zooming of the image in the crop tool back
@@ -478,6 +540,9 @@ export const CanvasStage = forwardRef<
       const unsubscribeCheck = useCheckPhotoStore.subscribe(() => {
         engine.dirty = true;
       });
+      const unsubscribeCellFocus = useCellFocusStore.subscribe(() => {
+        engine.dirty = true;
+      });
 
       const resizeObserver = new ResizeObserver(() => {
         const nextRect = container.getBoundingClientRect();
@@ -508,6 +573,7 @@ export const CanvasStage = forwardRef<
       return () => {
         unsubscribeDisplay();
         unsubscribeCheck();
+        unsubscribeCellFocus();
         resizeObserver.disconnect();
         cancelAnimationFrame(engine.raf);
         engine.input.dispose();
