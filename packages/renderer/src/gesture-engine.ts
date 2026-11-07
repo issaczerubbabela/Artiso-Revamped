@@ -160,11 +160,6 @@ export class GestureEngine {
     return this.pointers.has(id);
   }
 
-  // Whether any pointer is down (a trackpad gesture must not double up a touch one).
-  isPointerGestureActive(): boolean {
-    return this.pointers.size > 0;
-  }
-
   pointerMove(id: number, point: Point, modifiers: GestureModifiers = {}): void {
     const previous = this.pointers.get(id);
     if (!previous) return;

@@ -26,6 +26,7 @@ import {
   Viewport,
   createCropConstraint,
   drawCropFrame,
+  viewRotationDegrees,
   type GridDrawLayer,
   type ViewportInsets,
   type ViewportOptions,
@@ -34,6 +35,7 @@ import {
 import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/shared-types';
 import { useCheckPhotoStore } from '@/state/check-photo-store';
 import { useDisplayStore } from '@/state/display-store';
+import { readViewRotation, writeViewRotation } from '@/state/view-rotation-store';
 import { useWorkspaceStore, type FramingDraft, type PaneSession } from '@/state/workspace-store';
 
 // The drawing view's zoom and pan limits (Grid-Feature-Spec.md §10): content is
@@ -56,6 +58,8 @@ export interface StageViewInfo {
   isRealSize: boolean;
   // Whether Real size can be reached (the screen has been calibrated).
   realSizeAvailable: boolean;
+  // View Rotation, radians in (-π, π].
+  rotation: number;
 }
 
 // What a pane's controls can do to its own view. Each pane in a split view has
@@ -64,6 +68,8 @@ export interface CanvasStageHandle {
   fit: () => void;
   // Zooms to 1 mm on paper = 1 mm on the screen; false if not calibrated yet.
   realSize: () => boolean;
+  // Turns the view back to 0° about the visible centre.
+  resetRotation: () => void;
 }
 
 interface Engine {
@@ -97,6 +103,11 @@ interface Engine {
   frame: FrameRect | null;
   lastEmittedCrop: Crop | null;
   lastInfo: StageViewInfo | null;
+  // The reference the drawing view was last set up for: its View Rotation is
+  // restored from (and remembered to) this device's storage under this id.
+  referenceId: string | null;
+  // The angle the canvas was last shown at, in whole degrees (data attribute).
+  shownDegrees: number | null;
 }
 
 type GeometryCache = { current: { key: string; geometry: GridGeometry } | null };
@@ -216,15 +227,24 @@ export const CanvasStage = forwardRef<
         fit: () => {
           const engine = engineRef.current;
           if (!engine) return;
+          engine.input.engine.stopMotion();
           engine.viewport.zoomToFit();
           engine.dirty = true;
         },
         realSize: () => {
           const engine = engineRef.current;
           if (!engine) return false;
+          engine.input.engine.stopMotion();
           const ok = engine.viewport.setRealSize();
           engine.dirty = true;
           return ok;
+        },
+        resetRotation: () => {
+          const engine = engineRef.current;
+          if (!engine || engine.mode !== 'draw') return;
+          engine.input.engine.stopMotion();
+          engine.viewport.setRotation(0);
+          engine.dirty = true;
         },
       }),
       [],
@@ -282,6 +302,8 @@ export const CanvasStage = forwardRef<
         frame: null,
         lastEmittedCrop: null,
         lastInfo: null,
+        referenceId: null,
+        shownDegrees: null,
       };
 
       function applyRealScale(): void {
@@ -362,13 +384,24 @@ export const CanvasStage = forwardRef<
       }
 
       function reportView(): void {
+        const { rotation } = engine.viewport.getState();
+        // What is on screen right now: the Paper tool always shows 0°.
+        const shown = engine.mode === 'draw' ? viewRotationDegrees(rotation) : 0;
+        if (shown !== engine.shownDegrees) {
+          engine.shownDegrees = shown;
+          container!.dataset.viewRotation = String(shown);
+        }
+        if (engine.mode !== 'draw') return;
+        // Remembered on this device only (a no-op unless the angle changed).
+        writeViewRotation(engine.referenceId, rotation);
         const cb = onViewChangeRef.current;
-        if (!cb || engine.mode !== 'draw') return;
+        if (!cb) return;
         const info: StageViewInfo = {
           scale: engine.viewport.getState().scale,
           fitScale: engine.viewport.getFitScale(),
           isRealSize: engine.viewport.isRealSize(),
           realSizeAvailable: engine.viewport.getRealScale() !== null,
+          rotation,
         };
         const last = engine.lastInfo;
         if (
@@ -376,7 +409,8 @@ export const CanvasStage = forwardRef<
           last.scale === info.scale &&
           last.fitScale === info.fitScale &&
           last.isRealSize === info.isRealSize &&
-          last.realSizeAvailable === info.realSizeAvailable
+          last.realSizeAvailable === info.realSizeAvailable &&
+          last.rotation === info.rotation
         )
           return;
         engine.lastInfo = info;
@@ -401,6 +435,13 @@ export const CanvasStage = forwardRef<
           const state = useWorkspaceStore.getState();
           return state.presentationMode || (!sessionRef.current && state.toolMode === 'annotate');
         },
+        // Lock rotation (device-local); the Paper tool always frames at 0°,
+        // since a crop is an axis-aligned rectangle of the image.
+        isRotationLocked: () => useDisplayStore.getState().rotationLocked || engine.mode === 'crop',
+        prefersReducedMotion: () =>
+          typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        // The crop is read off the view every frame: it must never overshoot.
+        allowsZoomOvershoot: () => engine.mode !== 'crop',
       });
       engineRef.current = engine;
       applyRealScale();
@@ -747,6 +788,10 @@ function syncEngine(engine: Engine, state: ViewData): void {
     engine.imageLayer.setContentSize(paper.widthMm, paper.heightMm);
     engine.viewport.setConstraint(null);
     engine.viewport.setContentSize(paper.widthMm, paper.heightMm);
+    // Fitted at this reference's remembered View Rotation: restored on reload
+    // and on leaving the Paper tool (which frames at 0°).
+    engine.referenceId = state.referenceId;
+    engine.viewport.zoomToFit(readViewRotation(state.referenceId));
     engine.mode = 'draw';
     engine.configuredBitmap = workingBitmap;
     engine.configuredContent = content;

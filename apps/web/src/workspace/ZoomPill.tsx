@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { viewRotationDegrees } from '@artiso/renderer';
 import type { StageViewInfo } from '@/canvas/CanvasStage';
 import { useReportChromeRect } from '@/components/chrome/chrome-insets';
 import { PanelButton } from './PanelButton';
@@ -9,6 +10,8 @@ interface ZoomPillProps {
   info: StageViewInfo;
   onFit: () => void;
   onRealSize: () => void;
+  // Turns the view back to 0° (tapping the angle).
+  onResetRotation: () => void;
   // Where the pane wants it (px from the pane's right and bottom edges): clear of
   // any panel that floats over that corner.
   position: Pick<CSSProperties, 'right' | 'bottom'>;
@@ -20,11 +23,15 @@ interface ZoomPillProps {
 // own viewport. Deliberately not a live readout of the cursor -- it only reports
 // this pane's zoom.
 //
+// Whenever the view is turned (View Rotation, GLOSSARY.md) the angle shows next
+// to the zoom, in whole degrees; tapping it squares the view back up.
+//
 // A matte pill (docs/design.md §5) that reports itself as an overlay so the canvas
 // keeps the paper clear of it, while other overlays position around panels only.
-export function ZoomPill({ info, onFit, onRealSize, position }: ZoomPillProps) {
+export function ZoomPill({ info, onFit, onRealSize, onResetRotation, position }: ZoomPillProps) {
   const reportRect = useReportChromeRect('bottom', { overlay: true });
   const percent = info.fitScale > 0 ? Math.round((info.scale / info.fitScale) * 100) : 100;
+  const degrees = viewRotationDegrees(info.rotation);
   return (
     <div
       ref={reportRect}
@@ -43,6 +50,18 @@ export function ZoomPill({ info, onFit, onRealSize, position }: ZoomPillProps) {
       <span data-testid="zoom-readout" className="readout">
         {percent}%
       </span>
+      {degrees !== 0 ? (
+        <PanelButton
+          variant="ghost"
+          data-testid="rotation-readout"
+          className="readout"
+          aria-label={`View Rotation ${degrees}°, reset to 0°`}
+          title="Reset rotation"
+          onClick={onResetRotation}
+        >
+          {degrees}°
+        </PanelButton>
+      ) : null}
       {info.isRealSize ? (
         <span data-testid="real-size-badge" className="badge-1to1">
           1:1
