@@ -57,7 +57,8 @@ never run in WebKit, which every iPhone/iPad browser uses; doing so found that
   distinct overlay drawer.
 - No Pencil-only drawing / palm rejection: a finger and the Pencil both
   annotate in the Annotate tool.
-- HEIC files dragged in from the Files app are rejected (the photo picker
-  converts to JPEG on its own).
+- ~~HEIC files dragged in from the Files app are rejected~~ -- since Phase 13
+  (issue #10) a dropped or pasted HEIC opens wherever the browser can decode it.
+  The photo picker still converts to JPEG on its own.
 - Safari can't encode WebP, so thumbnails made there are PNG (larger, still
   correct).

@@ -88,7 +88,13 @@ Per [phase-11](../../docs/phases/phase-11-canvas-rotation-ipad-chrome.md) and
   injected clock, stop on the next pointer down, and are off under
   `prefers-reduced-motion`. Rotation never has momentum.
 - The angle is view state: the app stores it device-locally per reference
-  (`view-rotation-store.ts`) and never in the EditStack; exports draw at 0°.
+  and per orientation, with zoom and pan (`orientation-view-store.ts`), and
+  never in the EditStack; exports draw at 0°.
+- A window resize (Split View, Slide Over, Stage Manager) keeps the content
+  point at the visible centre. Take the place when the window starts to
+  resize, before the canvas *or the chrome* changes -- the breakpoint's new
+  chrome can arrive before the canvas resizes -- and don't let a plain inset
+  change (which keeps the on-screen framing) move it.
 - Testing: dead zone, snap, glide end position after N frames, spring-back to
   the limit, and reduced motion on a fake clock; e2e in both `chromium` and
   `webkit` with synthetic touch Pointer Events.

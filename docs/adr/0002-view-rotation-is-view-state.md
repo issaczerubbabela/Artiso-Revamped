@@ -29,8 +29,12 @@ View Rotation is **view state**:
   projects through; it never touches the image pipeline or grid generation
   (invariant 2, grid/image independence).
 - It is stored **device-locally, per reference**
-  (`apps/web/src/state/view-rotation-store.ts`, localStorage), alongside the
+  (`apps/web/src/state/orientation-view-store.ts`, localStorage), alongside the
   other device-local display settings. Lock rotation is device-local too.
+  *Amended by issue #10 (Phase 13):* the store now keeps one view per
+  reference **per orientation** (landscape / portrait) -- zoom, pan and View
+  Rotation -- with the earlier single angle migrated into both. It is still
+  view state under every rule below.
 - It is **never written to the EditStack, never synced, never exported**.
   Exports always draw at 0°; their output is byte-identical at any angle.
 - **Rotate (edit)** is unchanged: 0/90/180/270, recorded in the EditStack,
