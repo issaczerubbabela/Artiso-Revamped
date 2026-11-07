@@ -28,8 +28,13 @@ landscape on a stand.
 ## Checklist
 
 - [ ] ADR: View Rotation is view state; `design.md` amendments.
-- [ ] Viewport rotation (pure) + unit tests.
+- [x] Viewport rotation (pure) + unit tests. (#4: rotation angle in the one
+      transform, all layers project through it, rotated fit / pan limits /
+      real size; angle held at 0° until #5.)
 - [ ] Gesture engine with injectable clock (dead zone, snap, momentum).
+      (#4 done: `GestureEngine` with injectable clock + frame scheduler,
+      today's pan/pinch/wheel/double-tap pinned by fake-clock tests. Dead
+      zone, snap and momentum land with #5.)
 - [ ] Desktop input mapping.
 - [ ] Device-local angle store, zoom-pill angle, mode rules.
 - [ ] Popovers, sheet heights, Regular-breakpoint sheet for large panels.

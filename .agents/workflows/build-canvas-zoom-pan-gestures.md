@@ -46,7 +46,9 @@ drives it — touch, mouse, wheel, or keyboard.
 
 ## Files/modules touched
 
-`packages/renderer/src/viewport.*`, `packages/renderer/src/inputController.*`,
+`packages/renderer/src/viewport.*`, `packages/renderer/src/gesture-engine.*` (what a
+pointer sequence does; injectable clock + frame scheduler),
+`packages/renderer/src/input-controller.*` (the Pointer Events adapter),
 `apps/web/.../useKeyboardShortcuts.*`.
 
 ## Testing checklist
