@@ -11,6 +11,7 @@ import { deleteProjectAction, leaveProjectAction, renameProjectAction } from '@/
 import { refreshProjectsFromServer } from '@/session/auth-bootstrap';
 import { useAuthStore } from '@/state/auth-store';
 import { useDisplayStore } from '@/state/display-store';
+import { useWorkspaceStore } from '@/state/workspace-store';
 import { ShareDialog } from './ShareDialog';
 
 // Phase 2's Home/Projects screen (docs/phases/phase-2-cloud-projects-sync.md):
@@ -24,6 +25,10 @@ export function ProjectsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState<Project | null>(null);
   const isSignedIn = useAuthStore((s) => s.user !== null);
+  // An import started here fails here: show why, rather than silently staying
+  // on this screen (the workspace's empty state only shows it once open).
+  const importError = useWorkspaceStore((s) => s.importError);
+  const shownError = error ?? importError;
 
   // `silent` skips the loading flash for background refreshes (focus/timer).
   async function refresh(silent = false) {
@@ -131,8 +136,9 @@ export function ProjectsScreen() {
         </PanelButton>
       </div>
 
-      {error ? (
+      {shownError ? (
         <div
+          role="alert"
           style={{
             padding: '0 var(--space-lg) var(--space-md)',
             color: 'var(--color-danger)',
@@ -140,7 +146,7 @@ export function ProjectsScreen() {
             fontSize: 'var(--font-label-size)',
           }}
         >
-          {error}
+          {shownError}
         </div>
       ) : null}
 
