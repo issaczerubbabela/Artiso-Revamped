@@ -6,6 +6,10 @@ import { placeMenu } from '@artiso/ui';
 export interface CanvasMenuItem {
   label: string;
   onSelect: () => void;
+  // Greyed out, with `hint` saying why. Still focusable, so the keyboard and a
+  // screen reader can find it and hear the reason.
+  disabled?: boolean;
+  hint?: string;
 }
 
 // Room kept between the menu and the screen edge, and between it and the press.
@@ -112,12 +116,16 @@ export function CanvasMenu({
           role="menuitem"
           tabIndex={-1}
           className="canvas-menu__item"
+          aria-disabled={item.disabled || undefined}
+          aria-description={item.hint}
           onClick={() => {
+            if (item.disabled) return;
             item.onSelect();
             onClose(true);
           }}
         >
           {item.label}
+          {item.hint ? <span className="canvas-menu__hint">{item.hint}</span> : null}
         </button>
       ))}
     </div>
