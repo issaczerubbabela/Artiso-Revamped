@@ -272,7 +272,33 @@ edge), at the visible centre when opened from the keyboard. Focus lands on the
 first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
 elsewhere, a resize or leaving the window close it. Not offered in the Paper tool
 or Presentation mode, and a long-press does nothing while Draw is on (that press
-is a stroke).
+is a stroke). *Focus this cell* (Phase 12) focuses the cell the menu was opened
+on; it is left out off the paper, and greyed out with its reason underneath
+("Turn on Squares in the Grid panel to use Cell Focus.") while squares are hidden.
+A greyed item stays focusable (`aria-disabled`, reason as its description) so the
+keyboard and screen readers still find it.
+
+**Cell Focus** (Phase 12, GLOSSARY.md). Everything outside the focused cell is
+darkened with flat black (default 70%, *Dim outside the cell* slider 10–95% in the
+Grid panel); the focused cell gets a 2px cyan outline (the general accent — not
+amber, which stays the active tool's). Each Done Cell carries a faint upright
+check mark (white at ~55% with a soft dark edge, sized to ~40% of the cell on
+screen, 8–48px). The controls are a matte pill at the bottom-left of the focused
+pane, on the zoom pill's row (above it on Compact): *Previous cell* ‹, a
+monospace readout with the cell's label over the Done count ("C4" / "14 / 48"),
+*Next cell* ›, *Done Cell* ✓ (a cyan toggle, filled when the cell is done) and
+*Exit Cell Focus* ×. Icon-only with tooltips on Wide/Regular, short labels under
+the icons on Compact; it reports itself as an overlay, so a cell it reveals never
+hides under it. Only the focused pane has the pill, so in a split view it acts on
+the pane touched last. Stepping to an off-screen cell pans just far enough to
+show it (16px clear of the chrome) in one step — no glide, no zoom change; a cell
+already on screen never moves the view. While Cell Focus is on, a tap focuses the
+cell under it and a tap on the focused cell leaves (after the double-tap window,
+so a double-tap there is only Fit); a long-press on the focused cell marks or
+unmarks it as done. A change of cell size or paper clears the Done Cells and shows
+a matte notice above the pill — "*n* Done Cells cleared" with an **Undo** that puts
+the grid back and the Done Cells with it — for six seconds; style changes keep
+them. All of it is device-local view state, remembered per reference.
 
 **Icons.** Phosphor stays (SF Symbols cannot be licensed for the web): regular
 weight when idle, filled weight when active (§5), the way SF Symbols behave.

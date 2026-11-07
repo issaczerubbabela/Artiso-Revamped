@@ -29,8 +29,10 @@ Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
 ## Checklist
 
 - [ ] Core-engine cell queries, distance, invalidation rule, homography + tests.
-      (Homography + tests done with the Drawing Check, #9.)
-- [ ] Cell Focus overlay, controls, Done Cells, persistence.
+      (Homography + tests done with the Drawing Check, #9; cell queries and the
+      invalidation rule done with Cell Focus, #7 — distance is left for
+      Measurement.)
+- [x] Cell Focus overlay, controls, Done Cells, persistence (#7).
 - [ ] Touch Lock.
 - [ ] Pencil-only routing, pressure width, hover overlay.
 - [ ] Measure.
