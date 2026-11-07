@@ -28,7 +28,7 @@ landscape on a stand.
 ## Checklist
 
 - [x] ADR: View Rotation is view state; `design.md` amendments. (#5:
-      [ADR 0001](../adr/0001-view-rotation-is-view-state.md); the *motion
+      [ADR 0002](../adr/0002-view-rotation-is-view-state.md); the *motion
       that follows a gesture* exception. The iPad-pattern and Apple-font
       amendments land with #6.)
 - [x] Viewport rotation (pure) + unit tests. (#4: rotation angle in the one

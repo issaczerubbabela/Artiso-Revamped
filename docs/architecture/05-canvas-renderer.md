@@ -77,7 +77,7 @@ momentum after them are unit-tested on a fake clock:
 Grid labels stay upright at any angle: the drawing grid lays its sticky labels
 out in the paper-aligned frame and draws each one upright where its anchor
 lands on screen. The angle itself is stored by the app, device-locally per
-reference (see [ADR 0001](../adr/0001-view-rotation-is-view-state.md)).
+reference (see [ADR 0002](../adr/0002-view-rotation-is-view-state.md)).
 
 ## Render loop
 

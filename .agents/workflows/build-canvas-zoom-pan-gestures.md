@@ -78,7 +78,7 @@ pointer sequence does; injectable clock + frame scheduler),
 ## Phase 11 note — View Rotation and gesture motion
 
 Per [phase-11](../../docs/phases/phase-11-canvas-rotation-ipad-chrome.md) and
-[ADR 0001](../../docs/adr/0001-view-rotation-is-view-state.md):
+[ADR 0002](../../docs/adr/0002-view-rotation-is-view-state.md):
 
 - Two pointers are one transform (pinch + pan + twist) via
   `Viewport.transformAbout`; the twist has a ~10° dead zone and snaps to a

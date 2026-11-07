@@ -1,4 +1,4 @@
-# ADR 0001 — View Rotation is view state, not an edit
+# ADR 0002 — View Rotation is view state, not an edit
 
 **Status:** Accepted (2026-11-07). Implemented in issue #5, Phase 11
 ([spec #1](https://github.com/issaczerubbabela/Artiso-Revamped/issues/1),

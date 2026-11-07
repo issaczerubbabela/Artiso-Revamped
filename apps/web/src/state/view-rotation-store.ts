@@ -1,7 +1,7 @@
 import { normalizeAngle } from '@artiso/renderer';
 
 // View Rotation (GLOSSARY.md), remembered per reference on this device only
-// (docs/adr/0001-view-rotation-is-view-state.md). It describes how this
+// (docs/adr/0002-view-rotation-is-view-state.md). It describes how this
 // device's screen is turned relative to the artist's paper -- an iPad on a
 // stand and a laptop are turned differently -- so, like the other device-local
 // display settings, it lives in localStorage. It is never written to the
