@@ -5,7 +5,6 @@ import {
   ModifierHoldDetector,
   SHORTCUTS,
   formatShortcut,
-  isApplePlatform,
   isEditableTarget,
   matchShortcut,
   primaryModifierKey,
@@ -95,14 +94,6 @@ describe('the shortcut registry', () => {
     expect(formatShortcut(SHORTCUTS.find((s) => s.id === 'nextCell')!, true)).toBe('→');
     expect(formatShortcut(SHORTCUTS.find((s) => s.id === 'showShortcuts')!, true)).toBe('? or hold ⌘');
     expect(formatShortcut(SHORTCUTS.find((s) => s.id === 'showShortcuts')!, false)).toBe('? or hold Ctrl');
-  });
-
-  it('recognises Apple platforms, iPadOS reporting itself as a Mac included', () => {
-    expect(isApplePlatform('MacIntel', '')).toBe(true);
-    expect(isApplePlatform('iPad', '')).toBe(true);
-    expect(isApplePlatform('', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')).toBe(true);
-    expect(isApplePlatform('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe(false);
-    expect(isApplePlatform('Linux x86_64', 'Mozilla/5.0 (X11; Linux x86_64)')).toBe(false);
   });
 
   it('lists the gestures alongside, each with what it does', () => {

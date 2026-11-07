@@ -75,12 +75,6 @@ export interface KeyStroke {
   shiftKey: boolean;
 }
 
-// iPadOS Safari reports itself as a Mac, so a Mac check covers the iPad too
-// (the same test as the font switch in apps/web's apple-fonts.ts).
-export function isApplePlatform(platform: string, userAgent: string): boolean {
-  return /Mac|iPhone|iPad|iPod/i.test(platform) || /Macintosh|iPhone|iPad|iPod/.test(userAgent);
-}
-
 // The KeyboardEvent.key of ⌘ on Apple platforms, of Ctrl, which stands in for
 // it, everywhere else.
 export function primaryModifierKey(apple: boolean): 'Meta' | 'Control' {
