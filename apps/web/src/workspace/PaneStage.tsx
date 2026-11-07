@@ -15,6 +15,9 @@ import { CellFocusControls } from './CellFocusControls';
 import { gridOf, useCellFocusStore } from '@/state/cell-focus-store';
 import { CELL_FOCUS_NEEDS_SQUARES, registerCentreCell, useDoneCellsGuard, usePaneGrid } from '@/session/cell-focus';
 import { pasteFromClipboard } from '@/session/import-files';
+import { registerViewControls } from '@/session/view-controls';
+import { useHelpStore } from '@/state/help-store';
+import { GESTURES_AND_SHORTCUTS } from './ShortcutsCard';
 
 // Where a pane's zoom pill sits when nothing floats over that corner.
 const PILL_MARGIN_PX = 16;
@@ -262,6 +265,22 @@ export function PaneStage({ session }: { session?: PaneSession }) {
     return registerCentreCell(() => cellAtClient(visibleCentre()));
   }, [session, cellAtClient, visibleCentre]);
 
+  // The keyboard shortcuts act on the focused pane: 0 fits, R squares up,
+  // ← → step Cell Focus (issue #11).
+  useEffect(() => {
+    if (session) return;
+    return registerViewControls({
+      fit: () => stageRef.current?.fit(),
+      resetRotation: () => stageRef.current?.resetRotation(),
+      stepCell: (direction) => {
+        const { referenceId, layout } = gridRef.current;
+        if (!referenceId || !focusedCell()) return false;
+        useCellFocusStore.getState().step(referenceId, layout, direction);
+        return true;
+      },
+    });
+  }, [session, focusedCell]);
+
   // Right-click, or the context-menu key / Shift+F10 (which browsers deliver
   // as a contextmenu event with no pointer position).
   function handleContextMenu(event: MouseEvent<HTMLDivElement>) {
@@ -308,6 +327,8 @@ export function PaneStage({ session }: { session?: PaneSession }) {
   }
   // Opens a copied image as a new reference tab (issue #10).
   menuItems.push({ label: 'Paste', onSelect: () => void pasteFromClipboard() });
+  // Every gesture and shortcut, for an artist without a keyboard (issue #11).
+  menuItems.push({ label: GESTURES_AND_SHORTCUTS, onSelect: () => useHelpStore.getState().openCard() });
 
   useEffect(() => {
     if (screen && wantsRealSize.current) {
