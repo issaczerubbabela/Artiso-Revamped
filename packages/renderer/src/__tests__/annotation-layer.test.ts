@@ -33,6 +33,10 @@ describe('freehandSegmentWidths', () => {
     expect(freehandSegmentWidths([{ x: 0, y: 0, pressure: 0.5 }, { x: 1, y: 1, pressure: 0.5 }], 3)).toBeNull();
   });
 
+  it('keeps an even but light or heavy press: it still sets the width', () => {
+    expect(freehandSegmentWidths([{ x: 0, y: 0, pressure: 0.1 }, { x: 1, y: 1, pressure: 0.1 }], 2)).toEqual([2 * pressureWidthFactor(0.1)]);
+  });
+
   it('gives each segment the width of its average pressure', () => {
     const widths = freehandSegmentWidths(
       [

@@ -22,6 +22,9 @@ export class InputController {
   readonly engine: GestureEngine;
 
   private readonly handlePointerDown = (event: PointerEvent) => {
+    // A right- or middle-click opens the canvas menu; it is not a drag, and
+    // must not count as half of a double-tap either.
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     // Capture keeps a drag tracking after the finger leaves the element, but it
     // is an enhancement: setPointerCapture throws (NotFoundError) for a pointer
     // that is already gone, e.g. a quick tap racing a pointercancel on touch,

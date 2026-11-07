@@ -529,6 +529,21 @@ describe('GestureEngine: wheel', () => {
 });
 
 describe('GestureEngine: double-tap', () => {
+  it('never counts a two-finger tap as a tap (that is the undo shortcut)', () => {
+    const { viewport, engine, clock } = setup();
+    viewport.setZoom(9, { x: 300, y: 300 });
+    const zoomed = viewport.getState();
+    for (let i = 0; i < 2; i++) {
+      engine.pointerDown(10 + i * 2, { x: 500, y: 400 });
+      engine.pointerDown(11 + i * 2, { x: 600, y: 400 });
+      clock.advance(40);
+      engine.pointerUp(10 + i * 2);
+      engine.pointerUp(11 + i * 2);
+      clock.advance(100);
+    }
+    expect(viewport.getState()).toEqual(zoomed);
+  });
+
   it('fits on a double-tap, then goes back to the previous view on the next', () => {
     const { viewport, engine, clock } = setup();
     viewport.setZoom(9, { x: 300, y: 300 });

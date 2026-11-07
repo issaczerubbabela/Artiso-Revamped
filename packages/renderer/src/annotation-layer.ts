@@ -24,15 +24,15 @@ export function pressureWidthFactor(pressure: number | undefined): number {
 
 // The line width of each segment of a freehand stroke: the base width times
 // the average pressure factor of the segment's two ends (a point without
-// pressure counts as the base width). Null when the width never varies -- no
-// pressure at all, or a mouse's constant 0.5 -- so such a stroke is drawn as a
-// single path, exactly as before pressure was used.
+// pressure counts as the base width). Null when pressure changes nothing --
+// none at all, or a mouse's constant 0.5 -- so such a stroke is drawn exactly
+// as before pressure was used.
 export function freehandSegmentWidths(
   points: readonly { x: number; y: number; pressure?: number }[],
   baseWidth: number,
 ): number[] | null {
   const factors = points.map((p) => pressureWidthFactor(p.pressure));
-  if (factors.every((f) => f === factors[0])) return null;
+  if (factors.every((f) => f === 1)) return null;
   const widths: number[] = [];
   for (let i = 0; i + 1 < points.length; i++) {
     widths.push((baseWidth * (factors[i]! + factors[i + 1]!)) / 2);
@@ -114,10 +114,10 @@ export class AnnotationLayer {
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         const widths = freehandSegmentWidths(annotation.points, base);
-        if (!widths) {
-          // No pressure to vary the width (mouse, finger, older strokes): one
-          // path at the set width, exactly as before.
-          ctx.lineWidth = base;
+        if (!widths || widths.every((w) => w === widths[0])) {
+          // One width all along (no pressure -- mouse, finger, older strokes
+          // -- or an even press): a single path, as strokes always were.
+          ctx.lineWidth = widths?.[0] ?? base;
           ctx.beginPath();
           annotation.points.forEach((point, index) => {
             if (index === 0) ctx.moveTo(point.x, point.y);

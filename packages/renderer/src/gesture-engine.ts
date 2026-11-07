@@ -209,6 +209,12 @@ export class GestureEngine {
     if (this.rotatedAbout) this.finishRotation();
     if (!this.multiTouch && !this.isLocked()) this.startGlide();
     this.samples = [];
+    // Only a one-finger tap can be half of a double-tap: two- and three-finger
+    // taps are their own shortcuts (undo, show/hide grid).
+    if (this.multiTouch) {
+      this.lastTapTime = Number.NEGATIVE_INFINITY;
+      return;
+    }
     this.handlePotentialDoubleTap(point);
   }
 
