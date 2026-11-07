@@ -16,3 +16,5 @@ export * from './drawing-grid-layer';
 export * from './annotation-layer';
 export * from './chrome-insets';
 export * from './check-photo-layer';
+export * from './tap';
+export * from './cell-focus-layer';
