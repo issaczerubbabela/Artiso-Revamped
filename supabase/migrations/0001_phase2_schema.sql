@@ -443,3 +443,78 @@ begin
   delete from public.project_members where project_id = p_project_id and user_id = p_user_id;
 end;
 $$;
+
+-- ============================================================================
+-- Check Photos (docs/phases/phase-12-drawing-companion.md, Drawing Check;
+-- docs/adr/0001-check-photos-synced-apart-from-the-reference.md)
+--
+-- A photo of the artist's own drawing, lined up with the paper by its four
+-- corners. Synced so a phone photo reaches the iPad, but kept apart from the
+-- reference: private to the person who took it (no shared-read policy at all,
+-- not even for the project owner), and at most one per user per reference --
+-- a new photo replaces the row (upsert on owner_id, reference_id).
+-- ============================================================================
+
+create table if not exists public.check_photos (
+  id uuid primary key,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  reference_id uuid not null references public."references" (id) on delete cascade,
+  storage_key text not null,
+  mime_type text not null,
+  width integer not null,
+  height integer not null,
+  size_bytes bigint not null,
+  -- The paper's four corners in photo pixels: [{x, y}, x4].
+  corners jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, reference_id)
+);
+
+alter table public.check_photos enable row level security;
+
+-- Only the uploader, and only on a reference they can see (the subquery is
+-- itself filtered by references_select, so a viewer may keep a Check Photo
+-- too -- it is theirs, not the project's).
+drop policy if exists check_photos_owner_select on public.check_photos;
+create policy check_photos_owner_select on public.check_photos
+  for select using (owner_id = auth.uid());
+drop policy if exists check_photos_owner_insert on public.check_photos;
+create policy check_photos_owner_insert on public.check_photos
+  for insert with check (
+    owner_id = auth.uid()
+    and exists (select 1 from public."references" r where r.id = reference_id)
+  );
+drop policy if exists check_photos_owner_update on public.check_photos;
+create policy check_photos_owner_update on public.check_photos
+  for update using (owner_id = auth.uid())
+  with check (
+    owner_id = auth.uid()
+    and exists (select 1 from public."references" r where r.id = reference_id)
+  );
+drop policy if exists check_photos_owner_delete on public.check_photos;
+create policy check_photos_owner_delete on public.check_photos
+  for delete using (owner_id = auth.uid());
+
+-- Storage: one object per user per reference, {ownerId}/{referenceId}.{ext},
+-- overwritten on replace (hence the update policy) and removed on delete.
+insert into storage.buckets (id, name, public)
+values ('check-photos', 'check-photos', false)
+on conflict (id) do nothing;
+
+drop policy if exists check_photos_storage_read on storage.objects;
+create policy check_photos_storage_read on storage.objects
+  for select using (bucket_id = 'check-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists check_photos_storage_write on storage.objects;
+create policy check_photos_storage_write on storage.objects
+  for insert with check (bucket_id = 'check-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists check_photos_storage_update on storage.objects;
+create policy check_photos_storage_update on storage.objects
+  for update using (bucket_id = 'check-photos' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'check-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists check_photos_storage_delete on storage.objects;
+create policy check_photos_storage_delete on storage.objects
+  for delete using (bucket_id = 'check-photos' and (storage.foldername(name))[1] = auth.uid()::text);
