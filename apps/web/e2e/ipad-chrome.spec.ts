@@ -292,7 +292,7 @@ test.describe('canvas menu', () => {
     await expect(page.getByTestId('zoom-readout')).not.toHaveText('100%');
 
     await rightClickCanvas(page);
-    await expect(menu(page).getByRole('menuitem')).toHaveText(['Fit to screen', 'Reset rotation', 'Hide grid', 'Focus this cell', 'Paste']);
+    await expect(menu(page).getByRole('menuitem')).toHaveText(['Fit to screen', 'Reset rotation', 'Hide grid', 'Touch Lock', 'Focus this cell', 'Paste']);
     await menu(page).getByRole('menuitem', { name: 'Reset rotation' }).click();
     await expect(menu(page)).toHaveCount(0);
     await expect(page.getByTestId('rotation-readout')).toHaveCount(0);
