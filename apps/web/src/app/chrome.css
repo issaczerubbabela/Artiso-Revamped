@@ -73,6 +73,20 @@
 .pane {
   position: absolute;
   inset: 0;
+  /* A long-press opens Artiso's canvas menu, not iOS's callout or selection. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Focusable for the keyboard's canvas menu; the ring sits just inside the edge. */
+.pane:focus {
+  outline: none;
+}
+
+.pane:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 /* ---------- Matte panel (rail, dock, top bar, zoom pill) ---------- */
@@ -591,6 +605,43 @@
   border-bottom-color: transparent;
   border-left-color: transparent;
   transform: rotate(45deg);
+}
+
+/* ---------- Canvas menu (long-press / right-click) ---------- */
+
+.canvas-menu {
+  position: fixed;
+  z-index: var(--z-dialog);
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: var(--space-xs);
+}
+
+.canvas-menu__item {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+  font-size: var(--font-body-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-menu__item:hover,
+.canvas-menu__item:focus {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.canvas-menu__item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 /* ---------- Immersive (presentation) mode ---------- */

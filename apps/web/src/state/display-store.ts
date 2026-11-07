@@ -73,6 +73,12 @@ interface DisplayState extends Persisted {
   calibrationOpen: boolean;
   openCalibration: () => void;
   closeCalibration: () => void;
+
+  // Show/hide grid from the canvas menu: a quick look at the reference without
+  // its grid. A view toggle, not an edit -- the grid's own settings (and every
+  // export) are untouched, and like any glance it is not remembered.
+  gridHidden: boolean;
+  setGridHidden: (hidden: boolean) => void;
 }
 
 export const useDisplayStore = create<DisplayState>((set, get) => {
@@ -93,5 +99,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => {
     calibrationOpen: false,
     openCalibration: () => set({ calibrationOpen: true }),
     closeCalibration: () => set({ calibrationOpen: false }),
+    gridHidden: false,
+    setGridHidden: (gridHidden) => set({ gridHidden }),
   };
 });
