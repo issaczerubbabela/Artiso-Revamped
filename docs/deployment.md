@@ -36,6 +36,13 @@ Unlimited bandwidth on the free plan, and it reads `apps/web/public/_headers`
 4. **Save and Deploy.** You get `https://<name>.pages.dev`. Every push to
    `master` redeploys.
 
+**Created a Worker instead of a Pages project?** That works too (Cloudflare's
+newer flow: Workers & Pages → Create → *Import a repository*). Use the same
+build command and variables; leave the deploy command as `npx wrangler deploy`.
+It reads [`wrangler.jsonc`](../wrangler.jsonc) at the repo root, which serves
+`apps/web/out` as static assets — its `name` must match the Worker's name in the
+dashboard. The URL is `https://<name>.<your-subdomain>.workers.dev`.
+
 **Vercel instead?** Import the repo, set *Root Directory* to `apps/web`, leave
 the Next.js preset, set the same two `NEXT_PUBLIC_*` variables. (`_headers` is
 ignored there; the app still works.)
