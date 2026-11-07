@@ -19,14 +19,17 @@ them, don't re-derive architecture from scratch.
    read the specific module doc(s) for whatever you're touching (01–11,
    indexed in [`docs/README.md`](docs/README.md)).
 2. **What order to build it in** → [`docs/phases/`](docs/phases/) —
-   `phase-0` through `phase-9`. Work belongs to the phase it's scoped to;
+   `phase-0` through `phase-10`. Work belongs to the phase it's scoped to;
    don't pull a later phase's feature forward without flagging it to the
    user first. Phases 7 and 8 (guides, multi-reference tabs, split view,
    collaboration) shipped after being pulled forward from `phase-6` by
    explicit instruction. **Phase 9** (drawing-grid overhaul, requirements in
    [`docs/architecture/Grid-Feature-Spec.md`](docs/architecture/Grid-Feature-Spec.md))
-   is the active phase; where the spec conflicts with
-   `architecture/04-grid-engine.md` the spec wins.
+   shipped; where the spec conflicts with `architecture/04-grid-engine.md`
+   the spec wins. **Phase 10** (installable offline web app + iPad/WebKit
+   fixes) shipped as the web-only route to cross-device use; hosting steps
+   are in [`docs/deployment.md`](docs/deployment.md). Every e2e change must
+   pass in both the `chromium` and `webkit` Playwright projects.
 3. **How to build a specific feature** →
    [`.agents/workflows/`](.agents/workflows/) — step-by-step procedures for
    each module, plus two reusable recipes (add a filter, add a grid type).

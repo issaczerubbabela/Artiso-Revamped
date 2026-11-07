@@ -64,6 +64,7 @@ live in [`architecture/Grid-Feature-Spec.md`](architecture/Grid-Feature-Spec.md)
 | [phase-7-guides-workspace-export.md](phases/phase-7-guides-workspace-export.md) | Guide types, multi-reference workspace, annotation, SVG/PDF export (pulled forward from phase 6) |
 | [phase-8-collaboration-split-view.md](phases/phase-8-collaboration-split-view.md) | Split view, collaborative projects (sharing, merge, viewer/editor roles) |
 | [phase-9-drawing-grid-overhaul.md](phases/phase-9-drawing-grid-overhaul.md) | Drawing-grid overhaul per `Grid-Feature-Spec.md` |
+| [phase-10-installable-web-app.md](phases/phase-10-installable-web-app.md) | Installable offline web app, iPad/WebKit fixes ([deployment](deployment.md)) |
 
 ## Approval checklist
 
