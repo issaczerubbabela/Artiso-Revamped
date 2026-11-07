@@ -1,12 +1,16 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Asset, Preset, Project, Reference } from '@artiso/shared-types';
 
+// An image's bytes as stored (see assets.ts for why not a Blob). Older rows
+// may still hold a Blob.
+export type StoredBlob = Blob | { bytes: ArrayBuffer; type: string };
+
 export interface ArtisoDB extends DBSchema {
   projects: { key: string; value: Project };
   references: { key: string; value: Reference; indexes: { byProject: string } };
   assets: { key: string; value: Asset };
   // Keyed by `${assetId}:original` / `${assetId}:thumbnail`, not by keyPath.
-  blobs: { key: string; value: Blob };
+  blobs: { key: string; value: StoredBlob };
   presets: { key: string; value: Preset };
   // The last copy of each Reference this device synced -- the common
   // starting point a collaborative three-way merge compares against.

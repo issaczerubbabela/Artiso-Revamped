@@ -1,5 +1,21 @@
 import type { Asset } from '@artiso/shared-types';
-import { getDb } from './db';
+import { getDb, type StoredBlob } from './db';
+
+// Image bytes are stored as { bytes, type }, not as Blob values. WebKit refuses
+// to put a Blob into IndexedDB in an ephemeral session -- Safari Private
+// Browsing on iPhone/iPad ("Error preparing Blob/File data to be stored in
+// object store"), which made every import fail there. An ArrayBuffer stores
+// everywhere. Rows written as Blobs by earlier versions still read back fine.
+// The conversion is awaited *before* the transaction opens: an IndexedDB
+// transaction auto-commits across any await that isn't one of its own requests.
+async function toStored(blob: Blob): Promise<StoredBlob> {
+  return { bytes: await blob.arrayBuffer(), type: blob.type };
+}
+
+function fromStored(value: StoredBlob | undefined): Blob | undefined {
+  if (value === undefined || value instanceof Blob) return value;
+  return new Blob([value.bytes], { type: value.type });
+}
 
 export interface SaveAssetInput {
   // Caller-provided, deterministic (core-engine's deterministicUuid over
@@ -36,12 +52,13 @@ export async function saveAsset(input: SaveAssetInput): Promise<Asset> {
     createdAt: new Date().toISOString(),
   };
 
+  const [original, thumbnail] = await Promise.all([toStored(input.originalBlob), toStored(input.thumbnailBlob)]);
   const db = await getDb();
   const tx = db.transaction(['assets', 'blobs'], 'readwrite');
   await Promise.all([
     tx.objectStore('assets').put(asset),
-    tx.objectStore('blobs').put(input.originalBlob, `${asset.id}:original`),
-    tx.objectStore('blobs').put(input.thumbnailBlob, `${asset.id}:thumbnail`),
+    tx.objectStore('blobs').put(original, `${asset.id}:original`),
+    tx.objectStore('blobs').put(thumbnail, `${asset.id}:thumbnail`),
     tx.done,
   ]);
 
@@ -55,12 +72,13 @@ export async function saveAsset(input: SaveAssetInput): Promise<Asset> {
 // Used when opening a Reference whose asset was uploaded from a different
 // device and never downloaded to this one.
 export async function applyRemoteAsset(asset: Asset, originalBlob: Blob, thumbnailBlob: Blob): Promise<void> {
+  const [original, thumbnail] = await Promise.all([toStored(originalBlob), toStored(thumbnailBlob)]);
   const db = await getDb();
   const tx = db.transaction(['assets', 'blobs'], 'readwrite');
   await Promise.all([
     tx.objectStore('assets').put(asset),
-    tx.objectStore('blobs').put(originalBlob, `${asset.id}:original`),
-    tx.objectStore('blobs').put(thumbnailBlob, `${asset.id}:thumbnail`),
+    tx.objectStore('blobs').put(original, `${asset.id}:original`),
+    tx.objectStore('blobs').put(thumbnail, `${asset.id}:thumbnail`),
     tx.done,
   ]);
 }
@@ -72,5 +90,5 @@ export async function getAsset(id: string): Promise<Asset | undefined> {
 
 export async function getAssetBlob(assetId: string, variant: 'original' | 'thumbnail'): Promise<Blob | undefined> {
   const db = await getDb();
-  return db.get('blobs', `${assetId}:${variant}`);
+  return fromStored(await db.get('blobs', `${assetId}:${variant}`));
 }

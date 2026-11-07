@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { applyRemoteAsset, getAsset, getAssetBlob, saveAsset } from '../assets';
+import { getDb } from '../db';
 import { resetTestDatabase } from './test-helpers';
 
 beforeEach(resetTestDatabase);
@@ -65,5 +66,29 @@ describe('applyRemoteAsset', () => {
     expect(await getAsset(ASSET_ID)).toEqual(asset);
     expect(await (await getAssetBlob(ASSET_ID, 'original'))?.text()).toBe('remote-original');
     expect(await (await getAssetBlob(ASSET_ID, 'thumbnail'))?.text()).toBe('remote-thumb');
+  });
+});
+
+// WebKit can't store Blob values in IndexedDB in an ephemeral session (Safari
+// Private Browsing), so bytes are stored as an ArrayBuffer plus MIME type.
+describe('blob storage format', () => {
+  it('stores bytes, not a Blob, and keeps the MIME type', async () => {
+    await saveAsset(makeInput({ originalBlob: new Blob(['png-bytes'], { type: 'image/png' }) }));
+
+    const raw = await (await getDb()).get('blobs', `${ASSET_ID}:original`);
+    expect(raw).not.toBeInstanceOf(Blob);
+
+    const original = await getAssetBlob(ASSET_ID, 'original');
+    expect(original?.type).toBe('image/png');
+    expect(await original?.text()).toBe('png-bytes');
+  });
+
+  it('still reads a Blob stored by an earlier version', async () => {
+    const db = await getDb();
+    await db.put('blobs', new Blob(['legacy-bytes'], { type: 'image/jpeg' }), `${ASSET_ID}:original`);
+
+    const original = await getAssetBlob(ASSET_ID, 'original');
+    expect(original?.type).toBe('image/jpeg');
+    expect(await original?.text()).toBe('legacy-bytes');
   });
 });
