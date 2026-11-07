@@ -1,3 +1,4 @@
+import { createScratchCanvas } from '../canvas/scratch-canvas';
 import type { Operation } from '@artiso/shared-types';
 import { applyGeometryOps, type PixelRect } from '../geometry';
 import { DEFAULT_WORKING_LONG_EDGE } from '../import/constants';
@@ -48,7 +49,7 @@ export async function renderFramedBitmap(
     const sh = clamp(Math.round(source.h), 1, oriented.height - sy);
 
     const { width, height } = computeResizeDimensions(sw, sh, longEdge);
-    const canvas = new OffscreenCanvas(width, height);
+    const canvas = createScratchCanvas(width, height);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D context unavailable');
     ctx.imageSmoothingQuality = 'high';

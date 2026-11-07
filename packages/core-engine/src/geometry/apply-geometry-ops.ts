@@ -1,3 +1,4 @@
+import { createScratchCanvas } from '../canvas/scratch-canvas';
 import type { Operation } from '@artiso/shared-types';
 import { denormalizeCropRect } from './crop-rect';
 
@@ -85,7 +86,7 @@ async function drawToBitmap(
   height: number,
   draw: (ctx: OffscreenCanvasRenderingContext2D) => void,
 ): Promise<ImageBitmap> {
-  const canvas = new OffscreenCanvas(width, height);
+  const canvas = createScratchCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
   draw(ctx);

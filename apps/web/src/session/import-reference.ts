@@ -13,6 +13,7 @@ import { useAppViewStore } from '@/state/app-view-store';
 import { useAuthStore } from '@/state/auth-store';
 import { DEFAULT_GRID_CONFIG } from '@/state/default-grid-config';
 import { createProjectAction } from './project-actions';
+import { canvasToBlob, createScratchCanvas } from '@/platform/canvas';
 
 // Import module's full pipeline (.agents/workflows/build-image-import-pipeline.md):
 // pick (via the PlatformAdapter seam, never a raw file input here) -> decode/
@@ -102,9 +103,10 @@ export async function importReference(): Promise<void> {
 }
 
 async function bitmapToBlob(bitmap: ImageBitmap): Promise<Blob> {
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const canvas = createScratchCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
   ctx.drawImage(bitmap, 0, 0);
-  return canvas.convertToBlob({ type: 'image/webp', quality: 0.85 });
+  // Safari can't encode WebP and quietly falls back to PNG; fine for a thumbnail.
+  return canvasToBlob(canvas, 'image/webp', 0.85);
 }

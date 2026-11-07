@@ -1,3 +1,4 @@
+import { createScratchCanvas } from '../canvas/scratch-canvas';
 import { DEFAULT_WORKING_LONG_EDGE, THUMBNAIL_LONG_EDGE } from './constants';
 import { ImageImportError } from './errors';
 import { sha256Hex } from './hash';
@@ -115,7 +116,7 @@ async function resizeBitmap(source: ImageBitmap, width: number, height: number):
   if (width === source.width && height === source.height) {
     return createImageBitmap(source);
   }
-  const canvas = new OffscreenCanvas(width, height);
+  const canvas = createScratchCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
   ctx.drawImage(source, 0, 0, width, height);

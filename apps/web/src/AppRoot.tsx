@@ -7,6 +7,10 @@ import { WorkspaceShell } from '@/workspace/WorkspaceShell';
 import { bootstrapAuth } from '@/session/auth-bootstrap';
 import { resumeSession } from '@/session/resume-session';
 import { startLiveRefresh } from '@/session/live-refresh';
+import { installCanvasFallback } from '@/platform/canvas';
+
+// Before any import/export can run (module scope, not an effect).
+installCanvasFallback();
 
 // Bootstraps exactly once at the app root -- resumeSession in particular
 // must not live inside WorkspaceShell's own mount effect, since the user

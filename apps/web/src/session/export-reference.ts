@@ -1,3 +1,4 @@
+import { canvasToBlob, createScratchCanvas } from '@/platform/canvas';
 import { PDFDocument } from 'pdf-lib';
 import {
   MM_PER_CSS_PX,
@@ -70,7 +71,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     () => sourceBitmap.close(),
   );
 
-  const outputCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+  const outputCanvas = createScratchCanvas(geometry.width, geometry.height);
   const outputCtx = outputCanvas.getContext('2d');
   if (!outputCtx) throw new Error('2D context unavailable');
 
@@ -78,7 +79,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   // entirely, leaving just the grid on a transparent background -- the
   // canvas starts transparent by default, so there's nothing to draw here.
   if (options.includeImage !== false) {
-    const imageCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+    const imageCanvas = createScratchCanvas(geometry.width, geometry.height);
     const imageLayer = new ImageLayer(imageCanvas);
     imageLayer.setSource(geometry.bitmap);
     const adjustments = options.includeAdjustments ? deriveAdjustments(options.editStack) : NO_ADJUSTMENTS;
@@ -93,7 +94,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
     // paper as it looked on screen at real size.
     const scaleUp = pxPerMm * MM_PER_CSS_PX;
     const view = { scale: pxPerMm, translateX: 0, translateY: 0 };
-    const gridCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+    const gridCanvas = createScratchCanvas(geometry.width, geometry.height);
 
     // Guides first, then the grid over them. Export's includeGrid toggle is its
     // own decision, independent of whether the grid happens to be hidden in the
@@ -124,7 +125,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   // included, same "independent overlay" relationship the grid has with
   // adjustments/filters.
   if (options.includeAnnotations !== false && options.annotations.length > 0) {
-    const annotationCanvas = new OffscreenCanvas(geometry.width, geometry.height);
+    const annotationCanvas = createScratchCanvas(geometry.width, geometry.height);
     const annotationLayer = new AnnotationLayer(annotationCanvas);
     const resolved = resolveAnnotationGeometry(geometry.width, geometry.height, options.annotations);
     annotationLayer.draw(resolved, null, IDENTITY_VIEWPORT, geometry.width, geometry.height);
@@ -134,7 +135,7 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   // PDF bakes the exact same raster composite PNG does into a single page the
   // size of the paper itself, so it prints at physical scale.
   if (options.format === 'pdf') {
-    const pngBlob = await outputCanvas.convertToBlob({ type: 'image/png' });
+    const pngBlob = await canvasToBlob(outputCanvas, 'image/png');
     const pdfDoc = await PDFDocument.create();
     const pngImage = await pdfDoc.embedPng(new Uint8Array(await pngBlob.arrayBuffer()));
     const pageWidth = paper.widthMm * POINTS_PER_MM;
@@ -147,6 +148,6 @@ export async function exportReference(options: ExportOptions): Promise<void> {
   }
 
   const mimeType = options.format === 'png' ? 'image/png' : 'image/jpeg';
-  const blob = await outputCanvas.convertToBlob({ type: mimeType, quality: options.quality / 100 });
+  const blob = await canvasToBlob(outputCanvas, mimeType, options.quality / 100);
   await getPlatformAdapter().saveFile(blob, `reference.${options.format}`);
 }
