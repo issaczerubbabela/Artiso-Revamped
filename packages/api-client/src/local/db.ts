@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Asset, Preset, Project, Reference } from '@artiso/shared-types';
+import type { CheckPhotoRecord } from './check-photos';
 
 // An image's bytes as stored (see assets.ts for why not a Blob). Older rows
 // may still hold a Blob.
@@ -15,10 +16,13 @@ export interface ArtisoDB extends DBSchema {
   // The last copy of each Reference this device synced -- the common
   // starting point a collaborative three-way merge compares against.
   syncBases: { key: string; value: Reference };
+  // v4: this device's Check Photo per reference, keyed by referenceId (see
+  // check-photos.ts). Kept apart from `references` on purpose.
+  checkPhotos: { key: string; value: CheckPhotoRecord };
 }
 
 const DB_NAME = 'artiso';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<ArtisoDB>> | undefined;
 
@@ -51,6 +55,9 @@ export function getDb(): Promise<IDBPDatabase<ArtisoDB>> {
       }
       if (!db.objectStoreNames.contains('syncBases')) {
         db.createObjectStore('syncBases', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('checkPhotos')) {
+        db.createObjectStore('checkPhotos', { keyPath: 'referenceId' });
       }
     },
   });

@@ -10,6 +10,7 @@ import {
   saveSyncBase,
 } from '../local';
 import { syncAsset } from './asset';
+import { syncCheckPhoto } from './check-photo';
 import { emitReferenceUpdated } from './events';
 import { mergeReferences } from './merge-reference';
 import { syncProject } from './project';
@@ -83,6 +84,8 @@ async function runReferenceSyncOnce(projectId: string, referenceId: string): Pro
     // Viewers are read-only: they never push, they only take newer copies.
     if (role === 'viewer') {
       await pullIfNewer(reference);
+      // A viewer's Check Photo is their own, not the project's: it syncs too.
+      await syncCheckPhoto(reference.id);
       setSyncStatus(projectId, 'synced');
       return;
     }
@@ -111,6 +114,10 @@ async function runReferenceSyncOnce(projectId: string, referenceId: string): Pro
     }
 
     await pushWithMerge(reference);
+    // After the reference row, which the Check Photo row points at. It is its
+    // own entity (docs/adr/0001-...): it never touches the reference's version
+    // or merge.
+    await syncCheckPhoto(reference.id);
     setSyncStatus(projectId, 'synced');
   } catch {
     setSyncStatus(projectId, 'error');

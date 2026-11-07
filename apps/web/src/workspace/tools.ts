@@ -2,6 +2,7 @@
 
 import {
   ArrowsClockwise,
+  Camera,
   DownloadSimple,
   FrameCorners,
   GridFour,
@@ -36,6 +37,7 @@ export const TOOL_GROUPS: readonly (readonly ToolDef[])[] = [
   [
     { id: 'grid', label: 'Grid', short: 'Grid', icon: GridFour },
     { id: 'annotate', label: 'Draw', short: 'Draw', icon: PencilSimple },
+    { id: 'check', label: 'Drawing Check', short: 'Check', icon: Camera },
   ],
   [
     { id: 'presets', label: 'Presets', short: 'Presets', icon: Stack },
@@ -58,8 +60,9 @@ export function useToolbarState() {
     toolMode,
     hasReference,
     isImporting,
-    // A viewer can only export; every editing tool is disabled for them.
-    isDisabled: (tool: ToolDef) => !hasReference || (isViewer && tool.id !== 'export'),
+    // A viewer can only export and run a Drawing Check (their Check Photo is
+    // their own); every editing tool is disabled for them.
+    isDisabled: (tool: ToolDef) => !hasReference || (isViewer && tool.id !== 'export' && tool.id !== 'check'),
     // Choosing the active tool again closes its panel.
     toggleTool: (tool: ToolDef) => setToolMode(toolMode === tool.id ? 'idle' : tool.id),
     present: () => setPresentationMode(true),

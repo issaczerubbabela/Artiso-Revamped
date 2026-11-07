@@ -42,3 +42,18 @@ export interface ReferenceRow {
   updated_at: string;
   version: number;
 }
+
+// Drawing Check (phase 12): one row per owner per reference.
+export interface CheckPhotoRow {
+  id: string;
+  owner_id: string;
+  reference_id: string;
+  storage_key: string;
+  mime_type: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  corners: unknown;
+  created_at: string;
+  updated_at: string;
+}
