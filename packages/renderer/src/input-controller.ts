@@ -31,7 +31,7 @@ export class InputController {
     } catch {
       // Not capturable; gestures still work while the pointer stays over the canvas.
     }
-    this.engine.pointerDown(event.pointerId, this.localPoint(event.clientX, event.clientY));
+    this.engine.pointerDown(event.pointerId, this.localPoint(event.clientX, event.clientY), event.pointerType);
   };
 
   private readonly handlePointerMove = (event: PointerEvent) => {

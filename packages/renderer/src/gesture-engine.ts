@@ -41,6 +41,10 @@ export interface GestureEngineOptions {
   // Whether a pinch may stretch past a zoom limit and spring back. Off where
   // an overshoot would be acted on mid-gesture (the Paper tool's crop).
   allowsZoomOvershoot?: () => boolean;
+  // Which pointer types ('touch', 'pen', 'mouse') move the view, checked as
+  // each pointer goes down. Pencil-only Drawing leaves the Pencil to draw and
+  // gives the view to the fingers. Unset: every pointer.
+  acceptsPointer?: (pointerType: string) => boolean;
   clock?: GestureClock;
   scheduler?: FrameScheduler;
 }
@@ -141,7 +145,10 @@ export class GestureEngine {
     this.scheduler = options.scheduler ?? (typeof requestAnimationFrame === 'function' ? animationFrameScheduler : null);
   }
 
-  pointerDown(id: number, point: Point): void {
+  pointerDown(id: number, point: Point, pointerType?: string): void {
+    // A pointer that is not for the view is never tracked, so its moves and
+    // lift are no-ops here.
+    if (pointerType !== undefined && this.options.acceptsPointer && !this.options.acceptsPointer(pointerType)) return;
     // Touching the canvas catches a glide, as it would a sliding sheet.
     this.stopMotion();
     this.pointers.set(id, point);

@@ -19,3 +19,6 @@ export * from './chrome-insets';
 export * from './check-photo-layer';
 export * from './tap';
 export * from './cell-focus-layer';
+export * from './multi-finger-tap';
+export * from './hold';
+export * from './pointer-overlays';
