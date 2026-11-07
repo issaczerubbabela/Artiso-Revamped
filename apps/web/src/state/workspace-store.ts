@@ -30,7 +30,8 @@ import { buildGridConfigForType } from './build-grid-config-for-type';
 import { useTabsStore } from './tabs-store';
 
 export type ToolMode = 'idle' | 'paper' | 'rotateFlip' | 'adjustments' | 'filters' | 'grid' | 'annotate' | 'check' | 'export' | 'presets';
-export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand';
+// 'measure' takes a Measurement (GLOSSARY.md): drawn the same way, never saved.
+export type AnnotationTool = 'arrow' | 'circle' | 'note' | 'freehand' | 'measure';
 
 // What the drawing view starts from before any reference is loaded; never drawn.
 const DEFAULT_PAPER: Paper = paperFor('A4', 'portrait');

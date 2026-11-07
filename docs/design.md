@@ -279,6 +279,55 @@ on; it is left out off the paper, and greyed out with its reason underneath
 A greyed item stays focusable (`aria-disabled`, reason as its description) so the
 keyboard and screen readers still find it.
 
+**Touch Lock** (Phase 12, GLOSSARY.md). A ghost button at the start of the zoom
+pill — padlock icon plus a short label (*Lock* / *Locked*, so it reads on touch
+without a tooltip), and a *Touch Lock* item in the canvas menu. Locking is one tap.
+While locked the canvas ignores every press — pan, pinch, twist, double-tap, taps,
+long-press, strokes and Measure, from fingers, Pencil and mouse alike — and the
+pill's *Fit*, *Real size* and angle reset are disabled, so the view stays exactly
+as it is. The chrome keeps working: Cell Focus's ‹ › and ✓ (stepping may still
+pan just enough to reveal a cell), the panels, and Pencil hover. Unlocking takes a
+**1-second press** on the button (finger, Pencil, mouse, or Enter/Space held);
+while held the button shows pressed-in (cyan fill, an instant state), and the
+click that ends a successful hold never re-locks. The menu item is greyed out
+while locked, with "Press and hold the lock for 1 second to unlock." as its
+reason. Separate from Presentation mode: nothing re-fits and the chrome stays.
+Not remembered across reloads.
+
+**Pencil-only Drawing** (Phase 12). Off for anyone who never uses a Pencil. The
+first Pencil stroke in Draw switches it on; from then on fingers pan, pinch and
+turn the view in Draw and never mark it, and a palm resting beside a Pencil stroke
+neither draws nor interrupts it. Once a Pencil has been seen, the Draw panel
+offers a *Pencil-only Drawing* switch (device-local, remembered) with the note
+"Only the Pencil draws; fingers move the view." Without it, a second finger on a
+finger stroke cancels the stroke (it is a gesture). **Pressure** varies a freehand
+stroke's width only, from ¼ to 1¾ of the set thickness (a medium press, and a
+mouse, draw at the set thickness); strokes without pressure draw as before.
+
+**Pencil hover** (Phase 12). A Pencil hovering with nothing pressed shows, in every
+mode and under Touch Lock: a thin white crosshair with a dark halo at the tip
+(14px arms, a 3px gap at the centre), a 1.5px cyan outline on the cell under the
+tip, and that cell's label in a small matte chip (monospace, 24px tall) 18px up
+and right of the tip, flipping to stay on screen. Only the crosshair shows off the
+paper or without squares. It disappears the moment the Pencil touches down, lifts
+away or leaves the canvas.
+
+**Measure** (Phase 12, a Draw-panel tool beside Arrow … Freehand). Dragging draws
+a 2px cyan line with a dark halo and short square ticks at both ends, its readout
+in a matte chip beside the far end; the panel repeats the readout under
+*Measurement* in monospace — the length in the paper unit setting (mm, cm, in, or
+px at the document DPI) and in cells, "42 mm · 1.7 cells". Holding still at the
+end for ~500ms snaps the line onto the paper's horizontal or vertical (whichever
+it is nearer), and it stays snapped for the rest of that drag. The next measure
+replaces it; switching tool, closing Draw or changing reference clears it; it is
+never saved or exported.
+
+**Touch shortcuts** (Phase 12). Double-tap: fit and square up (or back to the
+previous view). Two-finger tap (both fingers down and up within 250ms, under 10px
+of movement): undo the last mark, in Draw only. Three-finger tap: show or hide the
+grid. None of them work under Touch Lock or in Presentation mode; a two- or
+three-finger tap is never half of a double-tap.
+
 **Cell Focus** (Phase 12, GLOSSARY.md). Everything outside the focused cell is
 darkened with flat black (default 70%, *Dim outside the cell* slider 10–95% in the
 Grid panel); the focused cell gets a 2px cyan outline (the general accent — not

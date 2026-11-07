@@ -420,6 +420,21 @@
   touch-action: manipulation;
 }
 
+/* Touch Lock: a long press unlocks it, so it must not select text or raise the
+   iPad's callout; while it is being held it shows pressed-in (no animation). */
+.touch-lock {
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-lock[data-holding] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
 .readout {
   min-width: 4ch;
   padding: 0 var(--space-xs);

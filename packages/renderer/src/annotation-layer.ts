@@ -9,6 +9,37 @@ const THICKNESS_PX: Record<'thin' | 'medium' | 'thick', number> = {
   thick: 5,
 };
 
+// Pencil pressure (0..1) to a multiple of the set line width: width only,
+// never opacity. A medium press -- and a mouse, which reports 0.5 while its
+// button is down -- draws at the set width; the lightest touch at a quarter
+// of it and the hardest at 1.75 times.
+const PRESSURE_MIN_FACTOR = 0.25;
+const PRESSURE_MAX_FACTOR = 1.75;
+
+export function pressureWidthFactor(pressure: number | undefined): number {
+  if (pressure === undefined || !Number.isFinite(pressure)) return 1;
+  const p = Math.min(1, Math.max(0, pressure));
+  return PRESSURE_MIN_FACTOR + (PRESSURE_MAX_FACTOR - PRESSURE_MIN_FACTOR) * p;
+}
+
+// The line width of each segment of a freehand stroke: the base width times
+// the average pressure factor of the segment's two ends (a point without
+// pressure counts as the base width). Null when pressure changes nothing --
+// none at all, or a mouse's constant 0.5 -- so such a stroke is drawn exactly
+// as before pressure was used.
+export function freehandSegmentWidths(
+  points: readonly { x: number; y: number; pressure?: number }[],
+  baseWidth: number,
+): number[] | null {
+  const factors = points.map((p) => pressureWidthFactor(p.pressure));
+  if (factors.every((f) => f === 1)) return null;
+  const widths: number[] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    widths.push((baseWidth * (factors[i]! + factors[i + 1]!)) / 2);
+  }
+  return widths;
+}
+
 const ARROWHEAD_LENGTH_PX = 12;
 const ARROWHEAD_ANGLE = Math.PI / 7;
 const NOTE_MARKER_RADIUS_PX = 5;
@@ -79,19 +110,33 @@ export class AnnotationLayer {
         break;
       }
       case 'freehand': {
-        // Pressure is captured per-point in the data model (for a future
-        // variable-width stroke refinement) but not yet used to vary the
-        // rendered width -- a single fixed-thickness path is a reasonable
-        // first cut and keeps this loop simple.
-        ctx.lineWidth = THICKNESS_PX[annotation.thickness] / scale;
+        const base = THICKNESS_PX[annotation.thickness] / scale;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
-        ctx.beginPath();
-        annotation.points.forEach((point, index) => {
-          if (index === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        });
-        ctx.stroke();
+        const widths = freehandSegmentWidths(annotation.points, base);
+        if (!widths || widths.every((w) => w === widths[0])) {
+          // One width all along (no pressure -- mouse, finger, older strokes
+          // -- or an even press): a single path, as strokes always were.
+          ctx.lineWidth = widths?.[0] ?? base;
+          ctx.beginPath();
+          annotation.points.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          });
+          ctx.stroke();
+          break;
+        }
+        // Pencil pressure: each segment at its own width. Round caps join
+        // the segments into one smooth stroke.
+        for (let i = 0; i < widths.length; i++) {
+          const a = annotation.points[i]!;
+          const b = annotation.points[i + 1]!;
+          ctx.lineWidth = widths[i]!;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
         break;
       }
       case 'note': {

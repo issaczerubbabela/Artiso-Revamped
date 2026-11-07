@@ -529,6 +529,21 @@ describe('GestureEngine: wheel', () => {
 });
 
 describe('GestureEngine: double-tap', () => {
+  it('never counts a two-finger tap as a tap (that is the undo shortcut)', () => {
+    const { viewport, engine, clock } = setup();
+    viewport.setZoom(9, { x: 300, y: 300 });
+    const zoomed = viewport.getState();
+    for (let i = 0; i < 2; i++) {
+      engine.pointerDown(10 + i * 2, { x: 500, y: 400 });
+      engine.pointerDown(11 + i * 2, { x: 600, y: 400 });
+      clock.advance(40);
+      engine.pointerUp(10 + i * 2);
+      engine.pointerUp(11 + i * 2);
+      clock.advance(100);
+    }
+    expect(viewport.getState()).toEqual(zoomed);
+  });
+
   it('fits on a double-tap, then goes back to the previous view on the next', () => {
     const { viewport, engine, clock } = setup();
     viewport.setZoom(9, { x: 300, y: 300 });
@@ -623,6 +638,42 @@ describe('GestureEngine: Gesture Lock', () => {
     const before = viewport.getState();
     engine.pointerMove(1, { x: 310, y: 300 });
     expect(viewport.getState().translateX).toBeCloseTo(before.translateX + 10, 9);
+  });
+});
+
+describe('GestureEngine: which pointers it takes', () => {
+  // Pencil-only Drawing: the Pencil draws, so only fingers move the view.
+  function setupFingersOnly() {
+    const viewport = new Viewport(1000, 800, 210, 297, DRAW);
+    const engine = new GestureEngine({ viewport, onChange: () => {}, acceptsPointer: (type) => type === 'touch' });
+    viewport.setZoom(6);
+    return { viewport, engine };
+  }
+
+  it('ignores a pointer type it does not accept', () => {
+    const { viewport, engine } = setupFingersOnly();
+    const before = viewport.getState();
+    engine.pointerDown(1, { x: 500, y: 400 }, 'pen');
+    engine.pointerMove(1, { x: 300, y: 300 });
+    engine.pointerUp(1);
+    expect(viewport.getState()).toEqual(before);
+    expect(engine.isTracking(1)).toBe(false);
+  });
+
+  it('still pans with the pointers it accepts', () => {
+    const { viewport, engine } = setupFingersOnly();
+    const before = viewport.getState();
+    engine.pointerDown(2, { x: 500, y: 400 }, 'touch');
+    engine.pointerMove(2, { x: 480, y: 400 });
+    expect(viewport.getState().translateX).toBeCloseTo(before.translateX - 20, 9);
+  });
+
+  it('takes every pointer when no type is given', () => {
+    const { viewport, engine } = setupFingersOnly();
+    const before = viewport.getState();
+    engine.pointerDown(3, { x: 500, y: 400 });
+    engine.pointerMove(3, { x: 490, y: 400 });
+    expect(viewport.getState().translateX).toBeCloseTo(before.translateX - 10, 9);
   });
 });
 
