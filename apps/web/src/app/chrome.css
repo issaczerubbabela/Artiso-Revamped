@@ -124,12 +124,15 @@
   pointer-events: auto;
 }
 
-/* The middle column holds the top bar; it must not swallow canvas gestures. */
+/* The middle column holds the top bar (and the import notice under it); it
+   must not swallow canvas gestures. */
 .chrome-center {
   flex: 1;
   min-width: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
   pointer-events: none;
 }
 
@@ -767,6 +770,58 @@
 
 .edge-hint[data-edge='right'] {
   right: 0;
+}
+
+/* ---------- Import notice and drop target (paste / drop, issue #10) ---------- */
+
+.import-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: min(560px, 100%);
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  font-size: var(--font-label-size);
+  color: var(--color-ink);
+}
+
+.import-notice__text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Compact: no top bar to sit under, so it floats at the top on its own. */
+.import-notice--floating {
+  position: absolute;
+  top: var(--inset-top);
+  left: var(--inset-left);
+  right: var(--inset-right);
+  z-index: var(--z-chrome);
+  margin: 0 auto;
+  width: fit-content;
+}
+
+/* Covers the window while something is dragged over it. Transparent to the
+   drag itself, so the drop lands on the page underneath as usual. */
+.drop-target {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-lg);
+  margin: var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
+  background: rgba(19, 20, 22, 0.55);
+  pointer-events: none;
+}
+
+.drop-target__label {
+  padding: var(--space-md) var(--space-lg);
+  font-family: var(--font-family-heading);
+  font-size: var(--font-body-size);
+  text-align: center;
 }
 
 /* ---------- Empty state ---------- */

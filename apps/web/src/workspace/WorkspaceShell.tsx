@@ -15,6 +15,7 @@ import { PANEL_TITLES, ToolPanel } from './ToolPanel';
 import { PanelPopover } from './PanelPopover';
 import { panelPresentation } from './tools';
 import { PaneStage } from './PaneStage';
+import { ImportNotice } from './ImportNotice';
 import { CalibrationDialog } from './CalibrationDialog';
 import { CheckPhotoAligner } from './CheckPhotoAligner';
 import { useCheckPhotoLoader } from '@/session/check-photo';
@@ -152,7 +153,11 @@ export function WorkspaceShell() {
         <div className="chrome-layer">
           <SideRail />
           {/* Tabs are Wide-only: mobile stays single-reference. */}
-          <div className="chrome-center">{breakpoint === 'wide' && hasReference ? <TabStrip /> : null}</div>
+          <div className="chrome-center">
+            {breakpoint === 'wide' && hasReference ? <TabStrip /> : null}
+            {/* Import errors with a reference open (the empty state shows its own). */}
+            {hasReference ? <ImportNotice /> : null}
+          </div>
           <SideDock open={presentation === 'column'} />
         </div>
         {presentation === 'sheet' && toolMode !== 'idle' ? (
@@ -174,6 +179,7 @@ export function WorkspaceShell() {
   return (
     <div className="workspace surface" data-surface={canvasSurface}>
       {canvasArea}
+      {hasReference ? <ImportNotice floating /> : null}
       <div className="sheet-stack compact-stack">
         {toolMode !== 'idle' && hasReference ? (
           <BottomSheet title={PANEL_TITLES[toolMode]}>
