@@ -30,6 +30,10 @@ them, don't re-derive architecture from scratch.
    fixes) shipped as the web-only route to cross-device use; hosting steps
    are in [`docs/deployment.md`](docs/deployment.md). Every e2e change must
    pass in both the `chromium` and `webkit` Playwright projects.
+   **Phases 11–13** (iPad drawing companion) are specified as GitHub issues
+   #1–#3 and broken into tickets #4–#11; to work them, follow
+   [`.agents/workflows/run-ticket-queue.md`](.agents/workflows/run-ticket-queue.md).
+   Domain terms live in [`GLOSSARY.md`](GLOSSARY.md).
 3. **How to build a specific feature** →
    [`.agents/workflows/`](.agents/workflows/) — step-by-step procedures for
    each module, plus two reusable recipes (add a filter, add a grid type).
