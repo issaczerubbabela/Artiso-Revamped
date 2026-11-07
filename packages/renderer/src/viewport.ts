@@ -166,18 +166,41 @@ export class Viewport {
     this.setScaleAndRotation(this.state.scale, rotation, anchor);
   }
 
-  // Zoom and rotate in one step about one anchor -- what a two-finger gesture
-  // does. The content point under `anchor` stays under it.
+  // Zoom and rotate in one step about one anchor. The content point under
+  // `anchor` stays under it.
   setScaleAndRotation(scale: number, rotation: number, anchor: Point = this.containerCenter()): void {
+    this.transformAbout(scale, rotation, anchor, anchor);
+  }
+
+  // What one step of a two-finger gesture does: zoom to `scale`, turn to
+  // `rotation`, and carry the content point that was under `from` to `to` (the
+  // fingers' old and new midpoints), so pinch, pan and twist are one motion.
+  // `clampScale: false` leaves the scale exactly as given -- the gesture engine
+  // uses it to rubber-band past a zoom limit and spring back afterwards; the
+  // pan limits always apply.
+  transformAbout(scale: number, rotation: number, from: Point, to: Point, options: { clampScale?: boolean } = {}): void {
     const constraint = this.constraint();
-    const clamped = constraint.clampScale(scale, rotation);
-    const offset = contentOffset(this.screenToImage(anchor), clamped, rotation);
+    const finalScale = options.clampScale === false ? scale : constraint.clampScale(scale, rotation);
+    if (!(finalScale > 0) || !Number.isFinite(finalScale) || !Number.isFinite(rotation)) return;
+    const offset = contentOffset(this.screenToImage(from), finalScale, rotation);
     this.state = constraint.clampPan({
-      scale: clamped,
-      translateX: anchor.x - offset.x,
-      translateY: anchor.y - offset.y,
+      scale: finalScale,
+      translateX: to.x - offset.x,
+      translateY: to.y - offset.y,
       rotation,
     });
+  }
+
+  // The scale the zoom limits allow nearest to `scale`, at `rotation` (the
+  // current angle by default; the fit floor depends on it).
+  clampScale(scale: number, rotation: number = this.state.rotation): number {
+    return this.constraint().clampScale(scale, rotation);
+  }
+
+  // The centre of the part of the container chrome leaves uncovered: where the
+  // zoom buttons, Real size and Shift+drag rotation pivot.
+  getVisibleCenter(): Point {
+    return this.containerCenter();
   }
 
   // Direct 1:1 tracking of the input delta -- no easing, no animation
@@ -212,11 +235,11 @@ export class Viewport {
     return Math.min(availableW / extent.width, availableH / extent.height);
   }
 
-  // Fits the scale and centres the content in the visible region, keeping the
-  // current angle.
-  zoomToFit(): void {
+  // Fits the scale and centres the content in the visible region, at
+  // `rotation` (the current angle by default; double-tap passes 0 to fit and
+  // square up in one step).
+  zoomToFit(rotation: number = this.state.rotation): void {
     const constraint = this.constraint();
-    const { rotation } = this.state;
     const scale = constraint.clampScale(this.getFitScale(rotation), rotation);
     const region = this.visibleRegion();
     const box = this.rotatedBox(scale, rotation);
