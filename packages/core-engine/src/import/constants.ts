@@ -1,6 +1,7 @@
-// docs/architecture/01-image-import.md: v1 format allow-list. HEIC support is
-// an open question, deliberately not included yet.
-export const ACCEPTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+// docs/architecture/01-image-import.md: the format allow-list. HEIC/HEIF is
+// accepted since issue #10 and opens wherever the browser can decode it; where
+// it can't, the decode error asks for a JPEG (decodeFailedMessage).
+export const ACCEPTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const;
 export type AcceptedMimeType = (typeof ACCEPTED_MIME_TYPES)[number];
 
 // Default working-bitmap cap (long edge, px). Configurable via Performance
