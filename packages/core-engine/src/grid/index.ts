@@ -10,3 +10,4 @@ export * from './diagonals';
 export * from './radial-rays';
 export * from './label-scheme';
 export * from './label-layout';
+export * from './cells';
