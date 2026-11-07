@@ -28,17 +28,17 @@ Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
 
 ## Checklist
 
-- [ ] Core-engine cell queries, distance, invalidation rule, homography + tests.
+- [x] Core-engine cell queries, distance, invalidation rule, homography + tests.
       (Homography + tests done with the Drawing Check, #9; cell queries and the
-      invalidation rule done with Cell Focus, #7 — distance is left for
-      Measurement.)
+      invalidation rule done with Cell Focus, #7; distance in paper units and
+      cells with Measurement, #8.)
 - [x] Cell Focus overlay, controls, Done Cells, persistence (#7).
-- [ ] Touch Lock.
-- [ ] Pencil-only routing, pressure width, hover overlay.
-- [ ] Measure.
+- [x] Touch Lock. (#8)
+- [x] Pencil-only routing, pressure width, hover overlay. (#8)
+- [x] Measure. (#8)
 - [x] ADR + Check Photo schema, Supabase migration, RLS, sync.
 - [x] Drawing Check capture, alignment, comparison.
-- [ ] Touch shortcuts; canvas-menu items wired.
+- [x] Touch shortcuts; canvas-menu items wired. (#8)
 
 ## Exit criteria
 
