@@ -266,8 +266,8 @@ by a **long-press** on the canvas (~500ms of a still touch or Pencil; movement o
 **context-menu key / Shift+F10** while the canvas has focus (the canvas is a
 focusable group with a visible focus ring). Items: *Fit to screen*, *Reset
 rotation*, *Show grid / Hide grid* (a view toggle, never an edit or an export
-change), *Paste* (opens a copied image as a new reference tab, Phase 13); *Touch
-Lock* and *Focus this cell* join in Phase 12. It opens 10px below
+change); *Touch Lock* and *Focus this cell* join in Phase 12, then *Paste* last
+(opens a copied image as a new reference tab, Phase 13). It opens 10px below
 and right of the press so the finger is never on an item (flipping up/left near an
 edge), at the visible centre when opened from the keyboard. Focus lands on the
 first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
