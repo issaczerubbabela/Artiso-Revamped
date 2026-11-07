@@ -51,16 +51,33 @@ interface Viewport {
   setRotation(radians: number, anchor?: {x: number; y: number}): void;
   setScaleAndRotation(scale: number, radians: number, anchor?: {x: number; y: number}): void;
   panBy(dx: number, dy: number): void;
-  zoomToFit(): void; // keeps the angle
+  // A two-finger step: zoom, turn, and carry the content under `from` to `to`.
+  transformAbout(scale: number, radians: number, from: Point, to: Point, options?: { clampScale?: boolean }): void;
+  zoomToFit(radians?: number): void; // keeps the angle unless given one
   reset(): void;
 }
 ```
 
 Input is split in two: `InputController` is only the Pointer Events adapter
-(element-local CSS px), and `GestureEngine` decides what a pointer sequence
-does to the view. The engine takes an injectable `GestureClock` and
-`FrameScheduler`, so gestures — and later momentum — are unit-tested on a
-fake clock.
+(element-local CSS px, plus Safari's trackpad `gesture*` events), and
+`GestureEngine` decides what a pointer sequence does to the view. The engine
+takes an injectable `GestureClock` and `FrameScheduler`, so gestures and the
+momentum after them are unit-tested on a fake clock:
+
+- two fingers pinch, pan and twist as one transform anchored at their
+  midpoint; the twist turns the view only past a ~10° dead zone, then 1:1,
+  and a release within 5° of a right angle snaps to it;
+- a flicked one-finger pan glides with decaying speed; a pinch past a zoom
+  limit rubber-bands and springs back — both off under
+  `prefers-reduced-motion` (`docs/design.md` §1); rotation has no momentum;
+- desktop: Ctrl+wheel (Chromium's trackpad pinch) zooms at the cursor,
+  Safari's trackpad rotate turns the view, Shift+drag turns it about the
+  visible centre; double-tap fits and squares up to 0°.
+
+Grid labels stay upright at any angle: the drawing grid lays its sticky labels
+out in the paper-aligned frame and draws each one upright where its anchor
+lands on screen. The angle itself is stored by the app, device-locally per
+reference (see [ADR 0001](../adr/0001-view-rotation-is-view-state.md)).
 
 ## Render loop
 
