@@ -78,7 +78,8 @@ test.describe('at the Wide breakpoint', () => {
     await expect(page.getByRole('button', { name: 'Undo last' })).toBeEnabled();
 
     // Focus the left pane (reference B): it has no annotations of its own.
-    await left.click({ position: { x: 200, y: 400 } });
+    // Clear of the Draw popover, which sits beside the rail over this pane.
+    await left.click({ position: { x: 500, y: 400 } });
     await expect(left).toHaveAttribute('data-focused', 'true');
     await expect(page.getByRole('button', { name: 'Undo last' })).toBeDisabled();
 
