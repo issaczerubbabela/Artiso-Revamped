@@ -7,3 +7,4 @@ export * from './preset';
 export * from './members';
 export * from './events';
 export * from './merge-reference';
+export * from './check-photo';

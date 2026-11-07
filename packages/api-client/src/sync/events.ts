@@ -14,3 +14,18 @@ export function subscribeReferenceUpdates(listener: Listener): () => void {
 export function emitReferenceUpdated(referenceId: string): void {
   for (const listener of listeners) listener(referenceId);
 }
+
+type CheckPhotoListener = (referenceId: string) => void;
+
+const checkPhotoListeners = new Set<CheckPhotoListener>();
+
+// Fired when sync changed this device's Check Photo for a reference (another
+// device took, re-aligned or deleted one), so an open workspace can redraw it.
+export function subscribeCheckPhotoUpdates(listener: CheckPhotoListener): () => void {
+  checkPhotoListeners.add(listener);
+  return () => checkPhotoListeners.delete(listener);
+}
+
+export function emitCheckPhotoUpdated(referenceId: string): void {
+  for (const listener of checkPhotoListeners) listener(referenceId);
+}
