@@ -80,6 +80,26 @@ async function drag(page: Page, files: FileSpec[], { drop = true } = {}) {
 
 const notice = (page: Page) => page.getByTestId('import-notice');
 
+// The Projects screen is pre-rendered, so its button shows before the app has
+// hydrated and started listening for paste and drop. A drag entering the window
+// shows the drop target once it is listening; the drag is then abandoned.
+async function waitUntilListening(page: Page) {
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => {
+        const data = new DataTransfer();
+        data.items.add(new File(['x'], 'probe.png', { type: 'image/png' }));
+        const event = new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: data });
+        if (event.dataTransfer !== data) Object.defineProperty(event, 'dataTransfer', { value: data });
+        document.body.dispatchEvent(event);
+      });
+      return page.getByTestId('drop-target').count();
+    })
+    .toBe(1);
+  await page.evaluate(() => window.dispatchEvent(new Event('dragend')));
+  await expect(page.getByTestId('drop-target')).toHaveCount(0);
+}
+
 test.describe('paste', () => {
   test('⌘V / Ctrl+V with a copied image opens it as a new tab', async ({ page }) => {
     await importFixture(page);
@@ -93,6 +113,7 @@ test.describe('paste', () => {
   test('pasting on the Projects screen opens the image in the workspace', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'New reference' })).toBeVisible();
+    await waitUntilListening(page);
     await paste(page, [png('copied.png', [200, 90, 40])]);
     await expect(page.getByTestId('zoom-pill')).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('tab')).toHaveCount(1);
@@ -184,6 +205,7 @@ test.describe('drop', () => {
   test('a failed drop on the Projects screen shows on its import-error surface', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'New reference' })).toBeVisible();
+    await waitUntilListening(page);
     await drag(page, [{ name: 'notes.txt', type: 'text/plain', bytes: Buffer.from('hello') }]);
     await expect(page.getByRole('alert').filter({ hasText: 'notes.txt' })).toContainText('"notes.txt" isn\'t an image');
   });
