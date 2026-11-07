@@ -2,7 +2,7 @@
 
 **Status: in progress.** Issue #10 (multitasking, orientation memory,
 paste/drop/HEIC) built 2026-11-07; issue #11 (shortcuts, Gestures & shortcuts
-card, first-run hint) not started. Full spec:
+card, first-run hint) built 2026-11-08. Full spec:
 [issue #3](https://github.com/issaczerubbabela/Artiso-Revamped/issues/3).
 Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
 
@@ -31,7 +31,10 @@ Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
       `packages/renderer/src/orientation-views.ts`).
 - [x] Shared paste/drop import entry, HEIC handling
       (`apps/web/src/session/import-files.ts`, `e2e/paste-drop.spec.ts`).
-- [ ] Shortcut registry + Gestures & shortcuts card + first-run hint.
+- [x] Shortcut registry + Gestures & shortcuts card + first-run hint
+      (registry, field guard, ⌘/Ctrl mapping and ⌘-hold in
+      `packages/renderer/src/shortcuts.ts`; key handler in
+      `apps/web/src/session/keyboard-shortcuts.ts`; `e2e/shortcuts.spec.ts`).
 
 ## Known limitations (issue #10)
 
@@ -45,6 +48,13 @@ Terms: [`GLOSSARY.md`](../../GLOSSARY.md).
 - A reload fits the reference at the remembered angle for the current
   orientation; the stored zoom and pan come back on the next turn of the
   device, not on reload.
+
+## Known limitations (issue #11)
+
+- The card lists the keys of the platform the browser reports. Playwright's
+  WebKit reports a Mac even on Windows, so it is tested with ⌘ there.
+- iPadOS's own ⌘-hold overlay may also appear over the card on a hardware
+  keyboard; the system overlay can't be hooked (out of scope).
 
 ## Exit criteria
 
