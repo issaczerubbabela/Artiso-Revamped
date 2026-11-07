@@ -54,6 +54,18 @@ Supabase → **Authentication** → **URL Configuration**:
 
 Without this, sign-up confirmation emails link back to `localhost`.
 
+### Database schema (re-run after pulling schema changes)
+
+Supabase → **SQL Editor** → **New query** → paste the whole of
+[`supabase/migrations/0001_phase2_schema.sql`](../supabase/migrations/0001_phase2_schema.sql)
+→ **Run**. It is idempotent, so re-running it is always safe; later phases
+append to the same file. **Re-run it after pulling a change to that file** —
+most recently Phase 12's Drawing Check, which adds the `check_photos` table,
+the private `check-photos` storage bucket and their uploader-only RLS
+policies (see [`supabase/README.md`](../supabase/README.md)). Until it is
+re-run, taking a Check Photo still works on the device but its sync shows an
+error badge.
+
 ## 3. Install it on each device
 
 The app is an installable web app: it launches full screen from its own icon,

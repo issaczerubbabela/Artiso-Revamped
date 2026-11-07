@@ -17,6 +17,13 @@ export const FONT_FAMILY_BODY =
 export const FONT_FAMILY_MONO =
   '"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace';
 
+// Apple platforms swap the three families for the system's own: San Francisco
+// for headings and body, SF Mono for readouts (docs/design.md §3). These are
+// system fonts, so nothing is loaded. tokens.css applies them under
+// :root[data-platform='apple'].
+export const APPLE_FONT_FAMILY_UI = 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+export const APPLE_FONT_FAMILY_MONO = 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace';
+
 // Exactly three sizes (label, body, heading) — the retired spec's "not a
 // dozen ad hoc sizes" rule still holds, just restyled. Consumers pick the
 // family from the FONT_FAMILY_* constants above based on the element's

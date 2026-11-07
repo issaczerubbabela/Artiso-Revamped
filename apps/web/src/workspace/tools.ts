@@ -2,6 +2,7 @@
 
 import {
   ArrowsClockwise,
+  Camera,
   DownloadSimple,
   FrameCorners,
   GridFour,
@@ -12,6 +13,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { useWorkspaceStore, type ToolMode } from '@/state/workspace-store';
+import type { Breakpoint } from './use-breakpoint';
 
 export interface ToolDef {
   id: Exclude<ToolMode, 'idle'>;
@@ -36,12 +38,33 @@ export const TOOL_GROUPS: readonly (readonly ToolDef[])[] = [
   [
     { id: 'grid', label: 'Grid', short: 'Grid', icon: GridFour },
     { id: 'annotate', label: 'Draw', short: 'Draw', icon: PencilSimple },
+    { id: 'check', label: 'Drawing Check', short: 'Check', icon: Camera },
   ],
   [
     { id: 'presets', label: 'Presets', short: 'Presets', icon: Stack },
     { id: 'export', label: 'Export', short: 'Export', icon: DownloadSimple },
   ],
 ];
+
+// How a tool's panel is presented (docs/design.md §7, iPad patterns):
+//   popover  small panels, anchored to their rail button (Wide and Regular);
+//   column   large panels in the floating side column (Wide);
+//   sheet    the bottom sheet with resting heights (large panels at Regular,
+//            every panel at Compact).
+export type PanelPresentation = 'popover' | 'column' | 'sheet';
+
+// Small enough to sit in a popover beside the rail.
+const POPOVER_TOOLS: ReadonlySet<ToolMode> = new Set<ToolMode>(['adjustments', 'rotateFlip', 'presets', 'annotate']);
+
+// Tools that work on the canvas itself (Draw): a tap on the canvas is the tool
+// at work, not a tap outside its popover, so it leaves the popover open.
+export const CANVAS_TOOLS: ReadonlySet<ToolMode> = new Set<ToolMode>(['annotate']);
+
+export function panelPresentation(mode: ToolMode, breakpoint: Breakpoint): PanelPresentation {
+  if (breakpoint === 'compact') return 'sheet';
+  if (POPOVER_TOOLS.has(mode)) return 'popover';
+  return breakpoint === 'wide' ? 'column' : 'sheet';
+}
 
 // The state both the Wide/Regular rail and the Compact toolbar read, so the
 // enabling rules live in one place. Context-aware: controls are disabled, not
@@ -58,8 +81,9 @@ export function useToolbarState() {
     toolMode,
     hasReference,
     isImporting,
-    // A viewer can only export; every editing tool is disabled for them.
-    isDisabled: (tool: ToolDef) => !hasReference || (isViewer && tool.id !== 'export'),
+    // A viewer can only export and run a Drawing Check (their Check Photo is
+    // their own); every editing tool is disabled for them.
+    isDisabled: (tool: ToolDef) => !hasReference || (isViewer && tool.id !== 'export' && tool.id !== 'check'),
     // Choosing the active tool again closes its panel.
     toggleTool: (tool: ToolDef) => setToolMode(toolMode === tool.id ? 'idle' : tool.id),
     present: () => setPresentationMode(true),

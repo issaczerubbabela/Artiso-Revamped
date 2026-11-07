@@ -9,6 +9,7 @@ import {
   MIN_DIAGONAL_CELL_PX,
   MIN_SQUARE_CELL_PX,
   crispCoordinate,
+  visibleMmRect,
   type DrawingGridInput,
 } from '../drawing-grid-layer';
 
@@ -126,7 +127,7 @@ function input(overrides: InputOverrides = {}): DrawingGridInput {
   return {
     paper: A4,
     settings: { ...SETTINGS, ...settings },
-    view: { scale: 2, translateX: 20, translateY: 30 },
+    view: { scale: 2, translateX: 20, translateY: 30, rotation: 0 },
     width: 600,
     height: 800,
     ...rest,
@@ -175,7 +176,7 @@ describe('DrawingGridLayer', () => {
   });
 
   it('draws nothing for a degenerate view', () => {
-    const { strokes, texts } = render({ view: { scale: 0, translateX: 0, translateY: 0 } });
+    const { strokes, texts } = render({ view: { scale: 0, translateX: 0, translateY: 0, rotation: 0 } });
     expect(strokes).toHaveLength(0);
     expect(texts).toHaveLength(0);
   });
@@ -205,8 +206,8 @@ describe('DrawingGridLayer', () => {
     });
 
     it('keeps the line width constant in screen px regardless of zoom', () => {
-      const zoomedOut = render({ view: { scale: 1, translateX: 0, translateY: 0 } }).strokes[0]!;
-      const zoomedIn = render({ view: { scale: 8, translateX: 0, translateY: 0 } }).strokes[0]!;
+      const zoomedOut = render({ view: { scale: 1, translateX: 0, translateY: 0, rotation: 0 } }).strokes[0]!;
+      const zoomedIn = render({ view: { scale: 8, translateX: 0, translateY: 0, rotation: 0 } }).strokes[0]!;
       expect(zoomedOut.lineWidth).toBe(1);
       expect(zoomedIn.lineWidth).toBe(1);
     });
@@ -218,13 +219,13 @@ describe('DrawingGridLayer', () => {
     it('is skipped when the cells are too small to read', () => {
       // 25 mm cell at scale 0.1 = 2.5 px < MIN_SQUARE_CELL_PX.
       expect(2.5).toBeLessThan(MIN_SQUARE_CELL_PX);
-      const { strokes } = render({ view: { scale: 0.1, translateX: 0, translateY: 0 } });
+      const { strokes } = render({ view: { scale: 0.1, translateX: 0, translateY: 0, rotation: 0 } });
       expect(strokes).toHaveLength(0);
     });
 
     it('only generates the lines that intersect the viewport', () => {
       // Zoomed in so only a corner of the paper is on screen.
-      const zoomed = render({ view: { scale: 12, translateX: 0, translateY: 0 }, width: 400, height: 300 });
+      const zoomed = render({ view: { scale: 12, translateX: 0, translateY: 0, rotation: 0 }, width: 400, height: 300 });
       expect(zoomed.strokes[0]!.segments.length).toBeLessThan(getLines(A4, 25).length);
       expect(zoomed.strokes[0]!.segments.length).toBeGreaterThan(0);
     });
@@ -268,9 +269,9 @@ describe('DrawingGridLayer', () => {
       // 25 mm at scale 0.25 = 6.25 px: squares yes, diagonals no.
       expect(6.25).toBeGreaterThanOrEqual(MIN_SQUARE_CELL_PX);
       expect(6.25).toBeLessThan(MIN_DIAGONAL_CELL_PX);
-      const small = render({ settings: ALL, view: { scale: 0.25, translateX: 0, translateY: 0 } });
+      const small = render({ settings: ALL, view: { scale: 0.25, translateX: 0, translateY: 0, rotation: 0 } });
       expect(small.strokes).toHaveLength(2); // squares + radial
-      const large = render({ settings: ALL, view: { scale: 1, translateX: 0, translateY: 0 } });
+      const large = render({ settings: ALL, view: { scale: 1, translateX: 0, translateY: 0, rotation: 0 } });
       expect(large.strokes).toHaveLength(3);
     });
 
@@ -347,7 +348,7 @@ describe('DrawingGridLayer', () => {
 
     it('pins labels to the viewport when the paper edge is scrolled out of view', () => {
       // Paper's top-left is far up and left of the canvas.
-      const { fills } = render({ view: { scale: 2, translateX: -100, translateY: -200 } });
+      const { fills } = render({ view: { scale: 2, translateX: -100, translateY: -200, rotation: 0 } });
       const top = Math.min(...fills.map((f) => f.y));
       const left = Math.min(...fills.map((f) => f.x));
       expect(top).toBe(0);
@@ -368,5 +369,89 @@ describe('DrawingGridLayer', () => {
       const canvas = { getContext: () => null } as unknown as HTMLCanvasElement;
       expect(() => new DrawingGridLayer(canvas)).toThrow('2D context unavailable');
     });
+  });
+});
+
+describe('DrawingGridLayer under View Rotation', () => {
+  // Turned 90° clockwise about the paper origin, which sits at (650, 30): the
+  // whole sheet is on screen, spanning x 56..650 and y 30..450.
+  const TURNED = { scale: 2, translateX: 650, translateY: 30, rotation: Math.PI / 2 };
+
+  it('projects the lines through the turned view: paper columns run across the screen', () => {
+    const { strokes } = render({ view: TURNED, width: 800, height: 800 });
+    const segments = strokes[0]!.segments;
+    expect(segments).toHaveLength(getLines(A4, 25).length);
+    // The column at x = 50 mm (y 0..297 mm) lands at screen y = 30 + 100,
+    // running leftwards from x = 650 to 650 - 594.
+    const column = segments.find(([, y1, , y2]) => Math.abs(y1 - 130) < 1e-9 && Math.abs(y2 - 130) < 1e-9);
+    expect(column).toBeDefined();
+    expect(column![0]).toBeCloseTo(650, 9);
+    expect(column![2]).toBeCloseTo(650 - 594, 9);
+  });
+
+  it('clips to the turned paper outline, not an axis-aligned rectangle', () => {
+    const { clips, strokes } = render({ view: TURNED, width: 800, height: 800 });
+    expect(clips).toEqual([]);
+    expect(strokes[0]!.clipped).toBe(true);
+  });
+
+  it('keeps the labels upright, each centred on its turned cell edge', () => {
+    const { fills, texts } = render({ view: TURNED, width: 800, height: 800 });
+    expect(texts.length).toBeGreaterThan(0);
+    // Upright: the same width x height boxes as at 0°, text centred in each.
+    const upright = render({ width: 800, height: 800 });
+    const heightAt0 = upright.fills[0]!.h;
+    for (const fill of fills) expect(fill.h).toBeCloseTo(heightAt0, 9);
+    fills.forEach((fill, i) => {
+      expect(texts[i]!.x).toBeCloseTo(fill.x + fill.w / 2, 9);
+      expect(texts[i]!.y).toBeCloseTo(fill.y + fill.h / 2, 9);
+    });
+    // Column A (x 0..25 mm) along the paper's top edge, which now runs down the
+    // screen at x = 650: its label sits just inside that edge, at y = 30 + 25.
+    const columnA = texts.filter((t) => t.text === 'A');
+    expect(columnA.some((t) => Math.abs(t.y - 55) < 1e-6 && t.x < 650 && t.x > 600)).toBe(true);
+    // Row 1 (y 0..25 mm) along the paper's left edge, now the top on screen at
+    // y = 30: centred at x = 650 - 25, just below that edge.
+    const rowOne = texts.filter((t) => t.text === '1');
+    expect(rowOne.some((t) => Math.abs(t.x - 625) < 1e-6 && t.y > 30 && t.y < 50)).toBe(true);
+  });
+
+  it('culls against the turned viewport', () => {
+    const view = { scale: 12, translateX: 200, translateY: 0, rotation: Math.PI / 6 };
+    const zoomed = render({ view, width: 400, height: 300 });
+    expect(zoomed.strokes[0]!.segments.length).toBeLessThan(getLines(A4, 25).length);
+    expect(zoomed.strokes[0]!.segments.length).toBeGreaterThan(0);
+  });
+});
+
+describe('visibleMmRect', () => {
+  it('is the plain inverse at 0°', () => {
+    expect(visibleMmRect({ scale: 2, translateX: 20, translateY: 30, rotation: 0 }, 600, 800)).toEqual({
+      x: -10,
+      y: -15,
+      w: 300,
+      h: 400,
+    });
+  });
+
+  it('covers every screen corner of a turned view', () => {
+    const view = { scale: 3, translateX: 140, translateY: -60, rotation: 0.8 };
+    const rect = visibleMmRect(view, 500, 400);
+    const cos = Math.cos(view.rotation);
+    const sin = Math.sin(view.rotation);
+    for (const [sx, sy] of [
+      [0, 0],
+      [500, 0],
+      [500, 400],
+      [0, 400],
+    ] as const) {
+      const dx = (sx - view.translateX) / view.scale;
+      const dy = (sy - view.translateY) / view.scale;
+      const mm = { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+      expect(mm.x).toBeGreaterThanOrEqual(rect.x - 1e-9);
+      expect(mm.x).toBeLessThanOrEqual(rect.x + rect.w + 1e-9);
+      expect(mm.y).toBeGreaterThanOrEqual(rect.y - 1e-9);
+      expect(mm.y).toBeLessThanOrEqual(rect.y + rect.h + 1e-9);
+    }
   });
 });

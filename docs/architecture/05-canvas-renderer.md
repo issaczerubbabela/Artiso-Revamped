@@ -34,20 +34,50 @@ what it's best at, matching the source app's own layer separation (§8.10).
 ## Viewport transform
 
 Renderer owns a single 2D affine transform (`{ translateX, translateY,
-scale }`) representing pan/zoom. Both the WebGL image draw and the Canvas2D
-grid draw are re-projected through this matrix on every paint — **neither
-the image pipeline nor the grid geometry is recomputed for pan/zoom**, only
-the transform changes. This is the perf-critical design point that makes
-60fps pan/zoom achievable on mid-range Android hardware.
+scale, rotation }`) representing pan/zoom and View Rotation
+(`screen = translate + scale · R(rotation) · content`, rotation in radians).
+The WebGL image draw, the Canvas2D grid/guides draw and the annotation draw
+are all re-projected through this matrix on every paint (`viewMatrix()` for
+Canvas2D, `clipSpaceTransform()` for WebGL) — **neither the image pipeline
+nor the grid geometry is recomputed for pan/zoom/rotate**, only the transform
+changes. This is the perf-critical design point that makes 60fps pan/zoom
+achievable on mid-range Android hardware. Fit-to-screen and the pan limits
+work on the content's rotated bounding box; Real size fixes the scale only.
+Exports always draw at 0° (View Rotation is view state, never exported).
 
 ```ts
 interface Viewport {
   setZoom(scale: number, anchor?: {x: number; y: number}): void;
+  setRotation(radians: number, anchor?: {x: number; y: number}): void;
+  setScaleAndRotation(scale: number, radians: number, anchor?: {x: number; y: number}): void;
   panBy(dx: number, dy: number): void;
-  zoomToFit(): void;
+  // A two-finger step: zoom, turn, and carry the content under `from` to `to`.
+  transformAbout(scale: number, radians: number, from: Point, to: Point, options?: { clampScale?: boolean }): void;
+  zoomToFit(radians?: number): void; // keeps the angle unless given one
   reset(): void;
 }
 ```
+
+Input is split in two: `InputController` is only the Pointer Events adapter
+(element-local CSS px, plus Safari's trackpad `gesture*` events), and
+`GestureEngine` decides what a pointer sequence does to the view. The engine
+takes an injectable `GestureClock` and `FrameScheduler`, so gestures and the
+momentum after them are unit-tested on a fake clock:
+
+- two fingers pinch, pan and twist as one transform anchored at their
+  midpoint; the twist turns the view only past a ~10° dead zone, then 1:1,
+  and a release within 5° of a right angle snaps to it;
+- a flicked one-finger pan glides with decaying speed; a pinch past a zoom
+  limit rubber-bands and springs back — both off under
+  `prefers-reduced-motion` (`docs/design.md` §1); rotation has no momentum;
+- desktop: Ctrl+wheel (Chromium's trackpad pinch) zooms at the cursor,
+  Safari's trackpad rotate turns the view, Shift+drag turns it about the
+  visible centre; double-tap fits and squares up to 0°.
+
+Grid labels stay upright at any angle: the drawing grid lays its sticky labels
+out in the paper-aligned frame and draws each one upright where its anchor
+lands on screen. The angle itself is stored by the app, device-locally per
+reference (see [ADR 0002](../adr/0002-view-rotation-is-view-state.md)).
 
 ## Render loop
 

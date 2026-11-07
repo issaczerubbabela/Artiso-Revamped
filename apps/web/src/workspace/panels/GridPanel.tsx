@@ -7,6 +7,8 @@ import { NumberField, Segmented, Slider, Swatches, Switch, labelStyle } from '@/
 import { PanelButton } from '@/workspace/PanelButton';
 import { useDisplayStore } from '@/state/display-store';
 import { useWorkspaceStore } from '@/state/workspace-store';
+import { CELL_FOCUS_DIM_MAX, CELL_FOCUS_DIM_MIN, useCellFocusStore } from '@/state/cell-focus-store';
+import { CELL_FOCUS_NEEDS_SQUARES, startCellFocus } from '@/session/cell-focus';
 
 const LABEL_SCHEMES = [
   { value: 'numbers', label: 'Numbers' },
@@ -112,6 +114,8 @@ export function GridPanel() {
         />
       ) : null}
 
+      <CellFocusSection showSquares={showSquares} />
+
       <Section title="Style">
         <Swatches
           label="Colour"
@@ -143,6 +147,51 @@ export function GridPanel() {
         <GuidePanel />
       </Section>
     </div>
+  );
+}
+
+// Cell Focus (GLOSSARY.md): on and off, how dark the rest of the reference
+// goes, and whether ← → skip Done Cells. Device-local view settings, never
+// part of the reference. Unavailable -- greyed out, saying why -- without
+// squares, since there are no cells to focus.
+function CellFocusSection({ showSquares }: { showSquares: boolean }) {
+  const referenceId = useWorkspaceStore((s) => s.referenceId);
+  const active = useCellFocusStore((s) => (referenceId ? (s.references[referenceId]?.active ?? false) : false));
+  const dimPercent = useCellFocusStore((s) => s.dimPercent);
+  const skipDone = useCellFocusStore((s) => s.skipDone);
+  const setDimPercent = useCellFocusStore((s) => s.setDimPercent);
+  const setSkipDone = useCellFocusStore((s) => s.setSkipDone);
+  const exit = useCellFocusStore((s) => s.exit);
+  const unavailable = !showSquares || !referenceId;
+
+  return (
+    <Section title="Cell Focus">
+      <Switch
+        label="Cell Focus"
+        checked={active && showSquares}
+        disabled={unavailable}
+        onChange={(on) => {
+          if (on) startCellFocus();
+          else if (referenceId) exit(referenceId);
+        }}
+      />
+      {!showSquares ? (
+        <p className="field-hint" data-testid="cell-focus-unavailable">
+          {CELL_FOCUS_NEEDS_SQUARES}
+        </p>
+      ) : null}
+      <Slider
+        label="Dim outside the cell"
+        value={dimPercent}
+        min={CELL_FOCUS_DIM_MIN}
+        max={CELL_FOCUS_DIM_MAX}
+        step={5}
+        format={(v) => `${v}%`}
+        disabled={unavailable}
+        onChange={setDimPercent}
+      />
+      <Switch label="Skip Done Cells" checked={skipDone} disabled={unavailable} onChange={setSkipDone} />
+    </Section>
   );
 }
 

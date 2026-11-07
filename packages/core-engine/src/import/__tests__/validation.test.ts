@@ -9,10 +9,16 @@ describe('validateMimeType', () => {
     expect(() => validateMimeType('image/webp')).not.toThrow();
   });
 
+  // Issue #10: HEIC is accepted; whether it opens is up to the browser's decoder.
+  it('accepts HEIC and HEIF', () => {
+    expect(() => validateMimeType('image/heic')).not.toThrow();
+    expect(() => validateMimeType('image/heif')).not.toThrow();
+  });
+
   it('rejects an unsupported format', () => {
-    expect(() => validateMimeType('image/heic')).toThrow(ImageImportError);
+    expect(() => validateMimeType('image/gif')).toThrow(ImageImportError);
     try {
-      validateMimeType('image/heic');
+      validateMimeType('image/gif');
     } catch (error) {
       expect(error).toBeInstanceOf(ImageImportError);
       expect((error as ImageImportError).code).toBe('unsupported-format');

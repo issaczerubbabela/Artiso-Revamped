@@ -3,6 +3,7 @@ import type { FilterId } from '@artiso/shared-types';
 import { createProgram } from './gl/compile';
 import { FILTER_ID_TO_INT } from './gl/filter-ids';
 import { FRAGMENT_SHADER_SOURCE, VERTEX_SHADER_SOURCE } from './gl/shader-source';
+import { clipSpaceTransform } from './clip-space';
 import type { ViewportState } from './viewport';
 
 // Each filter that takes a param reads it from a specific key in
@@ -38,7 +39,7 @@ export class ImageLayer {
   private readonly texture: WebGLTexture;
   private readonly uniforms: {
     size: WebGLUniformLocation | null;
-    scale: WebGLUniformLocation | null;
+    linear: WebGLUniformLocation | null;
     offset: WebGLUniformLocation | null;
     texelSize: WebGLUniformLocation | null;
     brightness: WebGLUniformLocation | null;
@@ -89,7 +90,7 @@ export class ImageLayer {
 
     this.uniforms = {
       size: gl.getUniformLocation(this.program, 'u_size'),
-      scale: gl.getUniformLocation(this.program, 'u_scale'),
+      linear: gl.getUniformLocation(this.program, 'u_linear'),
       offset: gl.getUniformLocation(this.program, 'u_offset'),
       texelSize: gl.getUniformLocation(this.program, 'u_texelSize'),
       brightness: gl.getUniformLocation(this.program, 'u_brightness'),
@@ -137,17 +138,14 @@ export class ImageLayer {
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
 
-    // Combines the image-space -> screen-space Viewport transform with the
-    // screen-space -> WebGL clip-space conversion (y flipped) into a single
-    // per-axis scale+offset pair, since there's no rotation to account for.
-    const scaleX = (2 * viewport.scale) / canvasWidth;
-    const offsetX = (2 * viewport.translateX) / canvasWidth - 1;
-    const scaleY = (-2 * viewport.scale) / canvasHeight;
-    const offsetY = 1 - (2 * viewport.translateY) / canvasHeight;
+    // Combines the image-space -> screen-space Viewport transform (scale,
+    // translate and View Rotation) with the screen-space -> WebGL clip-space
+    // conversion (y flipped) into one 2x2 linear part plus an offset.
+    const { linear, offset } = clipSpaceTransform(viewport, canvasWidth, canvasHeight);
 
     gl.uniform2f(this.uniforms.size, this.contentWidth ?? this.sourceWidth, this.contentHeight ?? this.sourceHeight);
-    gl.uniform2f(this.uniforms.scale, scaleX, scaleY);
-    gl.uniform2f(this.uniforms.offset, offsetX, offsetY);
+    gl.uniformMatrix2fv(this.uniforms.linear, false, linear);
+    gl.uniform2f(this.uniforms.offset, offset[0], offset[1]);
     // Texture-space, not canvas-space -- the multi-tap filters (blur, sharpen,
     // edge detect, pencil sketch) sample neighboring texels of the source
     // image itself, independent of how large it's currently drawn on screen.

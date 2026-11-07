@@ -1,6 +1,6 @@
 import type { GridGeometry } from '@artiso/core-engine';
 import type { GridConfig } from '@artiso/shared-types';
-import type { ViewportState } from './viewport';
+import { viewMatrix, type ViewportState } from './viewport';
 
 // Screen-space pixel widths -- kept constant regardless of zoom (divided by
 // viewport.scale before drawing) so grid lines and labels stay crisp and
@@ -65,8 +65,9 @@ export class GridLayer {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.save();
-    ctx.translate(viewport.translateX, viewport.translateY);
-    ctx.scale(viewport.scale, viewport.scale);
+    // The one view transform (scale, translate and View Rotation).
+    const m = viewMatrix(viewport);
+    ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
 
     for (const { geometry, config } of layers) {
       if (!config.visible) continue;
@@ -92,7 +93,16 @@ export class GridLayer {
         ctx.textBaseline = 'middle';
         ctx.font = `${labelFontPx / viewport.scale}px system-ui, sans-serif`;
         for (const label of geometry.labels) {
-          ctx.fillText(label.text, label.x, label.y);
+          if (viewport.rotation === 0) {
+            ctx.fillText(label.text, label.x, label.y);
+            continue;
+          }
+          // Counter-turned about its anchor, so it reads upright at any View Rotation.
+          ctx.save();
+          ctx.translate(label.x, label.y);
+          ctx.rotate(-viewport.rotation);
+          ctx.fillText(label.text, 0, 0);
+          ctx.restore();
         }
       }
     }

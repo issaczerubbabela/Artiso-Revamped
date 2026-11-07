@@ -32,67 +32,7 @@ export async function importReference(): Promise<void> {
   store.setImporting(true);
 
   try {
-    const blob = await getPlatformAdapter().pickImage();
-    const imported = await importImage(blob);
-    const ownerId = useAuthStore.getState().user?.id ?? LOCAL_OWNER_ID;
-
-    const project = await createProjectAction(`Reference — ${new Date().toLocaleDateString()}`);
-    const assetId = await deterministicUuid(`${ownerId}:${imported.contentHash}`);
-    const asset = await saveAsset({
-      id: assetId,
-      ownerId,
-      contentHash: imported.contentHash,
-      width: imported.originalWidth,
-      height: imported.originalHeight,
-      sizeBytes: imported.sizeBytes,
-      originalBlob: blob,
-      thumbnailBlob: await bitmapToBlob(imported.thumbnailBitmap),
-    });
-    // Only set locally here -- pushed to Supabase later, from inside the
-    // sync queue, after the asset it points at is confirmed synced (see
-    // queue.ts's runReferenceSync). Pushing it immediately would race the
-    // asset upload and violate projects_thumbnail_asset_id_fkey.
-    await updateProject(project.id, { thumbnailAssetId: asset.id });
-
-    const { paper, crop } = defaultFraming({ width: imported.originalWidth, height: imported.originalHeight });
-    const reference = await createReference({
-      projectId: project.id,
-      originalAssetId: asset.id,
-      gridConfig: DEFAULT_GRID_CONFIG,
-      paper,
-      crop,
-      gridSettings: DEFAULT_GRID_SETTINGS,
-    });
-
-    if (useAuthStore.getState().user) scheduleReferenceSync(project.id, reference.id);
-
-    // The drawn bitmap is the crop region, rendered from the full-resolution
-    // decode; importImage's whole-image working bitmap isn't used.
-    imported.workingBitmap.close();
-    const original = await decodeOriginalBitmap(blob);
-    const framed = await renderFramedBitmap(original, [], crop).finally(() => original.close());
-
-    store.loadReference({
-      projectId: project.id,
-      projectName: project.name,
-      referenceId: reference.id,
-      assetId: asset.id,
-      workingBitmap: framed.bitmap,
-      workingWidth: framed.width,
-      workingHeight: framed.height,
-      editStack: [],
-      gridConfig: reference.gridConfig,
-      secondaryGridConfig: reference.secondaryGridConfig,
-      paper,
-      crop,
-      gridSettings: DEFAULT_GRID_SETTINGS,
-      orientedWidth: framed.orientedWidth,
-      orientedHeight: framed.orientedHeight,
-      annotations: reference.annotations,
-      removedAnnotationIds: reference.removedAnnotationIds,
-      role: 'owner',
-    });
-    useAppViewStore.getState().showWorkspace(project.id);
+    await importReferenceBlob(await getPlatformAdapter().pickImage());
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Import failed.';
     // The user simply closing the file picker isn't an error worth surfacing.
@@ -100,6 +40,72 @@ export async function importReference(): Promise<void> {
   } finally {
     store.setImporting(false);
   }
+}
+
+// Turns one image into a new reference (its own Project) and opens it in the
+// workspace as a new tab. Throws on failure; the caller reports it. Shared by
+// the file picker above and by paste/drop (import-files.ts).
+export async function importReferenceBlob(blob: Blob): Promise<void> {
+  const imported = await importImage(blob);
+  const ownerId = useAuthStore.getState().user?.id ?? LOCAL_OWNER_ID;
+
+  const project = await createProjectAction(`Reference — ${new Date().toLocaleDateString()}`);
+  const assetId = await deterministicUuid(`${ownerId}:${imported.contentHash}`);
+  const asset = await saveAsset({
+    id: assetId,
+    ownerId,
+    contentHash: imported.contentHash,
+    width: imported.originalWidth,
+    height: imported.originalHeight,
+    sizeBytes: imported.sizeBytes,
+    originalBlob: blob,
+    thumbnailBlob: await bitmapToBlob(imported.thumbnailBitmap),
+  });
+  // Only set locally here -- pushed to Supabase later, from inside the
+  // sync queue, after the asset it points at is confirmed synced (see
+  // queue.ts's runReferenceSync). Pushing it immediately would race the
+  // asset upload and violate projects_thumbnail_asset_id_fkey.
+  await updateProject(project.id, { thumbnailAssetId: asset.id });
+
+  const { paper, crop } = defaultFraming({ width: imported.originalWidth, height: imported.originalHeight });
+  const reference = await createReference({
+    projectId: project.id,
+    originalAssetId: asset.id,
+    gridConfig: DEFAULT_GRID_CONFIG,
+    paper,
+    crop,
+    gridSettings: DEFAULT_GRID_SETTINGS,
+  });
+
+  if (useAuthStore.getState().user) scheduleReferenceSync(project.id, reference.id);
+
+  // The drawn bitmap is the crop region, rendered from the full-resolution
+  // decode; importImage's whole-image working bitmap isn't used.
+  imported.workingBitmap.close();
+  const original = await decodeOriginalBitmap(blob);
+  const framed = await renderFramedBitmap(original, [], crop).finally(() => original.close());
+
+  useWorkspaceStore.getState().loadReference({
+    projectId: project.id,
+    projectName: project.name,
+    referenceId: reference.id,
+    assetId: asset.id,
+    workingBitmap: framed.bitmap,
+    workingWidth: framed.width,
+    workingHeight: framed.height,
+    editStack: [],
+    gridConfig: reference.gridConfig,
+    secondaryGridConfig: reference.secondaryGridConfig,
+    paper,
+    crop,
+    gridSettings: DEFAULT_GRID_SETTINGS,
+    orientedWidth: framed.orientedWidth,
+    orientedHeight: framed.orientedHeight,
+    annotations: reference.annotations,
+    removedAnnotationIds: reference.removedAnnotationIds,
+    role: 'owner',
+  });
+  useAppViewStore.getState().showWorkspace(project.id);
 }
 
 async function bitmapToBlob(bitmap: ImageBitmap): Promise<Blob> {

@@ -7,6 +7,7 @@ import { AdjustmentsPanel } from './panels/AdjustmentsPanel';
 import { FiltersPanel } from './panels/FiltersPanel';
 import { GridPanel } from './panels/GridPanel';
 import { AnnotationPanel } from './panels/AnnotationPanel';
+import { CheckPanel } from './panels/CheckPanel';
 import { PresetsPanel } from './panels/PresetsPanel';
 import { ExportPanel } from './panels/ExportPanel';
 
@@ -18,6 +19,7 @@ export const PANEL_TITLES: Record<ToolMode, string> = {
   filters: 'Filters',
   grid: 'Grid',
   annotate: 'Draw',
+  check: 'Drawing Check',
   presets: 'Presets',
   export: 'Export',
 };
@@ -38,6 +40,8 @@ export function ToolPanel({ mode }: { mode: ToolMode }) {
       return <GridPanel />;
     case 'annotate':
       return <AnnotationPanel />;
+    case 'check':
+      return <CheckPanel />;
     case 'presets':
       return <PresetsPanel />;
     case 'export':

@@ -36,6 +36,20 @@ considered" feeling instead of motion. Because every panel *floats* over the can
 rather than sitting in the page flow, opening or closing one never reflows the
 canvas by itself — that is what makes instant swaps feel stable rather than jumpy.
 
+**Exception — motion that follows a gesture.** The canvas may keep moving for a
+moment *after* the artist's own gesture, as the continuation of that gesture, never
+as a transition of its own:
+
+- a flicked pan **glides** on with decaying speed and settles;
+- a pinch released past a zoom limit **springs back** to the limit.
+
+Both stop the instant a finger touches the canvas, and both are off under
+`prefers-reduced-motion` (iPadOS Reduce Motion): the canvas then stops exactly where
+the gesture left it, and a pinch simply stops at the limit. Rotation never has
+momentum; a release within 5° of a right angle snaps to it instantly. Chrome is not
+covered by this exception: panels, popovers, sheets, hover and focus states all stay
+instant swaps.
+
 ## 2. Color
 
 | Token | Dark (default) | Light (derived — not yet visually verified on the canvas) |
@@ -82,6 +96,16 @@ that can't do the translucent composite (e.g. a plain list row).
 | Headings / panel titles | **Space Grotesk** (600–700) | Geometric, slightly technical |
 | Body / UI labels / buttons | **Manrope** (400–600) | Clean humanist sans, not Inter/Roboto/Arial |
 | Numeric readouts (thickness, opacity, zoom %, coordinates) | **JetBrains Mono** (500) | Tabular figures for values that change |
+
+**Apple platforms (Phase 11).** On iPad, iPhone and Mac the app uses the system's
+own type instead, so it feels at home there: **San Francisco** (`system-ui`) for
+headings and body and **SF Mono** (`ui-monospace`) for numeric readouts. Space
+Grotesk is not used on Apple platforms — San Francisco carries the headings too.
+Sizes, weights and line-heights are unchanged. An inline script in `<head>` marks
+`<html data-platform="apple">` before first paint (iPadOS reports itself as a Mac,
+so the check covers it), and `tokens.css` swaps the three `--font-family-*`
+variables under that attribute. Everywhere else the self-hosted Manrope and
+JetBrains Mono (and Space Grotesk headings) stay.
 
 Self-host all three for the offline/Android build (`next/font/local`) as **variable,
 latin-subset woff2** files under `apps/web/src/fonts/` (OFL-licensed; licence texts
@@ -195,11 +219,179 @@ restyled:
 | Breakpoint | Width | Chrome |
 |---|---|---|
 | Compact | < 768px | Bottom matte toolbar (icon + label, horizontally scrollable with edge fades) + bottom matte sheet for the active tool's panel |
-| Regular | 768–1023px | Same rail as Wide; the panel is a dismissible matte overlay drawer over the canvas instead of a persistent dock |
-| Wide | ≥ 1024px | Persistent floating left icon rail + floating right dock, both matte panels inset 16px over the canvas |
+| Regular | 768–1023px | Same rail as Wide; small panels as popovers, large panels as a bottom sheet beside the rail |
+| Wide | ≥ 1024px | Persistent floating left icon rail + small panels as popovers + large panels in the floating right column, all matte panels inset 16px over the canvas |
 
 All panels are `position: absolute/fixed` over the full-bleed canvas — none of them
 takes layout space from it.
+
+**Which container a panel uses (Phase 11, iPad patterns).** Small panels —
+*Adjust, Rotate/Flip, Presets, Draw* — open as a **popover** at Wide and Regular.
+Large panels — *Grid, Filters, Export* (and Paper, Drawing Check) — open in the
+**side column** (the right dock, styled like an iPad settings column) at Wide, and
+as a **bottom sheet** at Regular (the 11" iPad in portrait, ~820px) and Compact, so
+a column never covers 40% of a portrait screen. At Compact every panel is a sheet.
+
+**Popover.** A matte panel (§5) 320px wide beside its rail button, with a 14px
+arrow (a square turned 45°, in the panel's own material and hairline border)
+pointing at the button's centre. It opens to the right of the rail, or to the left
+if there is no room, centred on the button and slid to stay 16px inside the
+screen; the arrow keeps pointing at the button whatever the slide, and never sits
+within 20px of a rounded corner. Content taller than the screen scrolls inside it.
+It is transient: it reserves no inset, so the canvas does not re-fit when it opens.
+It closes (and its tool with it) on a tap anywhere outside it, on Esc, or on its
+44px close button; the rail button toggles it. For a tool that works on the canvas
+itself (Draw), taps on the canvas are strokes rather than taps outside, so its
+popover — with Undo — stays open while drawing; any other tap closes it. Semantics: a non-modal
+`dialog` named after the panel; focus moves into it on open, Tab walks its
+controls, Esc returns focus to the rail button (which has `aria-haspopup`).
+
+**Bottom sheet heights.** A sheet has a **grab bar** (40×5px pill in
+`borderStrong`, centred in a 44px-tall strip) and three resting heights:
+**peek** (168px — grab bar, title and about one row of controls; at most 35% of
+the space), **half** (half of the space it may grow into) and **full** (up to the
+top safe-area inset). It opens at half and keeps its height while the tool is
+switched. Dragging the grab bar or title follows the finger directly; on release it
+rests at the nearest height, or one height further in the direction of a flick
+(> 0.5 px/ms). Dragged below half the peek height, or flicked down from around
+peek, it **closes** (swipe down to close). Resting is an instant swap, not an
+animation. The canvas re-fits around a sheet only up to half the screen: a sheet
+pulled to full covers the photo on purpose. Keyboard: the grab bar is a vertical
+`slider` ("Sheet height", value Peek/Half/Full; Arrow keys step, Home/End jump)
+and Esc anywhere in the sheet closes it.
+
+**Canvas menu.** A matte context menu (`menu` role, 220px min, 44px items) opened
+by a **long-press** on the canvas (~500ms of a still touch or Pencil; movement over
+10px, an early lift or a second finger cancel it), by **right-click**, or by the
+**context-menu key / Shift+F10** while the canvas has focus (the canvas is a
+focusable group with a visible focus ring). Items: *Fit to screen*, *Reset
+rotation*, *Show grid / Hide grid* (a view toggle, never an edit or an export
+change); *Touch Lock* and *Focus this cell* join in Phase 12, then *Paste*
+(opens a copied image as a new reference tab, Phase 13) and *Gestures &
+shortcuts* last (opens the card, Phase 13). It opens 10px below
+and right of the press so the finger is never on an item (flipping up/left near an
+edge), at the visible centre when opened from the keyboard. Focus lands on the
+first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
+elsewhere, a resize or leaving the window close it. Not offered in the Paper tool
+or Presentation mode, and a long-press does nothing while Draw is on (that press
+is a stroke). *Focus this cell* (Phase 12) focuses the cell the menu was opened
+on; it is left out off the paper, and greyed out with its reason underneath
+("Turn on Squares in the Grid panel to use Cell Focus.") while squares are hidden.
+A greyed item stays focusable (`aria-disabled`, reason as its description) so the
+keyboard and screen readers still find it.
+
+**Touch Lock** (Phase 12, GLOSSARY.md). A ghost button at the start of the zoom
+pill — padlock icon plus a short label (*Lock* / *Locked*, so it reads on touch
+without a tooltip), and a *Touch Lock* item in the canvas menu. Locking is one tap.
+While locked the canvas ignores every press — pan, pinch, twist, double-tap, taps,
+long-press, strokes and Measure, from fingers, Pencil and mouse alike — and the
+pill's *Fit*, *Real size* and angle reset are disabled, so the view stays exactly
+as it is. The chrome keeps working: Cell Focus's ‹ › and ✓ (stepping may still
+pan just enough to reveal a cell), the panels, and Pencil hover. Unlocking takes a
+**1-second press** on the button (finger, Pencil, mouse, or Enter/Space held);
+while held the button shows pressed-in (cyan fill, an instant state), and the
+click that ends a successful hold never re-locks. The menu item is greyed out
+while locked, with "Press and hold the lock for 1 second to unlock." as its
+reason. Separate from Presentation mode: nothing re-fits and the chrome stays.
+Not remembered across reloads.
+
+**Pencil-only Drawing** (Phase 12). Off for anyone who never uses a Pencil. The
+first Pencil stroke in Draw switches it on; from then on fingers pan, pinch and
+turn the view in Draw and never mark it, and a palm resting beside a Pencil stroke
+neither draws nor interrupts it. Once a Pencil has been seen, the Draw panel
+offers a *Pencil-only Drawing* switch (device-local, remembered) with the note
+"Only the Pencil draws; fingers move the view." Without it, a second finger on a
+finger stroke cancels the stroke (it is a gesture). **Pressure** varies a freehand
+stroke's width only, from ¼ to 1¾ of the set thickness (a medium press, and a
+mouse, draw at the set thickness); strokes without pressure draw as before.
+
+**Pencil hover** (Phase 12). A Pencil hovering with nothing pressed shows, in every
+mode and under Touch Lock: a thin white crosshair with a dark halo at the tip
+(14px arms, a 3px gap at the centre), a 1.5px cyan outline on the cell under the
+tip, and that cell's label in a small matte chip (monospace, 24px tall) 18px up
+and right of the tip, flipping to stay on screen. Only the crosshair shows off the
+paper or without squares. It disappears the moment the Pencil touches down, lifts
+away or leaves the canvas.
+
+**Measure** (Phase 12, a Draw-panel tool beside Arrow … Freehand). Dragging draws
+a 2px cyan line with a dark halo and short square ticks at both ends, its readout
+in a matte chip beside the far end; the panel repeats the readout under
+*Measurement* in monospace — the length in the paper unit setting (mm, cm, in, or
+px at the document DPI) and in cells, "42 mm · 1.7 cells". Holding still at the
+end for ~500ms snaps the line onto the paper's horizontal or vertical (whichever
+it is nearer), and it stays snapped for the rest of that drag. The next measure
+replaces it; switching tool, closing Draw or changing reference clears it; it is
+never saved or exported.
+
+**Touch shortcuts** (Phase 12). Double-tap: fit and square up (or back to the
+previous view). Two-finger tap (both fingers down and up within 250ms, under 10px
+of movement): undo the last mark, in Draw only. Three-finger tap: show or hide the
+grid. None of them work under Touch Lock or in Presentation mode; a two- or
+three-finger tap is never half of a double-tap.
+
+**Cell Focus** (Phase 12, GLOSSARY.md). Everything outside the focused cell is
+darkened with flat black (default 70%, *Dim outside the cell* slider 10–95% in the
+Grid panel); the focused cell gets a 2px cyan outline (the general accent — not
+amber, which stays the active tool's). Each Done Cell carries a faint upright
+check mark (white at ~55% with a soft dark edge, sized to ~40% of the cell on
+screen, 8–48px). The controls are a matte pill at the bottom-left of the focused
+pane, on the zoom pill's row (above it on Compact): *Previous cell* ‹, a
+monospace readout with the cell's label over the Done count ("C4" / "14 / 48"),
+*Next cell* ›, *Done Cell* ✓ (a cyan toggle, filled when the cell is done) and
+*Exit Cell Focus* ×. Icon-only with tooltips on Wide/Regular, short labels under
+the icons on Compact; it reports itself as an overlay, so a cell it reveals never
+hides under it. Only the focused pane has the pill, so in a split view it acts on
+the pane touched last. Stepping to an off-screen cell pans just far enough to
+show it (16px clear of the chrome) in one step — no glide, no zoom change; a cell
+already on screen never moves the view. While Cell Focus is on, a tap focuses the
+cell under it and a tap on the focused cell leaves (after the double-tap window,
+so a double-tap there is only Fit); a long-press on the focused cell marks or
+unmarks it as done. A change of cell size or paper clears the Done Cells and shows
+a matte notice above the pill — "*n* Done Cells cleared" with an **Undo** that puts
+the grid back and the Done Cells with it — for six seconds; style changes keep
+them. All of it is device-local view state, remembered per reference.
+
+**Paste and drop (Phase 13).** ⌘V / Ctrl+V anywhere outside a text field, the
+canvas menu's *Paste*, or a drop opens each image as a new reference tab. While
+anything is dragged over the window a **drop target** covers it: a 2px dashed
+cyan outline inset by the chrome margin over a dimmed canvas, with a matte label
+("Drop images to open them as new tabs") in the middle. It appears and goes
+instantly. Anything that can't be opened -- not an image, an undecodable file,
+HEIC in a browser that can't decode it ("convert it to JPEG") -- is reported on the
+**import-error surface**: the Projects screen's alert line, the empty workspace,
+or, with a reference open, a small matte **import notice** (role `alert`, label
+size, a 44px *Dismiss* button) under the top bar on Wide/Regular and floating at
+the top on Compact. The next successful import clears it.
+
+**Keyboard shortcuts (Phase 13).** One registry (`SHORTCUTS` in
+`@artiso/renderer`) drives both the keys and the card: **G** show/hide grid,
+**hold Space** hide the grid until let go (never changes the Show/Hide grid
+setting), **F** immersive mode, **0** fit, **R** reset View Rotation, **← →** step
+cells while Cell Focus is on, **⌘Z** undo the last mark (Draw only, like the
+two-finger tap), **⌘V** paste, **?** the card. Ctrl stands in for ⌘ off Apple
+platforms (the same `data-platform="apple"` mark as the fonts). Nothing acts while
+a text or number field has focus, and Space and the arrows are left to a focused
+button, slider, menu or sheet, which already use them (Drawing Check's hold,
+Touch Lock's hold, the canvas menu, the sheet grabber, Check Photo corners). 0 and
+R follow the zoom pill: not under Touch Lock, in Presentation mode or the Paper
+tool.
+
+**Gestures & shortcuts card (Phase 13).** A modal matte card (`dialog`, 680px
+max, two columns that stack when narrow) over a 45% black scrim: *Gestures*
+(a static list) and *Keyboard* (generated from the registry, keys as small
+bordered keycaps, platform-labelled: ⌘Z or Ctrl+Z). Opens from the canvas menu's
+last item *Gestures & shortcuts*, by **?**, or by **holding ⌘ (Ctrl) alone for
+~1s** the way iPad apps show their shortcuts; closes on Esc, **?**, its 44px
+*Close* button or a tap outside, returning focus to where it was. Instant.
+
+**First-run gesture hint (Phase 13).** One matte pill line on the empty canvas
+(the empty Projects list, or the empty workspace) the first time on a device:
+"Pinch to zoom, twist to turn, long-press for the menu." with a cyan
+*Gestures & shortcuts* text button and a 44px *Dismiss hint* ×. Device-local; never
+shown again once dismissed or once any reference has been opened.
+
+**Icons.** Phosphor stays (SF Symbols cannot be licensed for the web): regular
+weight when idle, filled weight when active (§5), the way SF Symbols behave.
 
 **Rail contents and grouping.** Eleven items, grouped by dividers, in this order:
 *Session* (Projects, Import) · *Prepare* (Paper, Rotate/Flip, Adjust, Filters) ·
@@ -240,10 +432,17 @@ classroom display is not nudged out of framing.
   contrast-corrected derivation, not something you've seen. It is not applied
   automatically until it has been.
 - Compact/Regular breakpoint mockups don't exist yet, same tokens apply structurally.
+  The Phase 11 iPad patterns (popover, sheet heights, canvas menu) are specified in
+  §7 and verified on a real iPad rather than as artboards.
 - `danger` color is defined but unused in any mockup so far (no destructive-action
   UI has been drawn).
 - Android-specific chrome (system insets, back gesture, status-bar colour beyond the
   `theme-color` meta) is out of scope for this pass.
+- **View Rotation in the zoom pill** (Phase 11): while the view is turned, the pill
+  shows the angle in whole degrees (monospace readout, as a ghost button) after the
+  zoom %; tapping it resets to 0°. The **Lock rotation** switch sits under the
+  Rotate (edit) buttons in the Rotate/Flip panel, since both are about which way up
+  the reference is; it is a device-local preference, not an edit.
 
 ## 9. Repo changes made alongside this document
 

@@ -12,8 +12,14 @@ import { SideRail } from './SideRail';
 import { SideDock } from './SideDock';
 import { TabStrip } from './TabStrip';
 import { PANEL_TITLES, ToolPanel } from './ToolPanel';
+import { PanelPopover } from './PanelPopover';
+import { panelPresentation } from './tools';
 import { PaneStage } from './PaneStage';
+import { GestureHint } from './GestureHint';
+import { ImportNotice } from './ImportNotice';
 import { CalibrationDialog } from './CalibrationDialog';
+import { CheckPhotoAligner } from './CheckPhotoAligner';
+import { useCheckPhotoLoader } from '@/session/check-photo';
 import { useScreenWakeLock } from '@/platform/wake-lock';
 
 // How long the edge-revealed chrome lingers after the pointer leaves it (ms). A
@@ -24,8 +30,10 @@ const REVEAL_HIDE_DELAY_MS = 250;
 // breakpoint (docs/architecture/06-workspace-interaction.md, docs/design.md §7).
 // The canvas is always full-bleed on the Drafting Board surface, and every piece
 // of chrome floats over it as a matte panel:
-//   Wide (>=1024)    floating icon rail + floating dock + floating top bar (tabs)
-//   Regular (768-1023) the same rail and dock (no tabs; the dock is the overlay drawer)
+//   Wide (>=1024)    floating icon rail + floating top bar (tabs); small panels
+//                    as popovers on their rail button, large ones in the side column
+//   Regular (768-1023) the same rail and popovers (no tabs); large panels in a
+//                    bottom sheet, so a column never covers 40% of a portrait iPad
 //   Compact (<768)   floating bottom toolbar + floating bottom sheet
 // Nothing takes layout space from the canvas; each panel reports where it is and
 // the canvas fits its content to whatever is left uncovered.
@@ -61,6 +69,8 @@ export function WorkspaceShell() {
   useEffect(() => cancelHide, []);
   // A reference is on screen next to the artist's paper: don't let it sleep.
   useScreenWakeLock(hasReference);
+  // The open references' Check Photos (Drawing Check), drawn over the reference.
+  useCheckPhotoLoader();
 
   const canvasArea = <div className="workspace__canvas">{hasReference ? <PaneStage /> : <EmptyState error={importError} />}</div>;
 
@@ -137,16 +147,32 @@ export function WorkspaceShell() {
   }
 
   if (breakpoint !== 'compact') {
+    const presentation = toolMode === 'idle' || !hasReference ? null : panelPresentation(toolMode, breakpoint);
     return (
       <div className="workspace surface" data-surface={canvasSurface}>
         {splitActive ? splitCanvasArea : canvasArea}
         <div className="chrome-layer">
           <SideRail />
           {/* Tabs are Wide-only: mobile stays single-reference. */}
-          <div className="chrome-center">{breakpoint === 'wide' && hasReference ? <TabStrip /> : null}</div>
-          <SideDock />
+          <div className="chrome-center">
+            {breakpoint === 'wide' && hasReference ? <TabStrip /> : null}
+            {/* Import errors with a reference open (the empty state shows its own). */}
+            {hasReference ? <ImportNotice /> : null}
+          </div>
+          <SideDock open={presentation === 'column'} />
         </div>
+        {presentation === 'sheet' && toolMode !== 'idle' ? (
+          <div className="sheet-stack sheet-stack--regular">
+            <BottomSheet title={PANEL_TITLES[toolMode]}>
+              <ToolPanel mode={toolMode} />
+            </BottomSheet>
+          </div>
+        ) : null}
+        {presentation === 'popover' && toolMode !== 'idle' ? (
+          <PanelPopover mode={toolMode} />
+        ) : null}
         <CalibrationDialog />
+        <CheckPhotoAligner />
       </div>
     );
   }
@@ -154,7 +180,8 @@ export function WorkspaceShell() {
   return (
     <div className="workspace surface" data-surface={canvasSurface}>
       {canvasArea}
-      <div className="compact-stack">
+      {hasReference ? <ImportNotice floating /> : null}
+      <div className="sheet-stack compact-stack">
         {toolMode !== 'idle' && hasReference ? (
           <BottomSheet title={PANEL_TITLES[toolMode]}>
             <ToolPanel mode={toolMode} />
@@ -163,6 +190,7 @@ export function WorkspaceShell() {
         <Toolbar />
       </div>
       <CalibrationDialog />
+      <CheckPhotoAligner />
     </div>
   );
 }
@@ -175,6 +203,7 @@ function EmptyState({ error }: { error: string | null }) {
         Import a reference photo to get started.
       </span>
       {error ? <span style={{ fontSize: 'var(--font-label-size)', color: 'var(--color-danger)' }}>{error}</span> : null}
+      <GestureHint />
     </div>
   );
 }

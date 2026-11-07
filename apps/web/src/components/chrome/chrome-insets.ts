@@ -18,6 +18,9 @@ interface ReportOptions {
   overlay?: boolean;
   // Off while the panel is not really on screen.
   active?: boolean;
+  // A bottom sheet reserves at most this fraction of the window's height, however
+  // tall it is pulled: past that it covers the photo on purpose.
+  maxCoverFraction?: number;
 }
 
 // Returns a callback ref. Attach it to a floating panel and its rectangle is
@@ -25,7 +28,7 @@ interface ReportOptions {
 // so the canvas never flashes under a panel that just appeared) and again
 // whenever it resizes or the window does.
 export function useReportChromeRect(edge: ChromeEdge, options: ReportOptions = {}): (el: HTMLElement | null) => void {
-  const { overlay = false, active = true } = options;
+  const { overlay = false, active = true, maxCoverFraction } = options;
   const id = useId();
   const report = useChromeStore((s) => s.report);
   const element = useRef<HTMLElement | null>(null);
@@ -43,8 +46,9 @@ export function useReportChromeRect(edge: ChromeEdge, options: ReportOptions = {
       report(id, null);
       return;
     }
-    report(id, { edge, overlay, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
-  }, [active, edge, id, overlay, report]);
+    const top = maxCoverFraction === undefined ? r.top : Math.max(r.top, r.bottom - maxCoverFraction * window.innerHeight);
+    report(id, { edge, overlay, left: r.left, top, right: r.right, bottom: r.bottom });
+  }, [active, edge, id, maxCoverFraction, overlay, report]);
 
   const setRef = useCallback(
     (el: HTMLElement | null) => {

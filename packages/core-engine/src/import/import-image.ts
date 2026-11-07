@@ -1,6 +1,7 @@
 import { createScratchCanvas } from '../canvas/scratch-canvas';
 import { DEFAULT_WORKING_LONG_EDGE, THUMBNAIL_LONG_EDGE } from './constants';
 import { ImageImportError } from './errors';
+import { decodeFailedMessage } from './image-type';
 import { sha256Hex } from './hash';
 import { computeResizeDimensions, validateMimeType, validateSourceDimensions } from './validation';
 
@@ -108,7 +109,7 @@ async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(blob, { imageOrientation: 'from-image' });
   } catch {
-    throw new ImageImportError('decode-failed', 'Could not decode the selected image.');
+    throw new ImageImportError('decode-failed', decodeFailedMessage(blob.type));
   }
 }
 

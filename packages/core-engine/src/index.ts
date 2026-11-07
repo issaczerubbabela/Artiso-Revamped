@@ -12,3 +12,4 @@ export * from './adjustments';
 export * from './export';
 export * from './annotation';
 export * from './canvas';
+export * from './check';

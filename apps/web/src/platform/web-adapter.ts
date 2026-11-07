@@ -1,11 +1,15 @@
-import type { PlatformAdapter } from './platform-adapter';
+import type { PickImageOptions, PlatformAdapter } from './platform-adapter';
 
 export class WebAdapter implements PlatformAdapter {
-  pickImage(): Promise<Blob> {
+  pickImage(options: PickImageOptions = {}): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/jpeg,image/png,image/webp';
+      // iPadOS / iOS / Android open the rear camera straight away; desktop
+      // browsers ignore the attribute and show the file picker. Safari hands
+      // back a JPEG because of the accept list above.
+      if (options.camera) input.setAttribute('capture', 'environment');
       input.addEventListener('change', () => {
         const file = input.files?.[0];
         if (file) resolve(file);

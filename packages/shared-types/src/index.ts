@@ -10,3 +10,4 @@ export * from './schemas/user';
 export * from './schemas/project';
 export * from './schemas/reference';
 export * from './schemas/preset';
+export * from './schemas/check-photo';

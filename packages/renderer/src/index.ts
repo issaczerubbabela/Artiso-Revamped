@@ -3,11 +3,23 @@
 export const RENDERER_VERSION = '0.0.0';
 
 export * from './viewport';
+export * from './clip-space';
 export * from './crop-constraint';
 export * from './crop-frame';
+export * from './gesture-engine';
+export * from './view-rotation';
+export * from './orientation-views';
 export * from './input-controller';
+export * from './long-press';
 export * from './image-layer';
 export * from './grid-layer';
 export * from './drawing-grid-layer';
 export * from './annotation-layer';
 export * from './chrome-insets';
+export * from './check-photo-layer';
+export * from './tap';
+export * from './cell-focus-layer';
+export * from './multi-finger-tap';
+export * from './hold';
+export * from './pointer-overlays';
+export * from './shortcuts';

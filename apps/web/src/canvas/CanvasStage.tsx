@@ -2,8 +2,18 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import {
+  cellAt,
+  cellBounds,
+  cellKey,
+  cellLabel,
   cropFromView,
   deriveAdjustments,
+  formatMeasurement,
+  invalidatesDoneCells,
+  measureDistance,
+  nearestAxis,
+  snapToAxis,
+  parseCellKey,
   frameInViewport,
   generateGridGeometry,
   paperAspect,
@@ -13,25 +23,40 @@ import {
   viewFromCrop,
   type FrameRect,
   type GridGeometry,
+  type MeasureAxis,
   type ResolvedAnnotation,
 } from '@artiso/core-engine';
 import {
   AnnotationLayer,
+  CheckPhotoLayer,
   DrawingGridLayer,
   GridLayer,
+  HoldDetector,
   ImageLayer,
   InputController,
   NO_INSETS,
   Viewport,
   createCropConstraint,
+  drawCellFocus,
   drawCropFrame,
+  drawMeasurement,
+  drawPencilHover,
+  viewOrientation,
+  viewRotationDegrees,
   type GridDrawLayer,
+  type RememberedView,
+  type ViewOrientation,
   type ViewportInsets,
   type ViewportOptions,
   type ViewportState,
 } from '@artiso/renderer';
 import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/shared-types';
-import { useDisplayStore } from '@/state/display-store';
+import { cellFocusEntry, useCellFocusStore } from '@/state/cell-focus-store';
+import { useCheckPhotoStore } from '@/state/check-photo-store';
+import { isGridOffCanvas, useDisplayStore } from '@/state/display-store';
+import { isPencilOnly, isTouchLocked, useInputStore } from '@/state/input-store';
+import { useMeasureStore } from '@/state/measure-store';
+import { readOrientationView, writeOrientationView } from '@/state/orientation-view-store';
 import { useWorkspaceStore, type FramingDraft, type PaneSession } from '@/state/workspace-store';
 
 // The drawing view's zoom and pan limits (Grid-Feature-Spec.md §10): content is
@@ -54,6 +79,8 @@ export interface StageViewInfo {
   isRealSize: boolean;
   // Whether Real size can be reached (the screen has been calibrated).
   realSizeAvailable: boolean;
+  // View Rotation, radians in (-π, π].
+  rotation: number;
 }
 
 // What a pane's controls can do to its own view. Each pane in a split view has
@@ -62,11 +89,22 @@ export interface CanvasStageHandle {
   fit: () => void;
   // Zooms to 1 mm on paper = 1 mm on the screen; false if not calibrated yet.
   realSize: () => boolean;
+  // Turns the view back to 0° about the visible centre.
+  resetRotation: () => void;
+  // The paper point (mm) under a client point, or null outside the drawing view.
+  contentPointAt: (clientX: number, clientY: number) => { x: number; y: number } | null;
+  // Cell Focus: pans just enough to show this paper rect, if it is off screen.
+  revealContentRect: (rect: { x: number; y: number; w: number; h: number }) => void;
 }
+
+// Space kept between a revealed cell and the edge of the visible region (CSS px).
+const REVEAL_MARGIN = 16;
 
 interface Engine {
   viewport: Viewport;
   imageLayer: ImageLayer;
+  // The Drawing Check's Check Photo, between the reference and the grid.
+  checkPhotoLayer: CheckPhotoLayer;
   gridLayer: GridLayer;
   drawingGridLayer: DrawingGridLayer;
   annotationLayer: AnnotationLayer;
@@ -93,6 +131,35 @@ interface Engine {
   frame: FrameRect | null;
   lastEmittedCrop: Crop | null;
   lastInfo: StageViewInfo | null;
+  // The reference the drawing view was last set up for: its view is restored
+  // from (and remembered to) this device's storage under this id.
+  referenceId: string | null;
+  // Landscape or portrait (the window, wider than tall or not): each remembers
+  // its own zoom, pan and View Rotation per reference.
+  orientation: ViewOrientation;
+  // The window has turned but the canvas hasn't been resized yet: the view on
+  // screen still belongs to the old orientation and is not remembered.
+  turning: boolean;
+  // The artist's place (zoom, angle and the point at the visible centre) as the
+  // window began to resize, before the canvas or the chrome changed.
+  place: RememberedView | null;
+  // The window size the place was last taken for.
+  windowWidth: number;
+  windowHeight: number;
+  // The view put back after a resize. The chrome for the new window size can
+  // arrive a moment after the canvas resizes; until the artist touches the
+  // view or picks a tool, a change of insets re-applies this rather than
+  // nudging the place off-centre.
+  restored: RememberedView | null;
+  // The angle the canvas was last shown at, in whole degrees (data attribute).
+  shownDegrees: number | null;
+  // What Cell Focus last painted (data attribute), '' for nothing.
+  shownFocus: string;
+  // Where a hovering Pencil is (CSS px on the canvas), or null.
+  hover: { x: number; y: number } | null;
+  // What the Pencil hover and the Measurement last painted (data attributes).
+  shownHover: string;
+  shownMeasurement: string;
 }
 
 type GeometryCache = { current: { key: string; geometry: GridGeometry } | null };
@@ -106,6 +173,7 @@ interface NotePrompt {
 }
 
 interface ViewData {
+  referenceId: string | null;
   workingBitmap: ImageBitmap | null;
   editStack: PaneSession['editStack'];
   secondaryGridConfig: GridConfig | null;
@@ -129,6 +197,7 @@ function readView(session: PaneSession | undefined): ViewData {
   const source = session ?? store;
   const cropping = !session && store.toolMode === 'paper';
   return {
+    referenceId: source.referenceId,
     workingBitmap: source.workingBitmap,
     editStack: source.editStack,
     secondaryGridConfig: source.secondaryGridConfig,
@@ -146,7 +215,7 @@ function readView(session: PaneSession | undefined): ViewData {
 const isCropping = (view: ViewData): boolean => view.cropSource !== null && view.framingDraft !== null;
 
 function toViewportState(view: { scale: number; tx: number; ty: number }): ViewportState {
-  return { scale: view.scale, translateX: view.tx, translateY: view.ty };
+  return { scale: view.scale, translateX: view.tx, translateY: view.ty, rotation: 0 };
 }
 
 // The mount point for one pane (docs/architecture/05-canvas-renderer.md): three
@@ -178,6 +247,7 @@ export const CanvasStage = forwardRef<
     const isParked = session !== undefined;
     const containerRef = useRef<HTMLDivElement>(null);
     const imageCanvasRef = useRef<HTMLCanvasElement>(null);
+    const checkCanvasRef = useRef<HTMLCanvasElement>(null);
     const gridCanvasRef = useRef<HTMLCanvasElement>(null);
     const annotationCanvasRef = useRef<HTMLCanvasElement>(null);
     const engineRef = useRef<Engine | null>(null);
@@ -209,15 +279,40 @@ export const CanvasStage = forwardRef<
         fit: () => {
           const engine = engineRef.current;
           if (!engine) return;
+          engine.input.engine.stopMotion();
+          engine.restored = null;
           engine.viewport.zoomToFit();
           engine.dirty = true;
         },
         realSize: () => {
           const engine = engineRef.current;
           if (!engine) return false;
+          engine.input.engine.stopMotion();
+          engine.restored = null;
           const ok = engine.viewport.setRealSize();
           engine.dirty = true;
           return ok;
+        },
+        resetRotation: () => {
+          const engine = engineRef.current;
+          if (!engine || engine.mode !== 'draw') return;
+          engine.input.engine.stopMotion();
+          engine.restored = null;
+          engine.viewport.setRotation(0);
+          engine.dirty = true;
+        },
+        contentPointAt: (clientX, clientY) => {
+          const engine = engineRef.current;
+          const container = containerRef.current;
+          if (!engine || !container || engine.mode !== 'draw') return null;
+          const rect = container.getBoundingClientRect();
+          return engine.viewport.screenToImage({ x: clientX - rect.left, y: clientY - rect.top });
+        },
+        revealContentRect: (rect) => {
+          const engine = engineRef.current;
+          if (!engine || engine.mode !== 'draw') return;
+          engine.input.engine.stopMotion();
+          if (engine.viewport.revealRect(rect, REVEAL_MARGIN)) engine.dirty = true;
         },
       }),
       [],
@@ -230,16 +325,17 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const container = containerRef.current;
       const imageCanvas = imageCanvasRef.current;
+      const checkCanvas = checkCanvasRef.current;
       const gridCanvas = gridCanvasRef.current;
       const annotationCanvas = annotationCanvasRef.current;
       const initial = readView(sessionRef.current);
-      if (!container || !imageCanvas || !gridCanvas || !annotationCanvas || !initial.workingBitmap) return;
+      if (!container || !imageCanvas || !checkCanvas || !gridCanvas || !annotationCanvas || !initial.workingBitmap) return;
 
       const dpr = window.devicePixelRatio || 1;
       const rect = container.getBoundingClientRect();
       const cssWidth = Math.max(1, rect.width);
       const cssHeight = Math.max(1, rect.height);
-      for (const canvas of [imageCanvas, gridCanvas, annotationCanvas]) {
+      for (const canvas of [imageCanvas, checkCanvas, gridCanvas, annotationCanvas]) {
         canvas.width = Math.max(1, Math.round(cssWidth * dpr));
         canvas.height = Math.max(1, Math.round(cssHeight * dpr));
       }
@@ -247,6 +343,7 @@ export const CanvasStage = forwardRef<
       const viewport = new Viewport(cssWidth, cssHeight, initial.paper.widthMm, initial.paper.heightMm, DRAW_VIEWPORT);
       viewport.setInsets(insetsRef.current);
       const imageLayer = new ImageLayer(imageCanvas);
+      const checkPhotoLayer = new CheckPhotoLayer(checkCanvas);
       // Two passes share the grid canvas: the guides beneath, then the grid.
       const gridLayer = new GridLayer(gridCanvas);
       const drawingGridLayer = new DrawingGridLayer(gridCanvas);
@@ -255,6 +352,7 @@ export const CanvasStage = forwardRef<
       const engine: Engine = {
         viewport,
         imageLayer,
+        checkPhotoLayer,
         gridLayer,
         drawingGridLayer,
         annotationLayer,
@@ -272,6 +370,18 @@ export const CanvasStage = forwardRef<
         frame: null,
         lastEmittedCrop: null,
         lastInfo: null,
+        referenceId: null,
+        orientation: windowOrientation(),
+        turning: false,
+        place: null,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        restored: null,
+        shownDegrees: null,
+        shownFocus: '',
+        hover: null,
+        shownHover: '',
+        shownMeasurement: '',
       };
 
       function applyRealScale(): void {
@@ -293,12 +403,13 @@ export const CanvasStage = forwardRef<
           // Crop tool: the image under the fixed frame, with the grid previewed
           // inside it and everything outside dimmed.
           engine.imageLayer.draw(view, w, h, adjustments, ratio);
+          engine.checkPhotoLayer.clear(w, h, ratio);
           const { paper } = state.framingDraft;
           engine.drawingGridLayer.draw(
             {
               paper,
               settings: state.gridSettings,
-              view: { scale: engine.frame.w / paper.widthMm, translateX: engine.frame.x, translateY: engine.frame.y },
+              view: { scale: engine.frame.w / paper.widthMm, translateX: engine.frame.x, translateY: engine.frame.y, rotation: 0 },
               width: w,
               height: h,
             },
@@ -310,28 +421,122 @@ export const CanvasStage = forwardRef<
             drawCropFrame(ctx, w, h, engine.frame);
           }
           engine.annotationLayer.draw([], null, view, w, h, ratio);
+          showFocus('');
+          showPointerOverlays('', '');
           return;
         }
 
         const { paper, presentationMode } = state;
         engine.imageLayer.draw(view, w, h, adjustments, ratio);
+        // The Drawing Check: view state only, never part of the reference.
+        const check = useCheckPhotoStore.getState();
+        const shown = state.referenceId ? check.byReference[state.referenceId] : undefined;
+        engine.checkPhotoLayer.draw(shown?.straightened ?? null, paper, check, view, w, h, ratio);
 
         const labelScale = presentationMode ? PRESENTATION_LABEL_SCALE : 1;
         const hasGuide = state.secondaryGridConfig !== null;
-        if (state.secondaryGridConfig) {
+        // Show/hide grid (the canvas menu, G) or Space held: the guides and
+        // the grid both go.
+        const gridOff = isGridOffCanvas(useDisplayStore.getState());
+        if (gridOff) {
+          const ctx = gridCanvas!.getContext('2d');
+          if (ctx) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, gridCanvas!.width, gridCanvas!.height);
+          }
+        } else if (state.secondaryGridConfig) {
           const geometry = getCachedGridGeometry(geometryCacheRef, paper.widthMm, paper.heightMm, state.secondaryGridConfig);
           const layers: GridDrawLayer[] = [
             { geometry, config: presentationStyle(state.secondaryGridConfig, presentationMode) },
           ];
           engine.gridLayer.draw(layers, view, w, h, { labelScale, pixelRatio: ratio });
         }
-        engine.drawingGridLayer.draw(
-          { paper, settings: presentationSettings(state.gridSettings, presentationMode), view, width: w, height: h },
-          { pixelRatio: ratio, labelScale, clear: !hasGuide },
-        );
+        if (!gridOff) {
+          engine.drawingGridLayer.draw(
+            { paper, settings: presentationSettings(state.gridSettings, presentationMode), view, width: w, height: h },
+            { pixelRatio: ratio, labelScale, clear: !hasGuide },
+          );
+        }
+        showFocus(drawFocus(state, view));
 
         const resolved = getCachedAnnotationGeometry(annotationCacheRef, paper.widthMm, paper.heightMm, state.annotations);
         engine.annotationLayer.draw(resolved, engine.draft, view, w, h, ratio);
+        drawPointerOverlays(state, view);
+      }
+
+      // Over the annotations: the Measurement (the focused pane's Measure tool)
+      // and the Pencil hover -- crosshair, the cell under the tip and its label,
+      // in every mode. View state only.
+      function drawPointerOverlays(state: ViewData, view: ViewportState): void {
+        const ctx = annotationCanvas!.getContext('2d');
+        if (!ctx) return;
+        const { cssWidth: w, cssHeight: h, dpr: ratio } = engine;
+        const { cellMm, showSquares, labels } = state.gridSettings;
+
+        let measured = '';
+        const measurement = useMeasureStore.getState().measurement;
+        if (!sessionRef.current && measurement && measurement.referenceId === state.referenceId) {
+          const { unit, dpi } = useDisplayStore.getState();
+          measured = formatMeasurement(measureDistance(measurement.start, measurement.end, cellMm), unit, dpi);
+          drawMeasurement(ctx, { start: measurement.start, end: measurement.end, label: measured }, view, w, h, ratio);
+        }
+
+        let hovered = '';
+        if (engine.hover) {
+          const grid = { paper: state.paper, cellMm };
+          const cell = showSquares ? cellAt(grid, engine.viewport.screenToImage(engine.hover)) : null;
+          const label = cell ? cellLabel(cell, labels) : null;
+          drawPencilHover(ctx, { tip: engine.hover, cell: cell ? cellBounds(grid, cell) : null, label }, view, w, h, ratio);
+          // '+' for the crosshair alone (off the paper, or no squares).
+          hovered = label ?? '+';
+        }
+        showPointerOverlays(hovered, measured);
+      }
+
+      // What the Pencil hover and the Measurement have painted, as data
+      // attributes, so tests wait for the canvas rather than for time.
+      function showPointerOverlays(hovered: string, measured: string): void {
+        if (engine.shownHover !== hovered) {
+          engine.shownHover = hovered;
+          if (hovered) container!.dataset.pencilHover = hovered;
+          else delete container!.dataset.pencilHover;
+        }
+        if (engine.shownMeasurement !== measured) {
+          engine.shownMeasurement = measured;
+          if (measured) container!.dataset.measurement = measured;
+          else delete container!.dataset.measurement;
+        }
+      }
+
+      // Cell Focus (device-local view state): the dim, the focused cell's
+      // outline and the Done Cell ticks, over the grid. Only with squares on.
+      // Returns what was drawn ('' for nothing): the focused cell's key, the
+      // number of Done Cells and the darkening.
+      function drawFocus(state: ViewData, view: ViewportState): string {
+        const entry = cellFocusEntry(state.referenceId);
+        if (!entry?.active || !entry.cell || !state.gridSettings.showSquares) return '';
+        const grid = { paper: state.paper, cellMm: state.gridSettings.cellMm };
+        // Counted on another grid: the Done Cells guard is about to clear them.
+        const current = { ...(entry.layout ?? { crop: null }), widthMm: state.paper.widthMm, heightMm: state.paper.heightMm, cellMm: grid.cellMm };
+        if (entry.layout !== null && invalidatesDoneCells(entry.layout, current)) return '';
+        const ctx = gridCanvas!.getContext('2d');
+        if (!ctx) return '';
+        const done = entry.done.flatMap((key) => {
+          const cell = parseCellKey(key);
+          return cell ? [cellBounds(grid, cell)] : [];
+        });
+        const { dimPercent } = useCellFocusStore.getState();
+        drawCellFocus(ctx, { focus: cellBounds(grid, entry.cell), dimPercent, done }, view, engine.cssWidth, engine.cssHeight, engine.dpr);
+        return `${cellKey(entry.cell)}:${done.length}:${dimPercent}`;
+      }
+
+      // What Cell Focus has painted, as a data attribute (like the View
+      // Rotation's), so tests can wait for the canvas rather than for time.
+      function showFocus(shown: string): void {
+        if (engine.shownFocus === shown) return;
+        engine.shownFocus = shown;
+        if (shown) container!.dataset.cellFocus = shown;
+        else delete container!.dataset.cellFocus;
       }
 
       // Reports the user's own panning/zooming of the image in the crop tool back
@@ -347,13 +552,25 @@ export const CanvasStage = forwardRef<
       }
 
       function reportView(): void {
+        const { rotation } = engine.viewport.getState();
+        // What is on screen right now: the Paper tool always shows 0°.
+        const shown = engine.mode === 'draw' ? viewRotationDegrees(rotation) : 0;
+        if (shown !== engine.shownDegrees) {
+          engine.shownDegrees = shown;
+          container!.dataset.viewRotation = String(shown);
+        }
+        if (engine.mode !== 'draw') return;
+        // Remembered on this device only, for this orientation (a no-op unless
+        // the view changed).
+        if (!engine.turning) writeOrientationView(engine.referenceId, engine.orientation, engine.viewport.getRememberedView());
         const cb = onViewChangeRef.current;
-        if (!cb || engine.mode !== 'draw') return;
+        if (!cb) return;
         const info: StageViewInfo = {
           scale: engine.viewport.getState().scale,
           fitScale: engine.viewport.getFitScale(),
           isRealSize: engine.viewport.isRealSize(),
           realSizeAvailable: engine.viewport.getRealScale() !== null,
+          rotation,
         };
         const last = engine.lastInfo;
         if (
@@ -361,7 +578,8 @@ export const CanvasStage = forwardRef<
           last.scale === info.scale &&
           last.fitScale === info.fitScale &&
           last.isRealSize === info.isRealSize &&
-          last.realSizeAvailable === info.realSizeAvailable
+          last.realSizeAvailable === info.realSizeAvailable &&
+          last.rotation === info.rotation
         )
           return;
         engine.lastInfo = info;
@@ -372,6 +590,7 @@ export const CanvasStage = forwardRef<
         element: container,
         viewport,
         onChange: () => {
+          engine.restored = null;
           engine.dirty = true;
         },
         // Drawing a stroke and panning the canvas are mutually exclusive
@@ -382,10 +601,25 @@ export const CanvasStage = forwardRef<
         // be nudged out of framing by an accidental touch.
         // Only the focused pane takes tool input, so a parked pane keeps its
         // own free pan/zoom while the other one is annotated.
+        // Touch Lock freezes the view outright. In the Draw tool the canvas
+        // draws -- unless Pencil-only Drawing is on, when the fingers move the
+        // view and only they reach the gesture engine (acceptsPointer below).
         isGestureLocked: () => {
           const state = useWorkspaceStore.getState();
-          return state.presentationMode || (!sessionRef.current && state.toolMode === 'annotate');
+          if (state.presentationMode || isTouchLocked()) return true;
+          return !sessionRef.current && state.toolMode === 'annotate' && !isPencilOnly();
         },
+        acceptsPointer: (pointerType) => {
+          const drawing = !sessionRef.current && useWorkspaceStore.getState().toolMode === 'annotate';
+          return !drawing || !isPencilOnly() || pointerType === 'touch';
+        },
+        // Lock rotation (device-local); the Paper tool always frames at 0°,
+        // since a crop is an axis-aligned rectangle of the image.
+        isRotationLocked: () => useDisplayStore.getState().rotationLocked || engine.mode === 'crop',
+        prefersReducedMotion: () =>
+          typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        // The crop is read off the view every frame: it must never overshoot.
+        allowsZoomOvershoot: () => engine.mode !== 'crop',
       });
       engineRef.current = engine;
       applyRealScale();
@@ -410,6 +644,39 @@ export const CanvasStage = forwardRef<
         applyRealScale();
         engine.dirty = true;
       });
+      const unsubscribeCheck = useCheckPhotoStore.subscribe(() => {
+        engine.dirty = true;
+      });
+      const unsubscribeCellFocus = useCellFocusStore.subscribe(() => {
+        engine.dirty = true;
+      });
+      const unsubscribeMeasure = useMeasureStore.subscribe(() => {
+        engine.dirty = true;
+      });
+
+      // Pencil hover: a Pencil over the canvas with nothing pressed. It shows
+      // in every mode and under Touch Lock; it goes as soon as the Pencil
+      // touches down, lifts away or leaves the canvas.
+      const onPenHover = (event: PointerEvent) => {
+        if (event.pointerType !== 'pen') return;
+        if (event.buttons !== 0) {
+          clearHover(event);
+          return;
+        }
+        const r = container.getBoundingClientRect();
+        engine.hover = { x: event.clientX - r.left, y: event.clientY - r.top };
+        engine.dirty = true;
+      };
+      const clearHover = (event: PointerEvent) => {
+        if (event.pointerType !== 'pen' || !engine.hover) return;
+        engine.hover = null;
+        engine.dirty = true;
+      };
+      container.addEventListener('pointerover', onPenHover);
+      container.addEventListener('pointermove', onPenHover);
+      container.addEventListener('pointerdown', clearHover);
+      container.addEventListener('pointerleave', clearHover);
+      container.addEventListener('pointercancel', clearHover);
 
       const resizeObserver = new ResizeObserver(() => {
         const nextRect = container.getBoundingClientRect();
@@ -417,7 +684,7 @@ export const CanvasStage = forwardRef<
         const nextWidth = Math.max(1, nextRect.width);
         const nextHeight = Math.max(1, nextRect.height);
         if (nextWidth === engine.cssWidth && nextHeight === engine.cssHeight && nextDpr === engine.dpr) return;
-        for (const canvas of [imageCanvas, gridCanvas, annotationCanvas]) {
+        for (const canvas of [imageCanvas, checkCanvas, gridCanvas, annotationCanvas]) {
           canvas.width = Math.max(1, Math.round(nextWidth * nextDpr));
           canvas.height = Math.max(1, Math.round(nextHeight * nextDpr));
         }
@@ -425,6 +692,27 @@ export const CanvasStage = forwardRef<
         engine.cssHeight = nextHeight;
         engine.dpr = nextDpr;
         engine.viewport.resize(nextWidth, nextHeight);
+        const orientation = windowOrientation();
+        const place = engine.place;
+        engine.place = null;
+        engine.turning = false;
+        if (orientation !== engine.orientation) {
+          // Turned between landscape and portrait (or a Stage Manager window
+          // reshaped past square): put back how this reference was last framed
+          // in the new orientation, or fit it, square, the first time.
+          engine.orientation = orientation;
+          if (engine.mode === 'draw') {
+            const view = readOrientationView(engine.referenceId, orientation) ?? { rotation: 0 };
+            engine.input.engine.stopMotion();
+            engine.viewport.restoreView(view);
+            engine.restored = view;
+          }
+        } else if (place && engine.mode === 'draw') {
+          // The same orientation, a new size (Split View, Slide Over, Stage
+          // Manager): the same place stays in the middle of what is visible.
+          engine.viewport.restoreView(place);
+          engine.restored = place;
+        }
         applyRealScale();
         // The crop frame depends on the viewport size: rebuild it on the next
         // draw. (The drawing view keeps its framing across a resize instead.)
@@ -436,10 +724,21 @@ export const CanvasStage = forwardRef<
         engine.dirty = true;
       });
       resizeObserver.observe(container);
+      const onWindowResize = () => noteWindowResize(engine);
+      window.addEventListener('resize', onWindowResize);
 
       return () => {
         unsubscribeDisplay();
+        unsubscribeCheck();
+        unsubscribeCellFocus();
+        unsubscribeMeasure();
+        container.removeEventListener('pointerover', onPenHover);
+        container.removeEventListener('pointermove', onPenHover);
+        container.removeEventListener('pointerdown', clearHover);
+        container.removeEventListener('pointerleave', clearHover);
+        container.removeEventListener('pointercancel', clearHover);
         resizeObserver.disconnect();
+        window.removeEventListener('resize', onWindowResize);
         cancelAnimationFrame(engine.raf);
         engine.input.dispose();
         engine.imageLayer.dispose();
@@ -472,6 +771,8 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const engine = engineRef.current;
       if (!engine || !workingBitmap) return;
+      // A panel opening keeps the framing on screen, as it always has.
+      engine.restored = null;
       engine.dirty = true;
     }, [workingBitmap, paper, toolMode, cropSource, framingDraft]);
 
@@ -486,6 +787,7 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const engine = engineRef.current;
       if (!engine) return;
+      engine.restored = null;
       if (presentationMode) engine.viewport.reset();
       engine.dirty = true;
     }, [presentationMode]);
@@ -493,6 +795,13 @@ export const CanvasStage = forwardRef<
     // Wires pointer capture for the Annotate tool onto its own (top) canvas --
     // only active in that tool mode, so every other mode's pan/zoom behaves
     // exactly as before.
+    //
+    // Who draws (GLOSSARY.md, "Input"): the first Pencil stroke switches
+    // Pencil-only Drawing on, after which fingers never draw -- they fall
+    // through to the gesture engine and move the view, so a resting palm leaves
+    // no mark. Without it a finger draws as it always has, and a second finger
+    // turns a finger stroke into a gesture (a two-finger tap undoes) instead.
+    // Under Touch Lock the canvas takes nothing at all.
     useEffect(() => {
       const engine = engineRef.current;
       const canvas = annotationCanvasRef.current;
@@ -512,7 +821,44 @@ export const CanvasStage = forwardRef<
         return engine!.viewport.screenToImage({ x: event.clientX - rect.left, y: event.clientY - rect.top });
       }
 
+      // The pointer drawing the current stroke or Measurement, and its type.
+      let active: { id: number; type: string } | null = null;
+      // Measure: the snapped axis once the drag has been held at its end.
+      let measureAxis: MeasureAxis | null = null;
+      const hold = new HoldDetector({
+        onHold: () => {
+          const measurement = useMeasureStore.getState().measurement;
+          if (!active || !measurement || measureAxis) return;
+          measureAxis = nearestAxis(measurement.start, measurement.end);
+          const end = snapToAxis(measurement.start, measurement.end, measureAxis);
+          useMeasureStore.getState().setMeasurement({ ...measurement, end, snapped: true });
+        },
+      });
+
+      function cancelActive(): void {
+        if (!active) return;
+        if (canvas!.hasPointerCapture(active.id)) canvas!.releasePointerCapture(active.id);
+        active = null;
+        hold.stop();
+        if (engine!.draft) {
+          engine!.draft = null;
+          engine!.dirty = true;
+        }
+        if (useWorkspaceStore.getState().annotationTool === 'measure') useMeasureStore.getState().setMeasurement(null);
+      }
+
       function handlePointerDown(event: PointerEvent): void {
+        if (isTouchLocked()) return;
+        if (event.pointerType === 'pen') useInputStore.getState().pencilDetected();
+        // Pencil-only Drawing: a finger is for the view, never a mark.
+        if (event.pointerType === 'touch' && isPencilOnly()) return;
+        if (active) {
+          // A second finger on a finger stroke makes it a gesture; anything
+          // landing beside a Pencil stroke (a palm) is ignored.
+          if (event.pointerType === 'touch' && active.type === 'touch') cancelActive();
+          return;
+        }
+
         const { annotationTool, annotationColor, annotationThickness } = useWorkspaceStore.getState();
         const point = contentPointFromEvent(event);
 
@@ -531,7 +877,22 @@ export const CanvasStage = forwardRef<
           return;
         }
 
-        canvas!.setPointerCapture(event.pointerId);
+        try {
+          canvas!.setPointerCapture(event.pointerId);
+        } catch {
+          // A pointer that is already gone can't be captured; the stroke still works.
+        }
+        active = { id: event.pointerId, type: event.pointerType };
+
+        if (annotationTool === 'measure') {
+          // The next measure replaces the last one.
+          measureAxis = null;
+          useMeasureStore
+            .getState()
+            .setMeasurement({ referenceId: useWorkspaceStore.getState().referenceId, start: point, end: point, snapped: false });
+          hold.start({ x: event.clientX, y: event.clientY });
+          return;
+        }
         if (annotationTool === 'freehand') {
           engine!.draft = {
             type: 'freehand',
@@ -558,9 +919,17 @@ export const CanvasStage = forwardRef<
       }
 
       function handlePointerMove(event: PointerEvent): void {
+        if (!active || active.id !== event.pointerId) return;
+        const point = contentPointFromEvent(event);
+        const measurement = useMeasureStore.getState().measurement;
+        if (useWorkspaceStore.getState().annotationTool === 'measure' && measurement) {
+          const end = measureAxis ? snapToAxis(measurement.start, point, measureAxis) : point;
+          useMeasureStore.getState().setMeasurement({ ...measurement, end });
+          hold.move({ x: event.clientX, y: event.clientY });
+          return;
+        }
         const draft = engine!.draft;
         if (!draft) return;
-        const point = contentPointFromEvent(event);
         if (draft.type === 'freehand') draft.points.push({ x: point.x, y: point.y, pressure: event.pressure || undefined });
         else if (draft.type === 'circle') {
           draft.radiusX = Math.abs(point.x - draft.centerX);
@@ -570,9 +939,20 @@ export const CanvasStage = forwardRef<
       }
 
       function handlePointerUp(event: PointerEvent): void {
+        if (!active || active.id !== event.pointerId) return;
+        active = null;
+        hold.stop();
+        if (canvas!.hasPointerCapture(event.pointerId)) canvas!.releasePointerCapture(event.pointerId);
+        const measurement = useMeasureStore.getState().measurement;
+        if (useWorkspaceStore.getState().annotationTool === 'measure') {
+          // A tap with no drag measures nothing; a drag stays up until the next.
+          if (measurement && measurement.start.x === measurement.end.x && measurement.start.y === measurement.end.y) {
+            useMeasureStore.getState().setMeasurement(null);
+          }
+          return;
+        }
         const draft = engine!.draft;
         engine!.draft = null;
-        if (canvas!.hasPointerCapture(event.pointerId)) canvas!.releasePointerCapture(event.pointerId);
         if (draft && paper.widthMm > 0 && paper.heightMm > 0) {
           const annotation = normalizeDraftAnnotation(draft, paper.widthMm, paper.heightMm);
           if (annotation) useWorkspaceStore.getState().addAnnotation(annotation);
@@ -589,6 +969,7 @@ export const CanvasStage = forwardRef<
         canvas.removeEventListener('pointermove', handlePointerMove);
         canvas.removeEventListener('pointerup', handlePointerUp);
         canvas.removeEventListener('pointercancel', handlePointerUp);
+        hold.stop();
         canvas.style.pointerEvents = 'none';
       };
     }, [toolMode, paper, isParked]);
@@ -621,9 +1002,15 @@ export const CanvasStage = forwardRef<
     return (
       <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', touchAction: 'none' }}>
         <canvas ref={imageCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-        <canvas ref={gridCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+        <canvas
+          ref={checkCanvasRef}
+          data-testid="check-photo-layer"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        />
+        <canvas ref={gridCanvasRef} data-layer="grid" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
         <canvas
           ref={annotationCanvasRef}
+          data-layer="annotation"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none' }}
         />
         {notePrompt ? (
@@ -661,13 +1048,36 @@ export const CanvasStage = forwardRef<
 // where the *current crop* says it belongs, so a panel opening or closing never
 // changes what the user has framed.
 function applyInsets(engine: Engine, insets: ViewportInsets): void {
+  // The chrome for a new window size can arrive before the window's resize
+  // event: take the artist's place before the new insets move it.
+  noteWindowResize(engine);
   engine.insets = insets;
   engine.viewport.setInsets(insets);
+  if (engine.restored && engine.mode === 'draw') engine.viewport.restoreView(engine.restored);
   if (engine.mode === 'crop') {
     engine.configuredContent = '';
     engine.lastEmittedCrop = null;
   }
   engine.dirty = true;
+}
+
+// The window has changed size (seen from its resize event, or from the chrome
+// it brought, whichever comes first): take the artist's place before the canvas
+// or the chrome moves it, so the resize can put it back. When the window has
+// turned, that place is the old orientation's view: remembered now, and not
+// overwritten by frames drawn before the canvas catches up.
+function noteWindowResize(engine: Engine): void {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  if (width === engine.windowWidth && height === engine.windowHeight) return;
+  engine.windowWidth = width;
+  engine.windowHeight = height;
+  if (engine.mode !== 'draw') return;
+  const place = engine.place ?? engine.restored ?? engine.viewport.getRememberedView();
+  engine.place = place;
+  const turning = viewOrientation(width, height) !== engine.orientation;
+  if (turning && !engine.turning) writeOrientationView(engine.referenceId, engine.orientation, place);
+  engine.turning = turning;
 }
 
 // The crop frame, centred in the part of the canvas that chrome does not cover.
@@ -723,12 +1133,24 @@ function syncEngine(engine: Engine, state: ViewData): void {
     engine.imageLayer.setContentSize(paper.widthMm, paper.heightMm);
     engine.viewport.setConstraint(null);
     engine.viewport.setContentSize(paper.widthMm, paper.heightMm);
+    // Fitted at this reference's remembered View Rotation for the current
+    // orientation: restored on reload and on leaving the Paper tool (which
+    // frames at 0°).
+    engine.referenceId = state.referenceId;
+    engine.restored = null;
+    engine.viewport.zoomToFit(readOrientationView(state.referenceId, engine.orientation)?.rotation ?? 0);
     engine.mode = 'draw';
     engine.configuredBitmap = workingBitmap;
     engine.configuredContent = content;
     engine.frame = null;
     engine.lastEmittedCrop = null;
   }
+}
+
+// Landscape when the window is wider than tall. The window, not this pane: a
+// split-view pane is tall and narrow whichever way the iPad is turned.
+function windowOrientation(): ViewOrientation {
+  return viewOrientation(window.innerWidth, window.innerHeight);
 }
 
 // High-contrast display override for presentation/classroom mode: full opacity
