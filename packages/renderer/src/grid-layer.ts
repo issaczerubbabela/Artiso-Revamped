@@ -93,7 +93,16 @@ export class GridLayer {
         ctx.textBaseline = 'middle';
         ctx.font = `${labelFontPx / viewport.scale}px system-ui, sans-serif`;
         for (const label of geometry.labels) {
-          ctx.fillText(label.text, label.x, label.y);
+          if (viewport.rotation === 0) {
+            ctx.fillText(label.text, label.x, label.y);
+            continue;
+          }
+          // Counter-turned about its anchor, so it reads upright at any View Rotation.
+          ctx.save();
+          ctx.translate(label.x, label.y);
+          ctx.rotate(-viewport.rotation);
+          ctx.fillText(label.text, 0, 0);
+          ctx.restore();
         }
       }
     }

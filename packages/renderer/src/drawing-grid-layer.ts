@@ -208,35 +208,89 @@ export class DrawingGridLayer {
     ctx.stroke();
   }
 
-  // Laid out for an axis-aligned view. Keeping them upright and anchored at a
-  // non-zero View Rotation is part of the View Rotation feature itself (issue
-  // #5); until then the angle is always 0°.
+  // Labels read upright on screen at any View Rotation. At 0° they are laid
+  // out directly in screen px. Turned, they are laid out in the paper-aligned
+  // frame (the screen turned back by the angle), each sized by the footprint
+  // its upright box has in that frame, so neighbours still never overlap; then
+  // each is drawn upright, centred where its anchor lands on screen. Labels
+  // pin to the turned screen's bounding box in that frame.
   private drawLabels(input: DrawingGridInput, labelScale: number): void {
     const { paper, settings, view, width, height } = input;
     const ctx = this.ctx;
     const fontPx = LABEL_FONT_PX * labelScale;
     ctx.font = `${fontPx}px ${LABEL_FONT_FAMILY}`;
-
-    const labels = layoutLabels({
-      paper,
-      cellMm: settings.cellMm,
-      labels: settings.labels,
-      view: { scale: view.scale, offsetX: view.translateX, offsetY: view.translateY },
-      viewport: { width, height },
-      measure: (text) => ({ width: ctx.measureText(text).width, height: fontPx }),
-      padding: { x: 4 * labelScale, y: 2 * labelScale },
-      gap: 4 * labelScale,
-    });
-    if (labels.length === 0) return;
+    const padding = { x: 4 * labelScale, y: 2 * labelScale };
+    const gap = 4 * labelScale;
 
     ctx.globalAlpha = 1;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    for (const label of labels) {
-      ctx.fillStyle = LABEL_BACKGROUND;
-      ctx.fillRect(label.x, label.y, label.width, label.height);
-      ctx.fillStyle = LABEL_TEXT_COLOR;
-      ctx.fillText(label.text, label.x + label.width / 2, label.y + label.height / 2);
+
+    if (view.rotation === 0) {
+      const labels = layoutLabels({
+        paper,
+        cellMm: settings.cellMm,
+        labels: settings.labels,
+        view: { scale: view.scale, offsetX: view.translateX, offsetY: view.translateY },
+        viewport: { width, height },
+        measure: (text) => ({ width: ctx.measureText(text).width, height: fontPx }),
+        padding,
+        gap,
+      });
+      for (const label of labels) this.drawLabel(label.text, label.x, label.y, label.width, label.height);
+      return;
     }
+
+    const cos = Math.cos(view.rotation);
+    const sin = Math.sin(view.rotation);
+    const ac = Math.abs(cos);
+    const as = Math.abs(sin);
+    // Screen px -> the paper-aligned frame (px, origin at the paper's corner).
+    const toFrame = (x: number, y: number): Point => {
+      const dx = x - view.translateX;
+      const dy = y - view.translateY;
+      return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+    };
+    const corners = [toFrame(0, 0), toFrame(width, 0), toFrame(width, height), toFrame(0, height)];
+    const minX = Math.min(...corners.map((p) => p.x));
+    const minY = Math.min(...corners.map((p) => p.y));
+    const maxX = Math.max(...corners.map((p) => p.x));
+    const maxY = Math.max(...corners.map((p) => p.y));
+
+    const boxOf = (text: string) => ({
+      width: ctx.measureText(text).width + padding.x * 2,
+      height: fontPx + padding.y * 2,
+    });
+    const labels = layoutLabels({
+      paper,
+      cellMm: settings.cellMm,
+      labels: settings.labels,
+      view: { scale: view.scale, offsetX: -minX, offsetY: -minY },
+      viewport: { width: maxX - minX, height: maxY - minY },
+      // The upright box's footprint in the turned frame; padding is already in it.
+      measure: (text) => {
+        const box = boxOf(text);
+        return { width: box.width * ac + box.height * as, height: box.width * as + box.height * ac };
+      },
+      padding: { x: 0, y: 0 },
+      gap,
+    });
+
+    for (const label of labels) {
+      const fx = label.x + label.width / 2 + minX;
+      const fy = label.y + label.height / 2 + minY;
+      const cx = view.translateX + fx * cos - fy * sin;
+      const cy = view.translateY + fx * sin + fy * cos;
+      const box = boxOf(label.text);
+      this.drawLabel(label.text, cx - box.width / 2, cy - box.height / 2, box.width, box.height);
+    }
+  }
+
+  private drawLabel(text: string, x: number, y: number, width: number, height: number): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = LABEL_BACKGROUND;
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = LABEL_TEXT_COLOR;
+    ctx.fillText(text, x + width / 2, y + height / 2);
   }
 }

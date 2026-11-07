@@ -395,6 +395,27 @@ describe('DrawingGridLayer under View Rotation', () => {
     expect(strokes[0]!.clipped).toBe(true);
   });
 
+  it('keeps the labels upright, each centred on its turned cell edge', () => {
+    const { fills, texts } = render({ view: TURNED, width: 800, height: 800 });
+    expect(texts.length).toBeGreaterThan(0);
+    // Upright: the same width x height boxes as at 0°, text centred in each.
+    const upright = render({ width: 800, height: 800 });
+    const heightAt0 = upright.fills[0]!.h;
+    for (const fill of fills) expect(fill.h).toBeCloseTo(heightAt0, 9);
+    fills.forEach((fill, i) => {
+      expect(texts[i]!.x).toBeCloseTo(fill.x + fill.w / 2, 9);
+      expect(texts[i]!.y).toBeCloseTo(fill.y + fill.h / 2, 9);
+    });
+    // Column A (x 0..25 mm) along the paper's top edge, which now runs down the
+    // screen at x = 650: its label sits just inside that edge, at y = 30 + 25.
+    const columnA = texts.filter((t) => t.text === 'A');
+    expect(columnA.some((t) => Math.abs(t.y - 55) < 1e-6 && t.x < 650 && t.x > 600)).toBe(true);
+    // Row 1 (y 0..25 mm) along the paper's left edge, now the top on screen at
+    // y = 30: centred at x = 650 - 25, just below that edge.
+    const rowOne = texts.filter((t) => t.text === '1');
+    expect(rowOne.some((t) => Math.abs(t.x - 625) < 1e-6 && t.y > 30 && t.y < 50)).toBe(true);
+  });
+
   it('culls against the turned viewport', () => {
     const view = { scale: 12, translateX: 200, translateY: 0, rotation: Math.PI / 6 };
     const zoomed = render({ view, width: 400, height: 300 });
