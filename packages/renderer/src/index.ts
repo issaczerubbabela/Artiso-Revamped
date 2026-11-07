@@ -8,6 +8,7 @@ export * from './crop-constraint';
 export * from './crop-frame';
 export * from './gesture-engine';
 export * from './view-rotation';
+export * from './orientation-views';
 export * from './input-controller';
 export * from './long-press';
 export * from './image-layer';

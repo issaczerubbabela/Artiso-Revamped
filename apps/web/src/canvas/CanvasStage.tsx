@@ -31,8 +31,11 @@ import {
   createCropConstraint,
   drawCellFocus,
   drawCropFrame,
+  viewOrientation,
   viewRotationDegrees,
   type GridDrawLayer,
+  type RememberedView,
+  type ViewOrientation,
   type ViewportInsets,
   type ViewportOptions,
   type ViewportState,
@@ -41,7 +44,7 @@ import type { Annotation, Crop, GridConfig, GridSettings, Paper } from '@artiso/
 import { cellFocusEntry, useCellFocusStore } from '@/state/cell-focus-store';
 import { useCheckPhotoStore } from '@/state/check-photo-store';
 import { useDisplayStore } from '@/state/display-store';
-import { readViewRotation, writeViewRotation } from '@/state/view-rotation-store';
+import { readOrientationView, writeOrientationView } from '@/state/orientation-view-store';
 import { useWorkspaceStore, type FramingDraft, type PaneSession } from '@/state/workspace-store';
 
 // The drawing view's zoom and pan limits (Grid-Feature-Spec.md §10): content is
@@ -116,9 +119,26 @@ interface Engine {
   frame: FrameRect | null;
   lastEmittedCrop: Crop | null;
   lastInfo: StageViewInfo | null;
-  // The reference the drawing view was last set up for: its View Rotation is
-  // restored from (and remembered to) this device's storage under this id.
+  // The reference the drawing view was last set up for: its view is restored
+  // from (and remembered to) this device's storage under this id.
   referenceId: string | null;
+  // Landscape or portrait (the window, wider than tall or not): each remembers
+  // its own zoom, pan and View Rotation per reference.
+  orientation: ViewOrientation;
+  // The window has turned but the canvas hasn't been resized yet: the view on
+  // screen still belongs to the old orientation and is not remembered.
+  turning: boolean;
+  // The artist's place (zoom, angle and the point at the visible centre) as the
+  // window began to resize, before the canvas or the chrome changed.
+  place: RememberedView | null;
+  // The window size the place was last taken for.
+  windowWidth: number;
+  windowHeight: number;
+  // The view put back after a resize. The chrome for the new window size can
+  // arrive a moment after the canvas resizes; until the artist touches the
+  // view or picks a tool, a change of insets re-applies this rather than
+  // nudging the place off-centre.
+  restored: RememberedView | null;
   // The angle the canvas was last shown at, in whole degrees (data attribute).
   shownDegrees: number | null;
   // What Cell Focus last painted (data attribute), '' for nothing.
@@ -243,6 +263,7 @@ export const CanvasStage = forwardRef<
           const engine = engineRef.current;
           if (!engine) return;
           engine.input.engine.stopMotion();
+          engine.restored = null;
           engine.viewport.zoomToFit();
           engine.dirty = true;
         },
@@ -250,6 +271,7 @@ export const CanvasStage = forwardRef<
           const engine = engineRef.current;
           if (!engine) return false;
           engine.input.engine.stopMotion();
+          engine.restored = null;
           const ok = engine.viewport.setRealSize();
           engine.dirty = true;
           return ok;
@@ -258,6 +280,7 @@ export const CanvasStage = forwardRef<
           const engine = engineRef.current;
           if (!engine || engine.mode !== 'draw') return;
           engine.input.engine.stopMotion();
+          engine.restored = null;
           engine.viewport.setRotation(0);
           engine.dirty = true;
         },
@@ -331,6 +354,12 @@ export const CanvasStage = forwardRef<
         lastEmittedCrop: null,
         lastInfo: null,
         referenceId: null,
+        orientation: windowOrientation(),
+        turning: false,
+        place: null,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        restored: null,
         shownDegrees: null,
         shownFocus: '',
       };
@@ -463,8 +492,9 @@ export const CanvasStage = forwardRef<
           container!.dataset.viewRotation = String(shown);
         }
         if (engine.mode !== 'draw') return;
-        // Remembered on this device only (a no-op unless the angle changed).
-        writeViewRotation(engine.referenceId, rotation);
+        // Remembered on this device only, for this orientation (a no-op unless
+        // the view changed).
+        if (!engine.turning) writeOrientationView(engine.referenceId, engine.orientation, engine.viewport.getRememberedView());
         const cb = onViewChangeRef.current;
         if (!cb) return;
         const info: StageViewInfo = {
@@ -492,6 +522,7 @@ export const CanvasStage = forwardRef<
         element: container,
         viewport,
         onChange: () => {
+          engine.restored = null;
           engine.dirty = true;
         },
         // Drawing a stroke and panning the canvas are mutually exclusive
@@ -558,6 +589,27 @@ export const CanvasStage = forwardRef<
         engine.cssHeight = nextHeight;
         engine.dpr = nextDpr;
         engine.viewport.resize(nextWidth, nextHeight);
+        const orientation = windowOrientation();
+        const place = engine.place;
+        engine.place = null;
+        engine.turning = false;
+        if (orientation !== engine.orientation) {
+          // Turned between landscape and portrait (or a Stage Manager window
+          // reshaped past square): put back how this reference was last framed
+          // in the new orientation, or fit it, square, the first time.
+          engine.orientation = orientation;
+          if (engine.mode === 'draw') {
+            const view = readOrientationView(engine.referenceId, orientation) ?? { rotation: 0 };
+            engine.input.engine.stopMotion();
+            engine.viewport.restoreView(view);
+            engine.restored = view;
+          }
+        } else if (place && engine.mode === 'draw') {
+          // The same orientation, a new size (Split View, Slide Over, Stage
+          // Manager): the same place stays in the middle of what is visible.
+          engine.viewport.restoreView(place);
+          engine.restored = place;
+        }
         applyRealScale();
         // The crop frame depends on the viewport size: rebuild it on the next
         // draw. (The drawing view keeps its framing across a resize instead.)
@@ -569,12 +621,15 @@ export const CanvasStage = forwardRef<
         engine.dirty = true;
       });
       resizeObserver.observe(container);
+      const onWindowResize = () => noteWindowResize(engine);
+      window.addEventListener('resize', onWindowResize);
 
       return () => {
         unsubscribeDisplay();
         unsubscribeCheck();
         unsubscribeCellFocus();
         resizeObserver.disconnect();
+        window.removeEventListener('resize', onWindowResize);
         cancelAnimationFrame(engine.raf);
         engine.input.dispose();
         engine.imageLayer.dispose();
@@ -607,6 +662,8 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const engine = engineRef.current;
       if (!engine || !workingBitmap) return;
+      // A panel opening keeps the framing on screen, as it always has.
+      engine.restored = null;
       engine.dirty = true;
     }, [workingBitmap, paper, toolMode, cropSource, framingDraft]);
 
@@ -621,6 +678,7 @@ export const CanvasStage = forwardRef<
     useEffect(() => {
       const engine = engineRef.current;
       if (!engine) return;
+      engine.restored = null;
       if (presentationMode) engine.viewport.reset();
       engine.dirty = true;
     }, [presentationMode]);
@@ -802,13 +860,36 @@ export const CanvasStage = forwardRef<
 // where the *current crop* says it belongs, so a panel opening or closing never
 // changes what the user has framed.
 function applyInsets(engine: Engine, insets: ViewportInsets): void {
+  // The chrome for a new window size can arrive before the window's resize
+  // event: take the artist's place before the new insets move it.
+  noteWindowResize(engine);
   engine.insets = insets;
   engine.viewport.setInsets(insets);
+  if (engine.restored && engine.mode === 'draw') engine.viewport.restoreView(engine.restored);
   if (engine.mode === 'crop') {
     engine.configuredContent = '';
     engine.lastEmittedCrop = null;
   }
   engine.dirty = true;
+}
+
+// The window has changed size (seen from its resize event, or from the chrome
+// it brought, whichever comes first): take the artist's place before the canvas
+// or the chrome moves it, so the resize can put it back. When the window has
+// turned, that place is the old orientation's view: remembered now, and not
+// overwritten by frames drawn before the canvas catches up.
+function noteWindowResize(engine: Engine): void {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  if (width === engine.windowWidth && height === engine.windowHeight) return;
+  engine.windowWidth = width;
+  engine.windowHeight = height;
+  if (engine.mode !== 'draw') return;
+  const place = engine.place ?? engine.restored ?? engine.viewport.getRememberedView();
+  engine.place = place;
+  const turning = viewOrientation(width, height) !== engine.orientation;
+  if (turning && !engine.turning) writeOrientationView(engine.referenceId, engine.orientation, place);
+  engine.turning = turning;
 }
 
 // The crop frame, centred in the part of the canvas that chrome does not cover.
@@ -864,16 +945,24 @@ function syncEngine(engine: Engine, state: ViewData): void {
     engine.imageLayer.setContentSize(paper.widthMm, paper.heightMm);
     engine.viewport.setConstraint(null);
     engine.viewport.setContentSize(paper.widthMm, paper.heightMm);
-    // Fitted at this reference's remembered View Rotation: restored on reload
-    // and on leaving the Paper tool (which frames at 0°).
+    // Fitted at this reference's remembered View Rotation for the current
+    // orientation: restored on reload and on leaving the Paper tool (which
+    // frames at 0°).
     engine.referenceId = state.referenceId;
-    engine.viewport.zoomToFit(readViewRotation(state.referenceId));
+    engine.restored = null;
+    engine.viewport.zoomToFit(readOrientationView(state.referenceId, engine.orientation)?.rotation ?? 0);
     engine.mode = 'draw';
     engine.configuredBitmap = workingBitmap;
     engine.configuredContent = content;
     engine.frame = null;
     engine.lastEmittedCrop = null;
   }
+}
+
+// Landscape when the window is wider than tall. The window, not this pane: a
+// split-view pane is tall and narrow whichever way the iPad is turned.
+function windowOrientation(): ViewOrientation {
+  return viewOrientation(window.innerWidth, window.innerHeight);
 }
 
 // High-contrast display override for presentation/classroom mode: full opacity

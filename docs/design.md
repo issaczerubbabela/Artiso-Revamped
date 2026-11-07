@@ -266,7 +266,8 @@ by a **long-press** on the canvas (~500ms of a still touch or Pencil; movement o
 **context-menu key / Shift+F10** while the canvas has focus (the canvas is a
 focusable group with a visible focus ring). Items: *Fit to screen*, *Reset
 rotation*, *Show grid / Hide grid* (a view toggle, never an edit or an export
-change); *Touch Lock* and *Focus this cell* join in Phase 12. It opens 10px below
+change); *Touch Lock* and *Focus this cell* join in Phase 12, then *Paste* last
+(opens a copied image as a new reference tab, Phase 13). It opens 10px below
 and right of the press so the finger is never on an item (flipping up/left near an
 edge), at the visible centre when opened from the keyboard. Focus lands on the
 first item; Arrow keys, Home and End move; Enter runs an item; Esc, Tab, a tap
@@ -299,6 +300,18 @@ unmarks it as done. A change of cell size or paper clears the Done Cells and sho
 a matte notice above the pill — "*n* Done Cells cleared" with an **Undo** that puts
 the grid back and the Done Cells with it — for six seconds; style changes keep
 them. All of it is device-local view state, remembered per reference.
+
+**Paste and drop (Phase 13).** ⌘V / Ctrl+V anywhere outside a text field, the
+canvas menu's *Paste*, or a drop opens each image as a new reference tab. While
+anything is dragged over the window a **drop target** covers it: a 2px dashed
+cyan outline inset by the chrome margin over a dimmed canvas, with a matte label
+("Drop images to open them as new tabs") in the middle. It appears and goes
+instantly. Anything that can't be opened -- not an image, an undecodable file,
+HEIC in a browser that can't decode it ("convert it to JPEG") -- is reported on the
+**import-error surface**: the Projects screen's alert line, the empty workspace,
+or, with a reference open, a small matte **import notice** (role `alert`, label
+size, a 44px *Dismiss* button) under the top bar on Wide/Regular and floating at
+the top on Compact. The next successful import clears it.
 
 **Icons.** Phosphor stays (SF Symbols cannot be licensed for the web): regular
 weight when idle, filled weight when active (§5), the way SF Symbols behave.

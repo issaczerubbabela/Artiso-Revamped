@@ -27,8 +27,8 @@ golden path (`Import → Prepare → Grid → Draw → Export`).
 | Source | Web | Android (Capacitor) |
 | --- | --- | --- |
 | File picker | `<input type="file" accept="image/*">` | `@capacitor/camera` `pickImages()` (gallery) |
-| Drag & drop | Native HTML5 DnD onto canvas | n/a |
-| Clipboard paste | `Ctrl+V` via Clipboard API | n/a |
+| Drag & drop | Native HTML5 DnD anywhere in the app; each image a new tab (`session/import-files.ts`) | n/a |
+| Clipboard paste | ⌘V / Ctrl+V `paste` event, or the canvas menu's *Paste* (`navigator.clipboard.read()`); each image a new tab | n/a |
 | Camera capture | `getUserMedia` (stretch, low priority) | `@capacitor/camera` `getPhoto({source: Camera})` |
 
 Selected via the `PlatformAdapter.pickImage()` seam — see
@@ -75,7 +75,9 @@ module](07-export-engine.md).
 | Case | Handling |
 | --- | --- |
 | User cancels picker | No-op, return to prior state |
-| Unsupported format (e.g. HEIC on web) | Explicit error, suggest re-export as JPEG/PNG |
+| Unsupported format (e.g. GIF) | Explicit error listing the accepted formats |
+| HEIC/HEIF the browser can't decode | Accepted by type (or by `.heic`/`.heif` extension when the file is untyped); the decode error asks the artist to convert it to JPEG. No conversion polyfill (Phase 13 out of scope) |
+| Pasted / dropped non-image | "isn't an image" / "no image to paste" on the import-error surface; images in the same drop still open |
 | Corrupted image | Decode failure caught, user-facing error, no partial Reference created |
 | Out of memory / huge image (e.g. 100MP) | Pre-check dimensions before full decode; hard cap with a clear message rather than a WebView crash |
 | Gallery/camera permission denied (Android) | Explicit rationale + link to system settings, matches spec 7.30's "disable rather than error" principle for the *rest* of the UI once no image is loaded |
@@ -91,6 +93,8 @@ module](07-export-engine.md).
 
 - [ ] Exact working-resolution cap (2048px proposed) — validate against a
   mid-range Android WebGL context limit during Phase 1.
-- [ ] Supported format allow-list for v1: JPEG, PNG, WebP. HEIC decode
-  support (common on iPhone photos shared to Android/web) — evaluate a
-  polyfill or defer with a clear error.
+- [x] Supported format allow-list: JPEG, PNG, WebP, and HEIC/HEIF where the
+  browser can decode it (Phase 13, issue #10). A HEIC original syncs as-is, so
+  opening it on a browser without HEIC decode (e.g. Chrome on Windows) gives
+  the same "convert it to JPEG" error; the file picker's accept list stays
+  JPEG/PNG/WebP so iPadOS keeps converting picked photos to JPEG.

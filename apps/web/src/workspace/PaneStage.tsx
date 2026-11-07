@@ -13,6 +13,7 @@ import { CanvasMenu, type CanvasMenuItem } from './CanvasMenu';
 import { CellFocusControls } from './CellFocusControls';
 import { gridOf, useCellFocusStore } from '@/state/cell-focus-store';
 import { CELL_FOCUS_NEEDS_SQUARES, registerCentreCell, useDoneCellsGuard, usePaneGrid } from '@/session/cell-focus';
+import { pasteFromClipboard } from '@/session/import-files';
 
 // Where a pane's zoom pill sits when nothing floats over that corner.
 const PILL_MARGIN_PX = 16;
@@ -271,6 +272,8 @@ export function PaneStage({ session }: { session?: PaneSession }) {
       menuItems.push({ label: 'Focus this cell', onSelect: () => useCellFocusStore.getState().focusCell(referenceId, layout, cell) });
     }
   }
+  // Opens a copied image as a new reference tab (issue #10).
+  menuItems.push({ label: 'Paste', onSelect: () => void pasteFromClipboard() });
 
   useEffect(() => {
     if (screen && wantsRealSize.current) {

@@ -1,3 +1,5 @@
+import type { RememberedView } from './orientation-views';
+
 export interface Point {
   x: number;
   y: number;
@@ -378,6 +380,31 @@ export class Viewport {
       translateY: newCenter.y - offset.y,
       rotation,
     });
+  }
+
+  // The view as an orientation slot remembers it (orientation-views.ts): just
+  // the angle when the whole content fits, so it fits again however the chrome
+  // has moved; otherwise the zoom and the content point at the visible centre.
+  getRememberedView(): RememberedView {
+    const { scale, rotation } = this.state;
+    if (this.isAtFit()) return { rotation };
+    const center = this.screenToImage(this.containerCenter());
+    return { rotation, scale, centerX: center.x, centerY: center.y };
+  }
+
+  // Puts a remembered view back: fitted at its angle, or zoomed with its content
+  // point at the visible centre. Clamped like any other view.
+  restoreView(view: RememberedView): void {
+    const rotation = Number.isFinite(view.rotation) ? view.rotation : 0;
+    if (view.scale === undefined || view.centerX === undefined || view.centerY === undefined) {
+      this.zoomToFit(rotation);
+      return;
+    }
+    const constraint = this.constraint();
+    const scale = constraint.clampScale(view.scale, rotation);
+    const center = this.containerCenter();
+    const offset = contentOffset({ x: view.centerX, y: view.centerY }, scale, rotation);
+    this.state = constraint.clampPan({ scale, translateX: center.x - offset.x, translateY: center.y - offset.y, rotation });
   }
 
   private reclamp(): void {
