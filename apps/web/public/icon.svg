@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Artiso app icon: a sheet of drafting paper on the graphite board, with a
+       transfer grid and one diagonal -- the app's whole job in one glyph.
+       Artwork stays inside the central 80% so it survives maskable cropping. -->
+  <defs>
+    <radialGradient id="lamp" cx="0.25" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#3a322b"/>
+      <stop offset="1" stop-color="#17140f"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#lamp)"/>
+  <rect x="118" y="104" width="276" height="304" rx="10" fill="#131416" stroke="#34E2E2" stroke-width="10"/>
+  <g stroke="#34E2E2" stroke-width="6" stroke-opacity="0.7">
+    <line x1="210" y1="104" x2="210" y2="408"/>
+    <line x1="302" y1="104" x2="302" y2="408"/>
+    <line x1="118" y1="205" x2="394" y2="205"/>
+    <line x1="118" y1="306" x2="394" y2="306"/>
+  </g>
+  <line x1="118" y1="104" x2="394" y2="408" stroke="#34E2E2" stroke-width="6" stroke-opacity="0.35"/>
+</svg>

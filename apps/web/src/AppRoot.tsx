@@ -7,6 +7,7 @@ import { WorkspaceShell } from '@/workspace/WorkspaceShell';
 import { bootstrapAuth } from '@/session/auth-bootstrap';
 import { resumeSession } from '@/session/resume-session';
 import { startLiveRefresh } from '@/session/live-refresh';
+import { registerServiceWorker, requestPersistentStorage } from '@/platform/pwa';
 import { installCanvasFallback } from '@/platform/canvas';
 
 // Before any import/export can run (module scope, not an effect).
@@ -21,6 +22,8 @@ export function AppRoot() {
   const view = useAppViewStore((s) => s.view);
 
   useEffect(() => {
+    registerServiceWorker();
+    requestPersistentStorage();
     void bootstrapAuth();
     void resumeSession();
     return startLiveRefresh();

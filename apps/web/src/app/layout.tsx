@@ -32,6 +32,18 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   title: 'Artiso',
   description: 'A reference preparation companion for artists.',
+  // Installable web app (phone, tablet, laptop): see public/manifest.webmanifest
+  // and scripts/generate-sw.mjs.
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  // iOS/iPadOS home-screen launch: full screen with no Safari bars; the status
+  // bar draws over the dark canvas, and the chrome keeps clear of it via the
+  // safe-area insets in chrome.css.
+  appleWebApp: { capable: true, title: 'Artiso', statusBarStyle: 'black-translucent' },
+  formatDetection: { telephone: false },
 };
 
 // The app is always dark until the light theme has been verified
@@ -40,6 +52,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: 'dark',
   themeColor: '#0A0A0B',
+  // Fill the whole screen (rounded iPad corners, home indicator, notch); the
+  // canvas is full-bleed by design and chrome.css pads the floating panels by
+  // env(safe-area-inset-*).
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

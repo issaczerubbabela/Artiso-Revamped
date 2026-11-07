@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/generate-sw.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no unit tests in apps/web (see e2e/ for Playwright)\""

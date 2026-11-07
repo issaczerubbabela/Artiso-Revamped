@@ -8,6 +8,24 @@
  * No transitions anywhere -- every state change is an instant swap.
  */
 
+/* ---------- Safe areas ---------- */
+
+/* The viewport is viewport-fit=cover (layout.tsx), so the canvas runs under the
+   status bar, rounded corners and home indicator. Floating chrome keeps its
+   16px inset from the *usable* edge instead: these are the larger of the two. */
+:root {
+  --inset-top: max(var(--space-md), env(safe-area-inset-top));
+  --inset-right: max(var(--space-md), env(safe-area-inset-right));
+  --inset-bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  --inset-left: max(var(--space-md), env(safe-area-inset-left));
+}
+
+/* Full-page screens (Projects) keep their content clear of the same areas. */
+.surface--page {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
 /* ---------- Workspace surface: full-bleed Drafting Board ---------- */
 
 .workspace {
@@ -84,7 +102,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-md);
-  padding: var(--space-md);
+  padding: var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
   pointer-events: none;
 }
 
@@ -411,9 +429,9 @@
 
 .compact-stack {
   position: absolute;
-  left: var(--space-md);
-  right: var(--space-md);
-  bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  left: var(--inset-left);
+  right: var(--inset-right);
+  bottom: var(--inset-bottom);
   z-index: var(--z-chrome);
   display: flex;
   flex-direction: column;
@@ -467,16 +485,16 @@
 
 .present-exit {
   position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
+  top: var(--inset-top);
+  right: var(--inset-right);
   z-index: var(--z-chrome);
   padding: var(--space-xs);
 }
 
 .tool-chip {
   position: absolute;
-  top: var(--space-md);
-  left: var(--space-md);
+  top: var(--inset-top);
+  left: var(--inset-left);
   z-index: var(--z-chrome);
   padding: 0 var(--space-md);
   min-height: var(--touch-target-min);
